@@ -53,7 +53,7 @@ public let spec_path = Bundle.main.path(forResource: "wired", ofType: "xml")
 public let spec = P7Spec(withPath: spec_path)
 
 @NSApplicationMain
-class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotificationCenterDelegate, ClientInfoDelegate {
     public static let shared:AppDelegate = NSApp.delegate as! AppDelegate
     
     public static var unreadChatMessages = 0
@@ -103,7 +103,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     
     override init() {
         #if DEBUG
-            Logger.setMaxLevel(.VERBOSE)
+            Logger.setMaxLevel(.INFO)
             //Logger.removeDestination(.Stdout)
         #else
             Logger.setMaxLevel(.ERROR)
@@ -205,6 +205,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     
     func applicationWillTerminate(_ aNotification: Notification) {
 
+    }
+    
+    
+    // MARK: - Client Info Delegate
+    
+    func clientInfoApplicationName(for connection: Connection) -> String? {
+        return "Wired macOS"
+    }
+    
+    func clientInfoApplicationVersion(for connection: Connection) -> String? {
+        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+    }
+    
+    func clientInfoApplicationBuild(for connection: Connection) -> String? {
+        return Bundle.main.infoDictionary?["CFBundleVersion"] as? String
     }
     
     

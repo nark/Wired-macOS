@@ -31,6 +31,7 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
             let url = bookmark.url()
             
             connectionWindowController.connection = ServerConnection(withSpec: spec, delegate: connectionWindowController as? ConnectionDelegate)
+            connectionWindowController.connection.clientInfoDelegate = AppDelegate.shared
             connectionWindowController.connection.nick = UserDefaults.standard.string(forKey: "WSUserNick") ?? connectionWindowController.connection.nick
             connectionWindowController.connection.status = UserDefaults.standard.string(forKey: "WSUserStatus") ?? connectionWindowController.connection.status
             

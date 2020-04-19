@@ -27,7 +27,6 @@
 		4C12FE8924045ABA000CDDCA /* FilePreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C12FE8724045ABA000CDDCA /* FilePreviewController.swift */; };
 		4C12FE8A24045ABA000CDDCA /* FilePreviewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 4C12FE8824045ABA000CDDCA /* FilePreviewController.xib */; };
 		4C1319AF231862DF00C9FA0C /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 4C1319AE231862DF00C9FA0C /* README.md */; };
-		4C1F9661244BA16A00AF5EBE /* WiredSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4C1F9660244BA16A00AF5EBE /* WiredSwift */; };
 		4C200099242162BB00A4D77A /* ChatPreferenceViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C200098242162BB00A4D77A /* ChatPreferenceViewController.swift */; };
 		4C20009B2421661C00A4D77A /* FilesPreferenceViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 4C374DA323FE809F006D3E7C /* FilesPreferenceViewController.xib */; };
 		4C20DD82242E95F4009F64E6 /* ThreadsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C20DD81242E95F4009F64E6 /* ThreadsViewController.swift */; };
@@ -99,6 +98,7 @@
 		4CFB161D23FC843C000EE688 /* Bookmark+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFB161B23FC843C000EE688 /* Bookmark+CoreDataClass.swift */; };
 		4CFB161E23FC843C000EE688 /* Bookmark+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFB161C23FC843C000EE688 /* Bookmark+CoreDataProperties.swift */; };
 		4CFB162323FC9883000EE688 /* ConnectionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFB162223FC9883000EE688 /* ConnectionWindowController.swift */; };
+		4CFCE4F8244CE9EF007E1568 /* WiredSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4CFCE4F7244CE9EF007E1568 /* WiredSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -247,7 +247,7 @@
 				2A4CC616244B9A78007CCBA3 /* Sparkle.framework in Frameworks */,
 				2AE0C6A5244B84220021BE28 /* KeychainAccess in Frameworks */,
 				2AE0C69F244B83E10021BE28 /* Preferences in Frameworks */,
-				4C1F9661244BA16A00AF5EBE /* WiredSwift in Frameworks */,
+				4CFCE4F8244CE9EF007E1568 /* WiredSwift in Frameworks */,
 				2AE0C6A7244B843E0021BE28 /* Reachability in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -535,7 +535,7 @@
 				2AE0C69E244B83E10021BE28 /* Preferences */,
 				2AE0C6A4244B84220021BE28 /* KeychainAccess */,
 				2AE0C6A6244B843E0021BE28 /* Reachability */,
-				4C1F9660244BA16A00AF5EBE /* WiredSwift */,
+				4CFCE4F7244CE9EF007E1568 /* WiredSwift */,
 			);
 			productName = "Wired 3";
 			productReference = 4C74285E22DCECE800D6E6F9 /* Wired.app */;
@@ -572,7 +572,7 @@
 				4C75BA342433938400BE8857 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
 				4C8874852434DE9000A5D4A0 /* XCRemoteSwiftPackageReference "Reachability" */,
 				2AE0C69D244B83E10021BE28 /* XCRemoteSwiftPackageReference "Preferences" */,
-				4C1F965F244BA16A00AF5EBE /* XCRemoteSwiftPackageReference "WiredSwift" */,
+				4CFCE4F6244CE9EF007E1568 /* XCRemoteSwiftPackageReference "WiredSwift" */,
 			);
 			productRefGroup = 4C74285F22DCECE800D6E6F9 /* Products */;
 			projectDirPath = "";
@@ -961,14 +961,6 @@
 				minimumVersion = 1.0.1;
 			};
 		};
-		4C1F965F244BA16A00AF5EBE /* XCRemoteSwiftPackageReference "WiredSwift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/nark/WiredSwift.git";
-			requirement = {
-				branch = master;
-				kind = branch;
-			};
-		};
 		4C75BA342433938400BE8857 /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kishikawakatsumi/KeychainAccess";
@@ -983,6 +975,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 5.0.0;
+			};
+		};
+		4CFCE4F6244CE9EF007E1568 /* XCRemoteSwiftPackageReference "WiredSwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/nark/WiredSwift.git";
+			requirement = {
+				branch = master;
+				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -1003,9 +1003,9 @@
 			package = 4C8874852434DE9000A5D4A0 /* XCRemoteSwiftPackageReference "Reachability" */;
 			productName = Reachability;
 		};
-		4C1F9660244BA16A00AF5EBE /* WiredSwift */ = {
+		4CFCE4F7244CE9EF007E1568 /* WiredSwift */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 4C1F965F244BA16A00AF5EBE /* XCRemoteSwiftPackageReference "WiredSwift" */;
+			package = 4CFCE4F6244CE9EF007E1568 /* XCRemoteSwiftPackageReference "WiredSwift" */;
 			productName = WiredSwift;
 		};
 /* End XCSwiftPackageProductDependency section */

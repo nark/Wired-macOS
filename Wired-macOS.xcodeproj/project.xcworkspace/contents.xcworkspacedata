@@ -2,6 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "self:/Users/nark/Development/Me/Swift/Wired-macOS/Wired-macOS.xcodeproj">
+      location = "self:">
    </FileRef>
 </Workspace>
