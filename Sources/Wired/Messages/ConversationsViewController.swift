@@ -156,7 +156,7 @@ class ConversationsViewController: ConnectionViewController, ConnectionDelegate,
     
     public var selectedConversation:Conversation? {
         get {
-            if self.conversationsTableView.selectedRow > -1 {
+            if self.conversationsTableView.selectedRow > -1 && ConversationsController.shared.conversations().count > 0  {
                 return ConversationsController.shared.conversations()[self.conversationsTableView.selectedRow]
             }
             return nil

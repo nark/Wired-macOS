@@ -283,7 +283,7 @@ class ResourcesController: ConnectionViewController, ConnectionDelegate, NSOutli
         }
         else if let connection = item as? Connection {
             view = outlineView.makeView(withIdentifier: NSUserInterfaceItemIdentifier(rawValue: "DataCell"), owner: self) as? NSTableCellView
-            view?.textField?.stringValue = connection.serverInfo.serverName
+            //view?.textField?.stringValue = connection.serverInfo.serverName
             if connection.isConnected() {
                 view?.imageView?.image = NSImage(named: "ConnectionStatusConnected")
             } else {

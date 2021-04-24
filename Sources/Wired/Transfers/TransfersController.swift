@@ -144,7 +144,7 @@ public class TransfersController {
         let transfer = UploadTransfer(context: AppDelegate.shared.persistentContainer.viewContext)
         
         let file = File(remotePath, connection: destination.connection)
-        file.uploadDataSize = FileManager.sizeOfFile(atPath: path)
+        file.uploadDataSize = FileManager.sizeOfFile(atPath: path) ?? 0
         
         transfer.name = (path as NSString).lastPathComponent
         transfer.connection = destination.connection
@@ -259,7 +259,7 @@ public class TransfersController {
         transfer.transferConnection?.interactive = false
         
         // create a secondary connection
-        if (connection?.connect(withUrl: transfer.connection.url) == false) {
+        if connection?.connect(withUrl: transfer.connection.url, cipher: .ECDH_AES256_SHA256, compression: .DEFLATE, checksum: .Poly1305) == false {
             transfer.state = .Stopped
             
             self.semaphore.signal()
@@ -562,7 +562,7 @@ public class TransfersController {
         
         transfer.transferConnection?.interactive = false
         
-        if connection?.connect(withUrl: transfer.connection.url) == false {
+        if connection?.connect(withUrl: transfer.connection.url, cipher: .ECDH_AES256_SHA256, compression: .DEFLATE, checksum: .Poly1305) == false {
             transfer.state = .Stopped
             
             self.semaphore.signal()
@@ -648,63 +648,65 @@ public class TransfersController {
         
         if transfer.isTerminating() == false {
             transfer.state = .Running
-            
+
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: .didUpdateTransfers, object: transfer)
             }
         }
-                
+
+        Logger.info("sendUploadMessage OK")
+
         if let fileHandle = FileHandle(forReadingAtPath: transfer.localPath!) {
             while transfer.isTerminating() == false {
                 if data && dataLength == 0 {
                     data = false
                 }
-                
+
                 if data == false {
                     break
                 }
-                                
+
                 fileHandle.seek(toFileOffset: dataOffset!)
                 let readData = fileHandle.readData(ofLength: 8192)
                 let readBytes = readData.count
-                                
+
                 if readBytes <= 0 {
                     if transfer.isTerminating() == false {
                         transfer.state = .Disconnecting
                     }
-                    
+
                     DispatchQueue.main.async {
                         let uploaderror = NSLocalizedString("Upload Error", comment: "")
                         let cannotreadlocaldata = NSLocalizedString("Cannot read local data", comment: "")
                         error = WiredError(withTitle: uploaderror, message: cannotreadlocaldata)
 
                         Logger.error(error!)
-                        
+
                         self.finish(transfer, withError: error)
                     }
-                    
+
                     break
                 }
-                
+
                 sendBytes = (dataLength! < UInt64(readBytes)) ? dataLength! : UInt64(readBytes)
                 dataOffset! += sendBytes
-                
+
                 if transfer.transferConnection!.socket.writeOOB(data: readData, timeout: 30.0) == false {
                     if transfer.isTerminating() == false {
                         transfer.state = .Disconnecting
                     }
-                    
+
                     break
                 }
-                
+
                 dataLength!                 -= sendBytes
                 transfer.dataTransferred    += Int64(sendBytes)
                 transfer.actualTransferred  += Int64(readBytes)
                 transfer.percent            = Double(transfer.dataTransferred) / Double(transfer.size) * 100
-                
+
                 let speed                   = (Double(transfer.dataTransferred) / (Date.timeIntervalSinceReferenceDate - start)) * 8.0
                 transfer.speed              = 0.5 * speed + (1 - 0.5) * transfer.speed
-                
+
                 // update progress in view
                 if let progressIndicator = transfer.progressIndicator {
                     DispatchQueue.main.async {
@@ -714,14 +716,14 @@ public class TransfersController {
                     }
                 }
             }
-        
+
             fileHandle.closeFile()
         }
-        
+
         self.semaphore.signal()
-        
+
         try? AppDelegate.shared.persistentContainer.viewContext.save()
-        
+
         DispatchQueue.main.async {
             self.finish(transfer)
         }
@@ -763,23 +765,21 @@ public class TransfersController {
         print("dataLength : \(dataLength)")
         
         var data = Data()
-        data.append(uint64: dataLength.bigEndian)
-        message.addParameter(field: "wired.transfer.data", value: data)
-        
-        data = Data()
-        data.append(uint64: rsrcLength.bigEndian)
-        message.addParameter(field: "wired.transfer.rsrc", value: data)
-        
-        data = FileManager.default.finderInfo(atPath: transfer.file!.path)!
-        message.addParameter(field: "wired.transfer.finderinfo", value: data)
-        
-        print("message : \(message.xml())")
+        data.append(uint64: dataLength)
+        message.addParameter(field: "wired.transfer.data", value: dataLength)
 
-        if transfer.transferConnection?.send(message: message) == false {
-            return false
-        }
+        data = Data()
+        data.append(uint64: rsrcLength)
+        message.addParameter(field: "wired.transfer.rsrc", value: UInt64(0))
+
+        data = FileManager.default.finderInfo(atPath: transfer.file!.path)!
+        message.addParameter(field: "wired.transfer.finderinfo", value: data.base64EncodedData())
         
-        return true
+        print("message XML : \(message.xml())")
+        
+        print("message BIN : \(message.bin().toHexString())")
+
+        return transfer.transferConnection?.send(message: message) ?? false
     }
     
     

@@ -20,10 +20,13 @@
 		2AE0C6A7244B843E0021BE28 /* Reachability in Frameworks */ = {isa = PBXBuildFile; productRef = 2AE0C6A6244B843E0021BE28 /* Reachability */; };
 		4C009B6024278B4200DAAB74 /* MessagesSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C009B5F24278B4200DAAB74 /* MessagesSplitViewController.swift */; };
 		4C009B682427D07B00DAAB74 /* MSCBadgedTemplateImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C009B672427D07B00DAAB74 /* MSCBadgedTemplateImage.swift */; };
+		4C0955F12626E83700CB4000 /* ChatPlaceholderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0955F02626E83700CB4000 /* ChatPlaceholderViewController.swift */; };
 		4C0A99F123FBD4F30008A7A6 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 4C0A99F023FBD4F30008A7A6 /* LICENSE */; };
 		4C0A99F423FBF9410008A7A6 /* UserCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0A99F323FBF9410008A7A6 /* UserCellView.swift */; };
 		4C0A99F623FBFD3A0008A7A6 /* GeneralPreferenceViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0A99F523FBFD3A0008A7A6 /* GeneralPreferenceViewController.swift */; };
 		4C0A99F823FBFD4E0008A7A6 /* AdvancedPreferenceViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0A99F723FBFD4E0008A7A6 /* AdvancedPreferenceViewController.swift */; };
+		4C0F0524262B18D200FA4CFD /* PrivateChatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0F0523262B18D200FA4CFD /* PrivateChatController.swift */; };
+		4C0F0527262B70F400FA4CFD /* ChatCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0F0526262B70F400FA4CFD /* ChatCellView.swift */; };
 		4C12FE8924045ABA000CDDCA /* FilePreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C12FE8724045ABA000CDDCA /* FilePreviewController.swift */; };
 		4C12FE8A24045ABA000CDDCA /* FilePreviewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 4C12FE8824045ABA000CDDCA /* FilePreviewController.xib */; };
 		4C1319AF231862DF00C9FA0C /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 4C1319AE231862DF00C9FA0C /* README.md */; };
@@ -48,19 +51,79 @@
 		4C4EF4BB242B602100E38B44 /* ServerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4EF4BA242B602100E38B44 /* ServerConnection.swift */; };
 		4C4EF4BF242B782000E38B44 /* BookmarkViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4EF4BE242B782000E38B44 /* BookmarkViewController.swift */; };
 		4C52DADB242682920085C7D7 /* ConversationsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C52DADA242682920085C7D7 /* ConversationsController.swift */; };
+		4C5511FB262E16AC001F65BE /* CNIOLinux.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F7262E169C001F65BE /* CNIOLinux.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C5511FC262E16AC001F65BE /* NIOConcurrencyHelpers.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F6262E169C001F65BE /* NIOConcurrencyHelpers.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C5511FD262E16AC001F65BE /* CoreMetrics.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D6262E169B001F65BE /* CoreMetrics.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C5511FE262E16AC001F65BE /* NIOHTTPCompression.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511CF262E169A001F65BE /* NIOHTTPCompression.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C5511FF262E16AC001F65BE /* CNIOHTTPParser.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F9262E169C001F65BE /* CNIOHTTPParser.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551200262E16AC001F65BE /* SQLKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511CC262E169A001F65BE /* SQLKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551201262E16AC001F65BE /* NIOWebSocket.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511DF262E169B001F65BE /* NIOWebSocket.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551202262E16AC001F65BE /* SQLiteKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E4262E169C001F65BE /* SQLiteKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551203262E16AC001F65BE /* Logging.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511FA262E169C001F65BE /* Logging.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551204262E16AC001F65BE /* ConsoleKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511CA262E169A001F65BE /* ConsoleKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551205262E16AC001F65BE /* CBase32.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D7262E169B001F65BE /* CBase32.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551206262E16AC001F65BE /* CryptoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F5262E169C001F65BE /* CryptoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551207262E16AC001F65BE /* SQLiteNIO.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E6262E169C001F65BE /* SQLiteNIO.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551208262E16AC001F65BE /* ArgumentParser.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511C7262E169A001F65BE /* ArgumentParser.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551209262E16AC001F65BE /* Vapor.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D5262E169B001F65BE /* Vapor.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55120A262E16AC001F65BE /* Queuer.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511C9262E169A001F65BE /* Queuer.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55120B262E16AC001F65BE /* SWCompression.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D4262E169B001F65BE /* SWCompression.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55120C262E16AC001F65BE /* Crypto.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E3262E169C001F65BE /* Crypto.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55120D262E16AC001F65BE /* CCryptoBoringSSLShims.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E2262E169C001F65BE /* CCryptoBoringSSLShims.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55120E262E16AC001F65BE /* CNIOBoringSSL.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511DB262E169B001F65BE /* CNIOBoringSSL.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55120F262E16AC001F65BE /* Backtrace.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F8262E169C001F65BE /* Backtrace.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551210262E16AC001F65BE /* CCryptoBoringSSL.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511CE262E169A001F65BE /* CCryptoBoringSSL.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551211262E16AC001F65BE /* WebSocketKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511DE262E169B001F65BE /* WebSocketKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551212262E16AC001F65BE /* NIOTLS.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511DD262E169B001F65BE /* NIOTLS.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551213262E16AC001F65BE /* BitByteData.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511EC262E169C001F65BE /* BitByteData.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551214262E16AC001F65BE /* CNIOExtrasZlib.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E9262E169C001F65BE /* CNIOExtrasZlib.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551215262E16AC001F65BE /* MultipartKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F4262E169C001F65BE /* MultipartKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551216262E16AC001F65BE /* FluentSQL.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511EE262E169C001F65BE /* FluentSQL.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551217262E16AC001F65BE /* FluentKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511EB262E169C001F65BE /* FluentKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551218262E16AC001F65BE /* FluentSQLiteDriver.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E7262E169C001F65BE /* FluentSQLiteDriver.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551219262E16AC001F65BE /* NIOHPACK.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D3262E169B001F65BE /* NIOHPACK.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55121A262E16AC001F65BE /* CURLParser.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D8262E169B001F65BE /* CURLParser.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55121B262E16AC001F65BE /* AEXML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E0262E169C001F65BE /* AEXML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55121C262E16AC001F65BE /* NIOHTTP1.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511C8262E169A001F65BE /* NIOHTTP1.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55121D262E16AC001F65BE /* CBacktrace.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511C5262E169A001F65BE /* CBacktrace.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55121E262E16AC001F65BE /* AsyncKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511DC262E169B001F65BE /* AsyncKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55121F262E16AC001F65BE /* COperatingSystem.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511EA262E169C001F65BE /* COperatingSystem.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551220262E16AC001F65BE /* CNIOWindows.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511CD262E169A001F65BE /* CNIOWindows.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551221262E16AC001F65BE /* Fluent.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D0262E169B001F65BE /* Fluent.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551222262E16AC001F65BE /* AsyncHTTPClient.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E5262E169C001F65BE /* AsyncHTTPClient.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551223262E16AC001F65BE /* NIOHTTP2.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D2262E169B001F65BE /* NIOHTTP2.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551224262E16AC001F65BE /* NIO.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D9262E169B001F65BE /* NIO.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551225262E16AC001F65BE /* RoutingKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511D1262E169B001F65BE /* RoutingKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551226262E16AC001F65BE /* Metrics.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511ED262E169C001F65BE /* Metrics.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551227262E16AC001F65BE /* CNIOAtomics.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F1262E169C001F65BE /* CNIOAtomics.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551228262E16AC001F65BE /* NIOTransportServices.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E1262E169C001F65BE /* NIOTransportServices.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C551229262E16AC001F65BE /* NIOExtras.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F2262E169C001F65BE /* NIOExtras.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55122A262E16AC001F65BE /* CNIOSHA1.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511E8262E169C001F65BE /* CNIOSHA1.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55122B262E16AC001F65BE /* CNIODarwin.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511DA262E169B001F65BE /* CNIODarwin.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55122C262E16AC001F65BE /* NIOFoundationCompat.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F0262E169C001F65BE /* NIOFoundationCompat.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55122D262E16AC001F65BE /* NIOSSL.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511CB262E169A001F65BE /* NIOSSL.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55122E262E16AC001F65BE /* CBcrypt.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511F3262E169C001F65BE /* CBcrypt.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4C55122F262E16AC001F65BE /* CNIOBoringSSLShims.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C5511C6262E169A001F65BE /* CNIOBoringSSLShims.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4C5C1D222426812E00A751AA /* Conversation+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5C1D1E2426812E00A751AA /* Conversation+CoreDataClass.swift */; };
 		4C5C1D232426812E00A751AA /* Conversation+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5C1D1F2426812E00A751AA /* Conversation+CoreDataProperties.swift */; };
 		4C5C1D242426812E00A751AA /* Message+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5C1D202426812E00A751AA /* Message+CoreDataClass.swift */; };
 		4C5C1D252426812E00A751AA /* Message+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5C1D212426812E00A751AA /* Message+CoreDataProperties.swift */; };
+		4C6300582624DE0E00B6E164 /* NSTableView+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C6300572624DE0E00B6E164 /* NSTableView+Extension.swift */; };
 		4C6656BB24362BE20022E7D7 /* UnselectedTableRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C6656BA24362BE20022E7D7 /* UnselectedTableRowView.swift */; };
-		4C6A89E82405613A00780FEF /* FileManager+ResourceFork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C6A89E72405613A00780FEF /* FileManager+ResourceFork.swift */; };
+		4C6FA530262845FC00472FC4 /* ChatSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C6FA52F262845FC00472FC4 /* ChatSplitViewController.swift */; };
 		4C74286222DCECE800D6E6F9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C74286122DCECE800D6E6F9 /* AppDelegate.swift */; };
 		4C74286422DCECE800D6E6F9 /* ConnectController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C74286322DCECE800D6E6F9 /* ConnectController.swift */; };
 		4C74286622DCECE900D6E6F9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4C74286522DCECE900D6E6F9 /* Assets.xcassets */; };
 		4C74286922DCECE900D6E6F9 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4C74286722DCECE900D6E6F9 /* Main.storyboard */; };
 		4C7A45AB242937CA008F0FFE /* TimeAgo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7A45AA242937CA008F0FFE /* TimeAgo.swift */; };
+		4C7A561326237C3100A88C74 /* ChatsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7A561226237C3100A88C74 /* ChatsViewController.swift */; };
+		4C7A561726239E6600A88C74 /* NewChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7A561626239E6600A88C74 /* NewChatViewController.swift */; };
+		4C7A56192623AE9400A88C74 /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7A56182623AE9400A88C74 /* Chat.swift */; };
+		4C7A561B26246A4000A88C74 /* ChatsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7A561A26246A4000A88C74 /* ChatsController.swift */; };
+		4C7A561D2624B09F00A88C74 /* ChatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7A561C2624B09F00A88C74 /* ChatController.swift */; };
 		4C7D19222431DD91002897CB /* NSColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D19212431DD91002897CB /* NSColor.swift */; };
 		4C7D199824322B31002897CB /* MessageCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7D199724322B31002897CB /* MessageCellView.swift */; };
+		4C830A832633567F0017DB77 /* ConnectWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C830A822633567F0017DB77 /* ConnectWindowController.swift */; };
 		4C8829E824254A0B00B4EF36 /* TabViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8829E724254A0B00B4EF36 /* TabViewController.swift */; };
 		4C8829EA2425672700B4EF36 /* ConnectionWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8829E92425672700B4EF36 /* ConnectionWindow.swift */; };
 		4C93B2E7242F9BD500A956C3 /* BBCodeString.m in Sources */ = {isa = PBXBuildFile; fileRef = 4C93B2E3242F9BD500A956C3 /* BBCodeString.m */; };
@@ -69,11 +132,16 @@
 		4C93B2F3242F9CAE00A956C3 /* BBParsingElement.m in Sources */ = {isa = PBXBuildFile; fileRef = 4C93B2EC242F9CAD00A956C3 /* BBParsingElement.m */; };
 		4C93B2F4242F9CAE00A956C3 /* BBElement.m in Sources */ = {isa = PBXBuildFile; fileRef = 4C93B2EE242F9CAE00A956C3 /* BBElement.m */; };
 		4C93B2F5242F9CAE00A956C3 /* BBCodeParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 4C93B2EF242F9CAE00A956C3 /* BBCodeParser.m */; };
+		4C96300F2616350100530C21 /* SettingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C96300E2616350100530C21 /* SettingWindowController.swift */; };
 		4C9C5CE724312762007B6CF0 /* UserInfoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9C5CE624312762007B6CF0 /* UserInfoViewController.swift */; };
 		4C9C5CE92431322F007B6CF0 /* WiredColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9C5CE82431322F007B6CF0 /* WiredColors.swift */; };
 		4CA4154524262D8A005B9048 /* UsersController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA4154424262D8A005B9048 /* UsersController.swift */; };
 		4CA41547242664EE005B9048 /* ConversationsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA41546242664EE005B9048 /* ConversationsViewController.swift */; };
 		4CA415492426651D005B9048 /* PrivateMessagesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA415482426651D005B9048 /* PrivateMessagesViewController.swift */; };
+		4CB1F6EF26068DDD00017676 /* SocketSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CB1F6E426068DDD00017676 /* SocketSwift.framework */; };
+		4CB1F6F026068DDD00017676 /* SocketSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CB1F6E426068DDD00017676 /* SocketSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4CB1F6F326068DDD00017676 /* WiredSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CB1F6E626068DDD00017676 /* WiredSwift.framework */; };
+		4CB1F6F426068DDD00017676 /* WiredSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CB1F6E626068DDD00017676 /* WiredSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		4CB6A105242E4C4D00AB4C89 /* BoardsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6A104242E4C4D00AB4C89 /* BoardsViewController.swift */; };
 		4CB6A107242E4CA300AB4C89 /* Board.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6A106242E4CA300AB4C89 /* Board.swift */; };
 		4CB6A109242E4CF300AB4C89 /* BoardThread.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6A108242E4CF300AB4C89 /* BoardThread.swift */; };
@@ -83,8 +151,6 @@
 		4CD8C47723FD25BD002895C1 /* InfosViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CD8C47623FD25BD002895C1 /* InfosViewController.swift */; };
 		4CD8C47A23FD2C31002895C1 /* FilesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CD8C47823FD2C31002895C1 /* FilesViewController.swift */; };
 		4CE2AA5124329D640072E0B3 /* AttributedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE2AA5024329D640072E0B3 /* AttributedString.swift */; };
-		4CE2AA54243350160072E0B3 /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		4CE2AA55243350190072E0B3 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		4CE59DB1242D4710000D79BC /* ConsoleViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE59DB0242D4710000D79BC /* ConsoleViewController.swift */; };
 		4CEF0AB223FD57CA0097E37E /* FilesController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CEF0AB123FD57CA0097E37E /* FilesController.swift */; };
 		4CEF0AB423FD5D580097E37E /* ConnectionObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CEF0AB323FD5D580097E37E /* ConnectionObject.swift */; };
@@ -98,7 +164,6 @@
 		4CFB161D23FC843C000EE688 /* Bookmark+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFB161B23FC843C000EE688 /* Bookmark+CoreDataClass.swift */; };
 		4CFB161E23FC843C000EE688 /* Bookmark+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFB161C23FC843C000EE688 /* Bookmark+CoreDataProperties.swift */; };
 		4CFB162323FC9883000EE688 /* ConnectionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFB162223FC9883000EE688 /* ConnectionWindowController.swift */; };
-		4CFCE4F8244CE9EF007E1568 /* WiredSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4CFCE4F7244CE9EF007E1568 /* WiredSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -118,7 +183,61 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				4CE2AA54243350160072E0B3 /* (null) in Embed Frameworks */,
+				4C5511FB262E16AC001F65BE /* CNIOLinux.framework in Embed Frameworks */,
+				4C5511FC262E16AC001F65BE /* NIOConcurrencyHelpers.framework in Embed Frameworks */,
+				4C5511FD262E16AC001F65BE /* CoreMetrics.framework in Embed Frameworks */,
+				4C5511FE262E16AC001F65BE /* NIOHTTPCompression.framework in Embed Frameworks */,
+				4C5511FF262E16AC001F65BE /* CNIOHTTPParser.framework in Embed Frameworks */,
+				4C551200262E16AC001F65BE /* SQLKit.framework in Embed Frameworks */,
+				4C551201262E16AC001F65BE /* NIOWebSocket.framework in Embed Frameworks */,
+				4C551202262E16AC001F65BE /* SQLiteKit.framework in Embed Frameworks */,
+				4C551203262E16AC001F65BE /* Logging.framework in Embed Frameworks */,
+				4C551204262E16AC001F65BE /* ConsoleKit.framework in Embed Frameworks */,
+				4C551205262E16AC001F65BE /* CBase32.framework in Embed Frameworks */,
+				4C551206262E16AC001F65BE /* CryptoSwift.framework in Embed Frameworks */,
+				4C551207262E16AC001F65BE /* SQLiteNIO.framework in Embed Frameworks */,
+				4C551208262E16AC001F65BE /* ArgumentParser.framework in Embed Frameworks */,
+				4C551209262E16AC001F65BE /* Vapor.framework in Embed Frameworks */,
+				4C55120A262E16AC001F65BE /* Queuer.framework in Embed Frameworks */,
+				4C55120B262E16AC001F65BE /* SWCompression.framework in Embed Frameworks */,
+				4C55120C262E16AC001F65BE /* Crypto.framework in Embed Frameworks */,
+				4C55120D262E16AC001F65BE /* CCryptoBoringSSLShims.framework in Embed Frameworks */,
+				4C55120E262E16AC001F65BE /* CNIOBoringSSL.framework in Embed Frameworks */,
+				4C55120F262E16AC001F65BE /* Backtrace.framework in Embed Frameworks */,
+				4C551210262E16AC001F65BE /* CCryptoBoringSSL.framework in Embed Frameworks */,
+				4C551211262E16AC001F65BE /* WebSocketKit.framework in Embed Frameworks */,
+				4C551212262E16AC001F65BE /* NIOTLS.framework in Embed Frameworks */,
+				4C551213262E16AC001F65BE /* BitByteData.framework in Embed Frameworks */,
+				4C551214262E16AC001F65BE /* CNIOExtrasZlib.framework in Embed Frameworks */,
+				4C551215262E16AC001F65BE /* MultipartKit.framework in Embed Frameworks */,
+				4C551216262E16AC001F65BE /* FluentSQL.framework in Embed Frameworks */,
+				4C551217262E16AC001F65BE /* FluentKit.framework in Embed Frameworks */,
+				4C551218262E16AC001F65BE /* FluentSQLiteDriver.framework in Embed Frameworks */,
+				4C551219262E16AC001F65BE /* NIOHPACK.framework in Embed Frameworks */,
+				4C55121A262E16AC001F65BE /* CURLParser.framework in Embed Frameworks */,
+				4C55121B262E16AC001F65BE /* AEXML.framework in Embed Frameworks */,
+				4C55121C262E16AC001F65BE /* NIOHTTP1.framework in Embed Frameworks */,
+				4C55121D262E16AC001F65BE /* CBacktrace.framework in Embed Frameworks */,
+				4C55121E262E16AC001F65BE /* AsyncKit.framework in Embed Frameworks */,
+				4C55121F262E16AC001F65BE /* COperatingSystem.framework in Embed Frameworks */,
+				4C551220262E16AC001F65BE /* CNIOWindows.framework in Embed Frameworks */,
+				4C551221262E16AC001F65BE /* Fluent.framework in Embed Frameworks */,
+				4C551222262E16AC001F65BE /* AsyncHTTPClient.framework in Embed Frameworks */,
+				4C551223262E16AC001F65BE /* NIOHTTP2.framework in Embed Frameworks */,
+				4C551224262E16AC001F65BE /* NIO.framework in Embed Frameworks */,
+				4C551225262E16AC001F65BE /* RoutingKit.framework in Embed Frameworks */,
+				4C551226262E16AC001F65BE /* Metrics.framework in Embed Frameworks */,
+				4C551227262E16AC001F65BE /* CNIOAtomics.framework in Embed Frameworks */,
+				4C551228262E16AC001F65BE /* NIOTransportServices.framework in Embed Frameworks */,
+				4C551229262E16AC001F65BE /* NIOExtras.framework in Embed Frameworks */,
+				4C55122A262E16AC001F65BE /* CNIOSHA1.framework in Embed Frameworks */,
+				4C55122B262E16AC001F65BE /* CNIODarwin.framework in Embed Frameworks */,
+				4C55122C262E16AC001F65BE /* NIOFoundationCompat.framework in Embed Frameworks */,
+				4C55122D262E16AC001F65BE /* NIOSSL.framework in Embed Frameworks */,
+				4C55122E262E16AC001F65BE /* CBcrypt.framework in Embed Frameworks */,
+				4C55122F262E16AC001F65BE /* CNIOBoringSSLShims.framework in Embed Frameworks */,
+				4CB1F6F026068DDD00017676 /* SocketSwift.framework in Embed Frameworks */,
+				4CB1F6F426068DDD00017676 /* WiredSwift.framework in Embed Frameworks */,
 				2A4CC617244B9A78007CCBA3 /* Sparkle.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -127,7 +246,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		2A8E9E5E2433357E005B5261 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Main.strings; sourceTree = "<group>"; };
 		2A8E9E6724333AB5005B5261 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		2A8E9E6A24333AB5005B5261 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
 		2A8E9E6D24333C93005B5261 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/GeneralPreferenceViewController.xib; sourceTree = "<group>"; };
@@ -139,10 +257,13 @@
 		2A92CA36244B922C006D5D70 /* wired.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = wired.xml; sourceTree = "<group>"; };
 		4C009B5F24278B4200DAAB74 /* MessagesSplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesSplitViewController.swift; sourceTree = "<group>"; };
 		4C009B672427D07B00DAAB74 /* MSCBadgedTemplateImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MSCBadgedTemplateImage.swift; sourceTree = "<group>"; };
+		4C0955F02626E83700CB4000 /* ChatPlaceholderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPlaceholderViewController.swift; sourceTree = "<group>"; };
 		4C0A99F023FBD4F30008A7A6 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		4C0A99F323FBF9410008A7A6 /* UserCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserCellView.swift; sourceTree = "<group>"; };
 		4C0A99F523FBFD3A0008A7A6 /* GeneralPreferenceViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralPreferenceViewController.swift; sourceTree = "<group>"; };
 		4C0A99F723FBFD4E0008A7A6 /* AdvancedPreferenceViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedPreferenceViewController.swift; sourceTree = "<group>"; };
+		4C0F0523262B18D200FA4CFD /* PrivateChatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateChatController.swift; sourceTree = "<group>"; };
+		4C0F0526262B70F400FA4CFD /* ChatCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatCellView.swift; sourceTree = "<group>"; };
 		4C12FE8724045ABA000CDDCA /* FilePreviewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewController.swift; sourceTree = "<group>"; };
 		4C12FE8824045ABA000CDDCA /* FilePreviewController.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = FilePreviewController.xib; sourceTree = "<group>"; };
 		4C1319AE231862DF00C9FA0C /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
@@ -152,6 +273,7 @@
 		4C20DD88242EA8C4009F64E6 /* PostCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCellView.swift; sourceTree = "<group>"; };
 		4C20DD8A242EA98D009F64E6 /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
 		4C20DD8C242EABDA009F64E6 /* PostsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostsViewController.swift; sourceTree = "<group>"; };
+		4C22527426065DCA002430EF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Main.strings; sourceTree = "<group>"; };
 		4C36AEF62401CB6300AEC18E /* Transfer+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Transfer+CoreDataClass.swift"; sourceTree = "<group>"; };
 		4C36AEF72401CB6300AEC18E /* Transfer+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Transfer+CoreDataProperties.swift"; sourceTree = "<group>"; };
 		4C36AEFA2401CE4300AEC18E /* UploadTransfer+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UploadTransfer+CoreDataClass.swift"; sourceTree = "<group>"; };
@@ -169,6 +291,60 @@
 		4C4EF4BA242B602100E38B44 /* ServerConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnection.swift; sourceTree = "<group>"; };
 		4C4EF4BE242B782000E38B44 /* BookmarkViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkViewController.swift; sourceTree = "<group>"; };
 		4C52DADA242682920085C7D7 /* ConversationsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationsController.swift; sourceTree = "<group>"; };
+		4C5511C5262E169A001F65BE /* CBacktrace.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CBacktrace.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CBacktrace.framework"; sourceTree = "<group>"; };
+		4C5511C6262E169A001F65BE /* CNIOBoringSSLShims.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIOBoringSSLShims.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIOBoringSSLShims.framework"; sourceTree = "<group>"; };
+		4C5511C7262E169A001F65BE /* ArgumentParser.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ArgumentParser.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/ArgumentParser.framework"; sourceTree = "<group>"; };
+		4C5511C8262E169A001F65BE /* NIOHTTP1.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOHTTP1.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOHTTP1.framework"; sourceTree = "<group>"; };
+		4C5511C9262E169A001F65BE /* Queuer.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Queuer.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/Queuer.framework"; sourceTree = "<group>"; };
+		4C5511CA262E169A001F65BE /* ConsoleKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ConsoleKit.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/ConsoleKit.framework"; sourceTree = "<group>"; };
+		4C5511CB262E169A001F65BE /* NIOSSL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOSSL.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOSSL.framework"; sourceTree = "<group>"; };
+		4C5511CC262E169A001F65BE /* SQLKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SQLKit.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/SQLKit.framework"; sourceTree = "<group>"; };
+		4C5511CD262E169A001F65BE /* CNIOWindows.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIOWindows.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIOWindows.framework"; sourceTree = "<group>"; };
+		4C5511CE262E169A001F65BE /* CCryptoBoringSSL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CCryptoBoringSSL.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CCryptoBoringSSL.framework"; sourceTree = "<group>"; };
+		4C5511CF262E169A001F65BE /* NIOHTTPCompression.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOHTTPCompression.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOHTTPCompression.framework"; sourceTree = "<group>"; };
+		4C5511D0262E169B001F65BE /* Fluent.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Fluent.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/Fluent.framework"; sourceTree = "<group>"; };
+		4C5511D1262E169B001F65BE /* RoutingKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RoutingKit.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/RoutingKit.framework"; sourceTree = "<group>"; };
+		4C5511D2262E169B001F65BE /* NIOHTTP2.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOHTTP2.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOHTTP2.framework"; sourceTree = "<group>"; };
+		4C5511D3262E169B001F65BE /* NIOHPACK.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOHPACK.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOHPACK.framework"; sourceTree = "<group>"; };
+		4C5511D4262E169B001F65BE /* SWCompression.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SWCompression.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/SWCompression.framework"; sourceTree = "<group>"; };
+		4C5511D5262E169B001F65BE /* Vapor.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vapor.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/Vapor.framework"; sourceTree = "<group>"; };
+		4C5511D6262E169B001F65BE /* CoreMetrics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMetrics.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CoreMetrics.framework"; sourceTree = "<group>"; };
+		4C5511D7262E169B001F65BE /* CBase32.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CBase32.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CBase32.framework"; sourceTree = "<group>"; };
+		4C5511D8262E169B001F65BE /* CURLParser.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CURLParser.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CURLParser.framework"; sourceTree = "<group>"; };
+		4C5511D9262E169B001F65BE /* NIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIO.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIO.framework"; sourceTree = "<group>"; };
+		4C5511DA262E169B001F65BE /* CNIODarwin.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIODarwin.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIODarwin.framework"; sourceTree = "<group>"; };
+		4C5511DB262E169B001F65BE /* CNIOBoringSSL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIOBoringSSL.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIOBoringSSL.framework"; sourceTree = "<group>"; };
+		4C5511DC262E169B001F65BE /* AsyncKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AsyncKit.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/AsyncKit.framework"; sourceTree = "<group>"; };
+		4C5511DD262E169B001F65BE /* NIOTLS.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOTLS.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOTLS.framework"; sourceTree = "<group>"; };
+		4C5511DE262E169B001F65BE /* WebSocketKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebSocketKit.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/WebSocketKit.framework"; sourceTree = "<group>"; };
+		4C5511DF262E169B001F65BE /* NIOWebSocket.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOWebSocket.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOWebSocket.framework"; sourceTree = "<group>"; };
+		4C5511E0262E169C001F65BE /* AEXML.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AEXML.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/AEXML.framework"; sourceTree = "<group>"; };
+		4C5511E1262E169C001F65BE /* NIOTransportServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOTransportServices.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOTransportServices.framework"; sourceTree = "<group>"; };
+		4C5511E2262E169C001F65BE /* CCryptoBoringSSLShims.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CCryptoBoringSSLShims.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CCryptoBoringSSLShims.framework"; sourceTree = "<group>"; };
+		4C5511E3262E169C001F65BE /* Crypto.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Crypto.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/Crypto.framework"; sourceTree = "<group>"; };
+		4C5511E4262E169C001F65BE /* SQLiteKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SQLiteKit.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/SQLiteKit.framework"; sourceTree = "<group>"; };
+		4C5511E5262E169C001F65BE /* AsyncHTTPClient.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AsyncHTTPClient.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/AsyncHTTPClient.framework"; sourceTree = "<group>"; };
+		4C5511E6262E169C001F65BE /* SQLiteNIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SQLiteNIO.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/SQLiteNIO.framework"; sourceTree = "<group>"; };
+		4C5511E7262E169C001F65BE /* FluentSQLiteDriver.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FluentSQLiteDriver.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/FluentSQLiteDriver.framework"; sourceTree = "<group>"; };
+		4C5511E8262E169C001F65BE /* CNIOSHA1.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIOSHA1.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIOSHA1.framework"; sourceTree = "<group>"; };
+		4C5511E9262E169C001F65BE /* CNIOExtrasZlib.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIOExtrasZlib.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIOExtrasZlib.framework"; sourceTree = "<group>"; };
+		4C5511EA262E169C001F65BE /* COperatingSystem.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = COperatingSystem.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/COperatingSystem.framework"; sourceTree = "<group>"; };
+		4C5511EB262E169C001F65BE /* FluentKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FluentKit.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/FluentKit.framework"; sourceTree = "<group>"; };
+		4C5511EC262E169C001F65BE /* BitByteData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = BitByteData.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/BitByteData.framework"; sourceTree = "<group>"; };
+		4C5511ED262E169C001F65BE /* Metrics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metrics.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/Metrics.framework"; sourceTree = "<group>"; };
+		4C5511EE262E169C001F65BE /* FluentSQL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FluentSQL.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/FluentSQL.framework"; sourceTree = "<group>"; };
+		4C5511EF262E169C001F65BE /* SocketSwift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SocketSwift.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/SocketSwift.framework"; sourceTree = "<group>"; };
+		4C5511F0262E169C001F65BE /* NIOFoundationCompat.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOFoundationCompat.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOFoundationCompat.framework"; sourceTree = "<group>"; };
+		4C5511F1262E169C001F65BE /* CNIOAtomics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIOAtomics.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIOAtomics.framework"; sourceTree = "<group>"; };
+		4C5511F2262E169C001F65BE /* NIOExtras.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOExtras.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOExtras.framework"; sourceTree = "<group>"; };
+		4C5511F3262E169C001F65BE /* CBcrypt.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CBcrypt.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CBcrypt.framework"; sourceTree = "<group>"; };
+		4C5511F4262E169C001F65BE /* MultipartKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MultipartKit.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/MultipartKit.framework"; sourceTree = "<group>"; };
+		4C5511F5262E169C001F65BE /* CryptoSwift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CryptoSwift.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CryptoSwift.framework"; sourceTree = "<group>"; };
+		4C5511F6262E169C001F65BE /* NIOConcurrencyHelpers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NIOConcurrencyHelpers.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/NIOConcurrencyHelpers.framework"; sourceTree = "<group>"; };
+		4C5511F7262E169C001F65BE /* CNIOLinux.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIOLinux.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIOLinux.framework"; sourceTree = "<group>"; };
+		4C5511F8262E169C001F65BE /* Backtrace.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Backtrace.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/Backtrace.framework"; sourceTree = "<group>"; };
+		4C5511F9262E169C001F65BE /* CNIOHTTPParser.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CNIOHTTPParser.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/CNIOHTTPParser.framework"; sourceTree = "<group>"; };
+		4C5511FA262E169C001F65BE /* Logging.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Logging.framework; path = "../../../../Library/Developer/Xcode/DerivedData/WiredSwift-boystztdzfqukrfyknxiyowxmpvq/Build/Products/Debug/Logging.framework"; sourceTree = "<group>"; };
 		4C5BB6C5244656680089D6D2 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Main.strings; sourceTree = "<group>"; };
 		4C5BB6C6244656680089D6D2 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/GeneralPreferenceViewController.strings; sourceTree = "<group>"; };
 		4C5BB6C7244656680089D6D2 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/ChatPreferenceViewController.strings; sourceTree = "<group>"; };
@@ -179,8 +355,10 @@
 		4C5C1D1F2426812E00A751AA /* Conversation+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Conversation+CoreDataProperties.swift"; sourceTree = "<group>"; };
 		4C5C1D202426812E00A751AA /* Message+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Message+CoreDataClass.swift"; sourceTree = "<group>"; };
 		4C5C1D212426812E00A751AA /* Message+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Message+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		4C6300572624DE0E00B6E164 /* NSTableView+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSTableView+Extension.swift"; sourceTree = "<group>"; };
 		4C6656BA24362BE20022E7D7 /* UnselectedTableRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnselectedTableRowView.swift; sourceTree = "<group>"; };
 		4C6A89E72405613A00780FEF /* FileManager+ResourceFork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileManager+ResourceFork.swift"; sourceTree = "<group>"; };
+		4C6FA52F262845FC00472FC4 /* ChatSplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSplitViewController.swift; sourceTree = "<group>"; };
 		4C74285E22DCECE800D6E6F9 /* Wired.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Wired.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C74286122DCECE800D6E6F9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4C74286322DCECE800D6E6F9 /* ConnectController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectController.swift; sourceTree = "<group>"; };
@@ -189,8 +367,14 @@
 		4C74286A22DCECE900D6E6F9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4C74286B22DCECEA00D6E6F9 /* WiredSwift.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WiredSwift.entitlements; sourceTree = "<group>"; };
 		4C7A45AA242937CA008F0FFE /* TimeAgo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeAgo.swift; sourceTree = "<group>"; };
+		4C7A561226237C3100A88C74 /* ChatsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatsViewController.swift; sourceTree = "<group>"; };
+		4C7A561626239E6600A88C74 /* NewChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewChatViewController.swift; sourceTree = "<group>"; };
+		4C7A56182623AE9400A88C74 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
+		4C7A561A26246A4000A88C74 /* ChatsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatsController.swift; sourceTree = "<group>"; };
+		4C7A561C2624B09F00A88C74 /* ChatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatController.swift; sourceTree = "<group>"; };
 		4C7D19212431DD91002897CB /* NSColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSColor.swift; sourceTree = "<group>"; };
 		4C7D199724322B31002897CB /* MessageCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCellView.swift; sourceTree = "<group>"; };
+		4C830A822633567F0017DB77 /* ConnectWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectWindowController.swift; sourceTree = "<group>"; };
 		4C8829E724254A0B00B4EF36 /* TabViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabViewController.swift; sourceTree = "<group>"; };
 		4C8829E92425672700B4EF36 /* ConnectionWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionWindow.swift; sourceTree = "<group>"; };
 		4C93B2E1242F9BD400A956C3 /* Wired-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Wired-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -208,12 +392,17 @@
 		4C93B2EF242F9CAE00A956C3 /* BBCodeParser.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BBCodeParser.m; sourceTree = "<group>"; };
 		4C93B2F0242F9CAE00A956C3 /* BBElement.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BBElement.h; sourceTree = "<group>"; };
 		4C93B2F1242F9CAE00A956C3 /* BBCodeParserDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BBCodeParserDelegate.h; sourceTree = "<group>"; };
+		4C96300E2616350100530C21 /* SettingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingWindowController.swift; sourceTree = "<group>"; };
 		4C990ED12405D7380059BC8B /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		4C9C5CE624312762007B6CF0 /* UserInfoViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInfoViewController.swift; sourceTree = "<group>"; };
 		4C9C5CE82431322F007B6CF0 /* WiredColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiredColors.swift; sourceTree = "<group>"; };
 		4CA4154424262D8A005B9048 /* UsersController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsersController.swift; sourceTree = "<group>"; };
 		4CA41546242664EE005B9048 /* ConversationsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationsViewController.swift; sourceTree = "<group>"; };
 		4CA415482426651D005B9048 /* PrivateMessagesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateMessagesViewController.swift; sourceTree = "<group>"; };
+		4CB1F6E326068DDD00017676 /* Gzip.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Gzip.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CB1F6E426068DDD00017676 /* SocketSwift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = SocketSwift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CB1F6E526068DDD00017676 /* system_zlib.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = system_zlib.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CB1F6E626068DDD00017676 /* WiredSwift.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = WiredSwift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4CB6A104242E4C4D00AB4C89 /* BoardsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardsViewController.swift; sourceTree = "<group>"; };
 		4CB6A106242E4CA300AB4C89 /* Board.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Board.swift; sourceTree = "<group>"; };
 		4CB6A108242E4CF300AB4C89 /* BoardThread.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardThread.swift; sourceTree = "<group>"; };
@@ -243,11 +432,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4CE2AA55243350190072E0B3 /* (null) in Frameworks */,
+				4CB1F6F326068DDD00017676 /* WiredSwift.framework in Frameworks */,
 				2A4CC616244B9A78007CCBA3 /* Sparkle.framework in Frameworks */,
 				2AE0C6A5244B84220021BE28 /* KeychainAccess in Frameworks */,
+				4CB1F6EF26068DDD00017676 /* SocketSwift.framework in Frameworks */,
 				2AE0C69F244B83E10021BE28 /* Preferences in Frameworks */,
-				4CFCE4F8244CE9EF007E1568 /* WiredSwift in Frameworks */,
 				2AE0C6A7244B843E0021BE28 /* Reachability in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -302,6 +491,7 @@
 				4C7D19212431DD91002897CB /* NSColor.swift */,
 				4CE2AA5024329D640072E0B3 /* AttributedString.swift */,
 				4C6656BA24362BE20022E7D7 /* UnselectedTableRowView.swift */,
+				4C6300572624DE0E00B6E164 /* NSTableView+Extension.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -336,6 +526,7 @@
 				4CEF0ABA23FDD5EA0097E37E /* Connections */,
 				4C4EF4BD242B780200E38B44 /* Resources */,
 				4CEF0ABC23FDD6190097E37E /* Chats */,
+				4CA294562626E41B00658542 /* Chat */,
 				4CEF0ABB23FDD6000097E37E /* Users */,
 				4CEF0AC023FDD66F0097E37E /* Messages */,
 				4C374D9923FDD6A9006D3E7C /* Boards */,
@@ -343,6 +534,7 @@
 				4CEF0ABF23FDD6650097E37E /* Transfers */,
 				4CEF0ABD23FDD6430097E37E /* Infos */,
 				4CE59DAE242D46F1000D79BC /* Console */,
+				4C96300D261631F500530C21 /* Settings */,
 				4CEF0AB823FDD5A50097E37E /* Preferences */,
 				4CEF0AB923FDD5B80097E37E /* Core Data */,
 				4C6A89E62405612400780FEF /* Extensions */,
@@ -374,6 +566,28 @@
 				4C93B2EC242F9CAD00A956C3 /* BBParsingElement.m */,
 			);
 			path = BBCodeString;
+			sourceTree = "<group>";
+		};
+		4C96300D261631F500530C21 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				4C96300E2616350100530C21 /* SettingWindowController.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		4CA294562626E41B00658542 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				4C7A561C2624B09F00A88C74 /* ChatController.swift */,
+				4C0F0523262B18D200FA4CFD /* PrivateChatController.swift */,
+				4C6FA52F262845FC00472FC4 /* ChatSplitViewController.swift */,
+				4CFA18C7230B359300E2A2EC /* ChatViewController.swift */,
+				4C0955F02626E83700CB4000 /* ChatPlaceholderViewController.swift */,
+				4C7D199724322B31002897CB /* MessageCellView.swift */,
+				4C7A56182623AE9400A88C74 /* Chat.swift */,
+			);
+			path = Chat;
 			sourceTree = "<group>";
 		};
 		4CE59DAE242D46F1000D79BC /* Console */ = {
@@ -431,11 +645,12 @@
 			children = (
 				4C4EF4BA242B602100E38B44 /* ServerConnection.swift */,
 				4CEF0AB323FD5D580097E37E /* ConnectionObject.swift */,
-				4CFA18C9230B389B00E2A2EC /* ConnectionViewController.swift */,
 				4CFB15DD23FC5279000EE688 /* ConnectionsController.swift */,
+				4CFA18C9230B389B00E2A2EC /* ConnectionViewController.swift */,
+				4C830A822633567F0017DB77 /* ConnectWindowController.swift */,
+				4C74286322DCECE800D6E6F9 /* ConnectController.swift */,
 				4CFB162223FC9883000EE688 /* ConnectionWindowController.swift */,
 				4C8829E92425672700B4EF36 /* ConnectionWindow.swift */,
-				4C74286322DCECE800D6E6F9 /* ConnectController.swift */,
 			);
 			path = Connections;
 			sourceTree = "<group>";
@@ -454,8 +669,10 @@
 		4CEF0ABC23FDD6190097E37E /* Chats */ = {
 			isa = PBXGroup;
 			children = (
-				4CFA18C7230B359300E2A2EC /* ChatViewController.swift */,
-				4C7D199724322B31002897CB /* MessageCellView.swift */,
+				4C7A561A26246A4000A88C74 /* ChatsController.swift */,
+				4C7A561226237C3100A88C74 /* ChatsViewController.swift */,
+				4C7A561626239E6600A88C74 /* NewChatViewController.swift */,
+				4C0F0526262B70F400FA4CFD /* ChatCellView.swift */,
 			);
 			path = Chats;
 			sourceTree = "<group>";
@@ -508,6 +725,64 @@
 		4CF6736B2403F48000A8EDC2 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				4C5511F7262E169C001F65BE /* CNIOLinux.framework */,
+				4C5511F6262E169C001F65BE /* NIOConcurrencyHelpers.framework */,
+				4C5511D6262E169B001F65BE /* CoreMetrics.framework */,
+				4C5511CF262E169A001F65BE /* NIOHTTPCompression.framework */,
+				4C5511F9262E169C001F65BE /* CNIOHTTPParser.framework */,
+				4C5511CC262E169A001F65BE /* SQLKit.framework */,
+				4C5511DF262E169B001F65BE /* NIOWebSocket.framework */,
+				4C5511E4262E169C001F65BE /* SQLiteKit.framework */,
+				4C5511FA262E169C001F65BE /* Logging.framework */,
+				4C5511CA262E169A001F65BE /* ConsoleKit.framework */,
+				4C5511D7262E169B001F65BE /* CBase32.framework */,
+				4C5511F5262E169C001F65BE /* CryptoSwift.framework */,
+				4C5511E6262E169C001F65BE /* SQLiteNIO.framework */,
+				4C5511C7262E169A001F65BE /* ArgumentParser.framework */,
+				4C5511EF262E169C001F65BE /* SocketSwift.framework */,
+				4C5511D5262E169B001F65BE /* Vapor.framework */,
+				4C5511C9262E169A001F65BE /* Queuer.framework */,
+				4C5511D4262E169B001F65BE /* SWCompression.framework */,
+				4C5511E3262E169C001F65BE /* Crypto.framework */,
+				4C5511E2262E169C001F65BE /* CCryptoBoringSSLShims.framework */,
+				4C5511DB262E169B001F65BE /* CNIOBoringSSL.framework */,
+				4C5511F8262E169C001F65BE /* Backtrace.framework */,
+				4C5511CE262E169A001F65BE /* CCryptoBoringSSL.framework */,
+				4C5511DE262E169B001F65BE /* WebSocketKit.framework */,
+				4C5511DD262E169B001F65BE /* NIOTLS.framework */,
+				4C5511EC262E169C001F65BE /* BitByteData.framework */,
+				4C5511E9262E169C001F65BE /* CNIOExtrasZlib.framework */,
+				4C5511F4262E169C001F65BE /* MultipartKit.framework */,
+				4C5511EE262E169C001F65BE /* FluentSQL.framework */,
+				4C5511EB262E169C001F65BE /* FluentKit.framework */,
+				4C5511E7262E169C001F65BE /* FluentSQLiteDriver.framework */,
+				4C5511D3262E169B001F65BE /* NIOHPACK.framework */,
+				4C5511D8262E169B001F65BE /* CURLParser.framework */,
+				4C5511E0262E169C001F65BE /* AEXML.framework */,
+				4C5511C8262E169A001F65BE /* NIOHTTP1.framework */,
+				4C5511C5262E169A001F65BE /* CBacktrace.framework */,
+				4C5511DC262E169B001F65BE /* AsyncKit.framework */,
+				4C5511EA262E169C001F65BE /* COperatingSystem.framework */,
+				4C5511CD262E169A001F65BE /* CNIOWindows.framework */,
+				4C5511D0262E169B001F65BE /* Fluent.framework */,
+				4C5511E5262E169C001F65BE /* AsyncHTTPClient.framework */,
+				4C5511D2262E169B001F65BE /* NIOHTTP2.framework */,
+				4C5511D9262E169B001F65BE /* NIO.framework */,
+				4C5511D1262E169B001F65BE /* RoutingKit.framework */,
+				4C5511ED262E169C001F65BE /* Metrics.framework */,
+				4C5511F1262E169C001F65BE /* CNIOAtomics.framework */,
+				4C5511E1262E169C001F65BE /* NIOTransportServices.framework */,
+				4C5511F2262E169C001F65BE /* NIOExtras.framework */,
+				4C5511E8262E169C001F65BE /* CNIOSHA1.framework */,
+				4C5511DA262E169B001F65BE /* CNIODarwin.framework */,
+				4C5511F0262E169C001F65BE /* NIOFoundationCompat.framework */,
+				4C5511CB262E169A001F65BE /* NIOSSL.framework */,
+				4C5511F3262E169C001F65BE /* CBcrypt.framework */,
+				4C5511C6262E169A001F65BE /* CNIOBoringSSLShims.framework */,
+				4CB1F6E326068DDD00017676 /* Gzip.framework */,
+				4CB1F6E426068DDD00017676 /* SocketSwift.framework */,
+				4CB1F6E526068DDD00017676 /* system_zlib.framework */,
+				4CB1F6E626068DDD00017676 /* WiredSwift.framework */,
 				2A92CA33244B91AD006D5D70 /* Sparkle.framework */,
 			);
 			name = Frameworks;
@@ -535,7 +810,6 @@
 				2AE0C69E244B83E10021BE28 /* Preferences */,
 				2AE0C6A4244B84220021BE28 /* KeychainAccess */,
 				2AE0C6A6244B843E0021BE28 /* Reachability */,
-				4CFCE4F7244CE9EF007E1568 /* WiredSwift */,
 			);
 			productName = "Wired 3";
 			productReference = 4C74285E22DCECE800D6E6F9 /* Wired.app */;
@@ -572,7 +846,6 @@
 				4C75BA342433938400BE8857 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
 				4C8874852434DE9000A5D4A0 /* XCRemoteSwiftPackageReference "Reachability" */,
 				2AE0C69D244B83E10021BE28 /* XCRemoteSwiftPackageReference "Preferences" */,
-				4CFCE4F6244CE9EF007E1568 /* XCRemoteSwiftPackageReference "WiredSwift" */,
 			);
 			productRefGroup = 4C74285F22DCECE800D6E6F9 /* Products */;
 			projectDirPath = "";
@@ -611,13 +884,17 @@
 			files = (
 				4C374DAB23FED0D8006D3E7C /* TransferConnection.swift in Sources */,
 				4C0A99F623FBFD3A0008A7A6 /* GeneralPreferenceViewController.swift in Sources */,
+				4C6300582624DE0E00B6E164 /* NSTableView+Extension.swift in Sources */,
+				4C96300F2616350100530C21 /* SettingWindowController.swift in Sources */,
 				4CB6A10B242E4FBE00AB4C89 /* BoardsSplitViewController.swift in Sources */,
 				4CEF0AB223FD57CA0097E37E /* FilesController.swift in Sources */,
 				4C20DD8B242EA98D009F64E6 /* Post.swift in Sources */,
 				4C7D199824322B31002897CB /* MessageCellView.swift in Sources */,
+				4C7A561726239E6600A88C74 /* NewChatViewController.swift in Sources */,
 				4CEF0AB623FDD4DD0097E37E /* File.swift in Sources */,
 				4C5C1D232426812E00A751AA /* Conversation+CoreDataProperties.swift in Sources */,
 				4CA4154524262D8A005B9048 /* UsersController.swift in Sources */,
+				4C0955F12626E83700CB4000 /* ChatPlaceholderViewController.swift in Sources */,
 				4C20DD89242EA8C4009F64E6 /* PostCellView.swift in Sources */,
 				4CFB15DC23FC19E9000EE688 /* ResourcesController.swift in Sources */,
 				4C374DA523FE80B2006D3E7C /* FilesPreferenceViewController.swift in Sources */,
@@ -635,10 +912,13 @@
 				4CD8C47723FD25BD002895C1 /* InfosViewController.swift in Sources */,
 				4C7A45AB242937CA008F0FFE /* TimeAgo.swift in Sources */,
 				4C374D9D23FE7AE5006D3E7C /* TransfersController.swift in Sources */,
+				4C7A56192623AE9400A88C74 /* Chat.swift in Sources */,
 				4C009B6024278B4200DAAB74 /* MessagesSplitViewController.swift in Sources */,
+				4C0F0527262B70F400FA4CFD /* ChatCellView.swift in Sources */,
 				4CFB161E23FC843C000EE688 /* Bookmark+CoreDataProperties.swift in Sources */,
 				4CD30DD92426979D008AA7FF /* ConversationCellView.swift in Sources */,
 				4CA415492426651D005B9048 /* PrivateMessagesViewController.swift in Sources */,
+				4C6FA530262845FC00472FC4 /* ChatSplitViewController.swift in Sources */,
 				4C93B2F3242F9CAE00A956C3 /* BBParsingElement.m in Sources */,
 				4C36AEF82401CB6300AEC18E /* Transfer+CoreDataClass.swift in Sources */,
 				4CB6A10D242E503A00AB4C89 /* BoardsController.swift in Sources */,
@@ -648,12 +928,14 @@
 				4C9C5CE724312762007B6CF0 /* UserInfoViewController.swift in Sources */,
 				4C52DADB242682920085C7D7 /* ConversationsController.swift in Sources */,
 				4CFA18C8230B359300E2A2EC /* ChatViewController.swift in Sources */,
+				4C7A561326237C3100A88C74 /* ChatsViewController.swift in Sources */,
+				4C7A561B26246A4000A88C74 /* ChatsController.swift in Sources */,
+				4C7A561D2624B09F00A88C74 /* ChatController.swift in Sources */,
 				4CFB15DE23FC5279000EE688 /* ConnectionsController.swift in Sources */,
 				4C9C5CE92431322F007B6CF0 /* WiredColors.swift in Sources */,
 				4C8829E824254A0B00B4EF36 /* TabViewController.swift in Sources */,
 				4C20DD8E242EABDA009F64E6 /* PostsViewController.swift in Sources */,
 				4CFB162323FC9883000EE688 /* ConnectionWindowController.swift in Sources */,
-				4C6A89E82405613A00780FEF /* FileManager+ResourceFork.swift in Sources */,
 				4CFA18CB230B389B00E2A2EC /* ConnectionViewController.swift in Sources */,
 				4CA41547242664EE005B9048 /* ConversationsViewController.swift in Sources */,
 				4C74286422DCECE800D6E6F9 /* ConnectController.swift in Sources */,
@@ -664,6 +946,7 @@
 				4C4EF4BF242B782000E38B44 /* BookmarkViewController.swift in Sources */,
 				4C5C1D252426812E00A751AA /* Message+CoreDataProperties.swift in Sources */,
 				4CFB161D23FC843C000EE688 /* Bookmark+CoreDataClass.swift in Sources */,
+				4C0F0524262B18D200FA4CFD /* PrivateChatController.swift in Sources */,
 				4C374DA723FE8655006D3E7C /* TransfersViewController.swift in Sources */,
 				4CEF0AB423FD5D580097E37E /* ConnectionObject.swift in Sources */,
 				4C200099242162BB00A4D77A /* ChatPreferenceViewController.swift in Sources */,
@@ -678,6 +961,7 @@
 				4C74286222DCECE800D6E6F9 /* AppDelegate.swift in Sources */,
 				4C36AF012401CE4300AEC18E /* DownloadTransfer+CoreDataProperties.swift in Sources */,
 				4C12FE8924045ABA000CDDCA /* FilePreviewController.swift in Sources */,
+				4C830A832633567F0017DB77 /* ConnectWindowController.swift in Sources */,
 				4C374DA923FE9E7E006D3E7C /* TransferCell.swift in Sources */,
 				4C93B2F2242F9CAE00A956C3 /* BBAttribute.m in Sources */,
 				4C8829EA2425672700B4EF36 /* ConnectionWindow.swift in Sources */,
@@ -738,8 +1022,8 @@
 			isa = PBXVariantGroup;
 			children = (
 				4C74286822DCECE900D6E6F9 /* Base */,
-				2A8E9E5E2433357E005B5261 /* de */,
 				4C5BB6C5244656680089D6D2 /* fr */,
+				4C22527426065DCA002430EF /* en */,
 			);
 			name = Main.storyboard;
 			sourceTree = "<group>";
@@ -889,7 +1173,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				PRODUCT_BUNDLE_IDENTIFIER = "fr.read-write.Wired-Debug";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -919,7 +1203,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				PRODUCT_BUNDLE_IDENTIFIER = "fr.read-write.Wired";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -977,14 +1261,6 @@
 				minimumVersion = 5.0.0;
 			};
 		};
-		4CFCE4F6244CE9EF007E1568 /* XCRemoteSwiftPackageReference "WiredSwift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/nark/WiredSwift.git";
-			requirement = {
-				branch = master;
-				kind = branch;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1002,11 +1278,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4C8874852434DE9000A5D4A0 /* XCRemoteSwiftPackageReference "Reachability" */;
 			productName = Reachability;
-		};
-		4CFCE4F7244CE9EF007E1568 /* WiredSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4CFCE4F6244CE9EF007E1568 /* XCRemoteSwiftPackageReference "WiredSwift" */;
-			productName = WiredSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 

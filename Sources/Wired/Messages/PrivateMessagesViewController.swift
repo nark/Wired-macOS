@@ -128,7 +128,7 @@ class PrivateMessagesViewController: ConnectionViewController, ConnectionDelegat
                 self.conversation.connection = connection
 
                 self.connection.removeDelegate(self)
-                self.connection.delegates.append(self)
+                self.connection.addDelegate(self)
 
                 self.updateView()
             }

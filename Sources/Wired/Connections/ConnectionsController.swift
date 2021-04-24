@@ -19,6 +19,7 @@ class ConnectionsController {
     public static let shared = ConnectionsController()
     
     var connections:[ServerConnection] = []
+    var chatsControllers:[ChatsController] = []
     var usersControllers:[UsersController] = []
     var filesControllers:[FilesController] = []
     var boardsControllers:[BoardsController] = []
@@ -166,6 +167,24 @@ class ConnectionsController {
     
     
     // MARK: -
+    public func chatsController(forConnection connection:ServerConnection) -> ChatsController {
+        var chatsController:ChatsController? = nil
+        
+        let exists = chatsControllers.contains { (fc) -> Bool in
+            if fc.connection == connection {
+                chatsController = fc
+            }
+            return fc.connection == connection
+        }
+        
+        if !exists {
+            chatsController = ChatsController(connection)
+            chatsControllers.append(chatsController!)
+        }
+        
+        return chatsController!
+    }
+    
     public func usersController(forConnection connection:ServerConnection) -> UsersController {
         var usersController:UsersController? = nil
         

@@ -1,58 +1,58 @@
 /* Main Menu */
-"Add To Bookmarks" = "Zu Lesezeichen hinzufügen";
+"Add To Bookmarks" = "Ajouter aux favoris";
 
 /* Cancel button title */
-"Cancel" = "Abbruch";
+"Cancel" = "Annuler";
 
 /* Quit without saves error question message */
-"Could not save changes while quitting. Quit anyway?" = "Kann Änderungen während des Beendens nicht speichern. Beenden erzwingen?";
+"Could not save changes while quitting. Quit anyway?" = "Impossible d'enregistrer les données avant le changement, quitter quand même ?";
 
 /* Quit anyway button title */
-"Quit anyway" = "Beenden erzwingen";
+"Quit anyway" = "Quitter quand même";
 
 /* Quit without saves error question info */
 "Quitting now will lose any changes you have made since the last successful save" = "Das Beenden verwirft alle Änderungen die Du seit dem letzten Speichern vorgenommen hast.";
 
 /* Headitems Preferences Window */
-"Advanced" = "Fortgeschritten";
-"General" = "Allgemein";
-"Files" = "Dateien";
+"Advanced" = "Avancés";
+"General" = "Général";
+"Files" = "Fichiers";
 
 /* Warn Window on quitting Application */
-"Are you sure you want to disconnect?" = "Möchtest Du wirklich die Verbindung abbrechen?";
-"Every running transfers may be stopped" = "Jeder laufende Dateitransfer wird gestoppt!";
-"Cancel" = "Abbruch";
-"Yes" = "Ja";
+"Are you sure you want to disconnect?" = "Êtes-vous certain de vouloir vous déconnecter ?";
+"Every running transfers may be stopped" = "Tous les transferts en cours seront arrétés.";
+"Cancel" = "Annuler";
+"Yes" = "Oui";
 
 /* Warn Window on deleting Bookmarks */
-"Are you sure you want to delete this bookmark?" = "Möchtest Du wirklich das Lesezeichen löschen?";
-"This operation is not recoverable!" = "Dieser Vorgang kann nicht rückgängig gemacht werden!";
+"Are you sure you want to delete this bookmark?" = "Êtes-vous certain de vouloir  supprimer ce favoris ?";
+"This operation is not recoverable!" = "Cette opération est définitive.";
 
 /* Chatwindow left Sidebar Headlines */
-"CONNECTIONS" = "VERBINDUNGEN";
-"BOOKMARKS" = "LESEZEICHEN";
-"TRACKERS" = "TRACKER";
-"HISTORY" = "VERLAUF";
+"CONNECTIONS" = "CONNEXIONS";
+"BOOKMARKS" = "FAVORIS";
+"TRACKERS" = "TRACKERS";
+"HISTORY" = "HISTORIQUE";
 
 /* Transfer Queue */
-"Waiting" = "Warten";
-"LocallyQueued" = "Lokal eingereiht";
-"Queued" = "eingereiht";
-"Listing" = "Auflisten";
-"CreatingDirectories" = "Verzeichnisse anlegen";
-"Running" = "laufend";
-"Pausing" = "pausierend";
-"Paused" = "pausiert";
-"Stopping" = "stoppend";
-"Stopped" = "gestoppt";
-"Disconnecting" = "Trennung";
-"Removing" = "entfernen";
-"Finished" = "abgeschlossen";
-"speed" = "Geschwindigkeit";
+"Waiting" = "En attente";
+"LocallyQueued" = "En file d'attente locale";
+"Queued" = "En file d'attente";
+"Listing" = "Liste";
+"CreatingDirectories" = "Création de dossiers";
+"Running" = "En cours";
+"Pausing" = "Mise en pause";
+"Paused" = "En pause";
+"Stopping" = "Mise à l'arrêt";
+"Stopped" = "Arrêté";
+"Disconnecting" = "En cours de déconnexion";
+"Removing" = "En cours de suppression";
+"Finished" = "Terminé";
+"speed" = "vitesse";
 
 /* Console */
-"Received" = "Empfangen";
-"Sent" = "Gesendet";
+"Received" = "Reçu";
+"Sent" = "Envoyé";
 
 /* Calender */
 "years ago" = "Jahre her";
@@ -71,43 +71,43 @@
 "Just now" = "Gerade eben";
 
 /* Messages/Conversations */
-"Delete Conversation" = "Unterhaltung löschen";
-"New Message" = "Neue Nachricht";
+"Delete Conversation" = "Supprimer la conversation";
+"New Message" = "Nouveau message";
 
 /* Mainchat */
-"Disconnected..." = "Getrennt...";
-"Disconnected from" = "Getrennt von";
-"Auto-reconnecting..." = "Auto-wiederverbinden...";
-"Reconnected to" = "Wiederverbinden zu";
-"Auto-reconnecting to" = "Auto-wiederverbinden zu";
-"Wired Alert" = "Wiredalarm";
-"Wired Error:" = "Wiredfehler:";
-"New Chat Message" = "Neue Chatnachricht";
-"Topic:" = "Thema:";
-"by" = "von";
-"joined the chat" = "betritt den Chat";
-"left the chat" = "hat den Chat verlassen";
+"Disconnected..." = "Déconnecté...";
+"Disconnected from" = "Déconnecté de";
+"Auto-reconnecting..." = "Auto-reconnexion...";
+"Reconnected to" = "Reconnecté à";
+"Auto-reconnected to" = "Auto-reconnecté à";
+"Wired Alert" = "Alerte Wired";
+"Wired Error:" = "Erreur Wired:";
+"New Chat Message" = "Nouveau message chat";
+"Topic:" = "Sujet :";
+"by" = "par";
+"joined the chat" = "a joint le chat";
+"left the chat" = "a quitté le chat";
 
 /* Files */
-"Directory" = "Verzeichnis";
-"Unknown" = "Unbekannt";
+"Directory" = "Dossier";
+"Unknown" = "Inconnu";
 
 /* Transfer */
-"Download Error" = "Downloadfehler";
-"Transfer cannot connect" = "Transfer kann keine Verbindung herstellen!";
-"Transfer cannot download file" = "Transfer kann die Datei nicht herunterladen";
-"File already exists" = "Datei existiert bereits";
-"Do you want to overwrite" = "Überschreibe nun";
-"Transfer failed" = "Übertragung fehlgeschlagen";
-"Transfer rename failed" = "Übertragung umbenennen fehlgeschlagen";
-"Upload Error" = "Uploadfehler";
-"Transfer cannot upload file" = "Transfer kann die Datei nicht hochladen";
-"Transfer cannot upload" = "Transfer kann nicht hochladen";
-"Cannot read local data" = "Kann lokale Daten nicht lesen";
-"Transfer cannot read message, probably timed out" = "Transfer kann die Nachricht nicht lesen. Vermutlich liegt ein Timeout vor";
-"Transfer cannot reply ping" = "Transfer kann den Ping nicht erwidern";
-"Transfer error" = "Transferfehler";
+"Download Error" = "Erreur de téléchargement";
+"Transfer cannot connect" = "Le transfer n'a pas pu se connecter";
+"Transfer cannot download file" = "Téléchargement impossible";
+"File already exists" = "Le fichier existe déjà";
+"Do you want to overwrite" = "Voulez-vous écraser le fichier existant";
+"Transfer failed" = "Échec du transfert";
+"Transfer rename failed" = "Impossible de renomer le transfert";
+"Upload Error" = "Erreur de téléversement";
+"Transfer cannot upload file" = "Téléversement du fichier impossible";
+"Transfer cannot upload" = "Téléversement impossible";
+"Cannot read local data" = "Impossible de lire le fichier sur le système";
+"Transfer cannot read message, probably timed out" = "Le transfert ne peut être lu, certainement timed out";
+"Transfer cannot reply ping" = "Le transfert ne peut pas répondre au ping";
+"Transfer error" = "Erreur de transfert";
 
 /* Infos */
-"Unsupported (yet)" = "Nicht unterstützt (derzeit)";
+"Unsupported (yet)" = "Pas (encore) implementé";
 

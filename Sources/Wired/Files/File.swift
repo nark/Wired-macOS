@@ -11,19 +11,13 @@ import WiredSwift
 
 extension Notification.Name {
     static let didLoadDirectory = Notification.Name("didLoadDirectory")
+    static let didDeleteFile = Notification.Name("didDeleteFile")
 }
 
 
 public class File: ConnectionObject, ConnectionDelegate {
-    public enum FileType: Int {
-        case file = 0
-        case directory = 1
-        case uploads = 2
-        case dropbox = 3
-    }
-    
     public var children: [File] = []
-    public var type: FileType!
+    public var type: WiredSwift.File.FileType!
     public var path: String!
     public var name: String!
     public var directoryCount:Int = 0
@@ -36,6 +30,8 @@ public class File: ConnectionObject, ConnectionDelegate {
     public var dataTransferred:UInt64 = 0
     public var rsrcTransferred:UInt64 = 0
     
+    public var loaded:Bool = false
+    
     init(_ path: String, connection: ServerConnection) {
         super.init(connection)
                 
@@ -47,13 +43,13 @@ public class File: ConnectionObject, ConnectionDelegate {
     
     init(_ message: P7Message, connection: ServerConnection) {
         super.init(connection)
-        
+                
         if let p = message.string(forField: "wired.file.path") {
             self.path = p
             self.name = (self.path as NSString).lastPathComponent
         }
         if let t = message.enumeration(forField: "wired.file.type") {
-            self.type = File.FileType(rawValue: Int(t))
+            self.type = WiredSwift.File.FileType(rawValue: UInt32(t))
         }
         if let s = message.uint64(forField: "wired.file.data_size") {
             self.dataSize = s
@@ -170,6 +166,8 @@ public class File: ConnectionObject, ConnectionDelegate {
             NotificationCenter.default.post(name: .didLoadDirectory, object: self)
             
             connection.removeDelegate(self)
+            
+            self.loaded = true
         }
     }
     

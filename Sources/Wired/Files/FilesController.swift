@@ -32,6 +32,22 @@ public class FilesController: ConnectionObject {
         }
     }
     
+    
+    public func delete(file:File) {
+        let message = P7Message(withName: "wired.file.delete", spec: self.connection.spec)
+        
+        message.addParameter(field: "wired.file.path", value: file.path)
+        
+        if let blockConnection = self.connection {
+            blockConnection.send(message: message, completionBlock: { (response) in
+                if response!.name == "wired.okay" {
+                    NotificationCenter.default.post(name: .didDeleteFile, object: file)
+                }
+            })
+        }
+    }
+    
+    
     public func file(atPath path: String) -> File? {
 //        let message = P7Message(withName: "wired.file.get_info", spec: self.connection.spec)
 //        message.addParameter(field: "wired.file.path", value: path)

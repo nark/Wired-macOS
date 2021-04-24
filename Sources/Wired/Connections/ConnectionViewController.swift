@@ -8,6 +8,6 @@
 
 import Cocoa
 
-class ConnectionViewController: NSViewController {
+public class ConnectionViewController: NSViewController {
     public var connection: ServerConnection!
 }

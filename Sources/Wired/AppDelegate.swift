@@ -103,11 +103,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     
     override init() {
         #if DEBUG
-            Logger.setMaxLevel(.INFO)
+            Logger.setMaxLevel(.DEBUG)
             //Logger.removeDestination(.Stdout)
         #else
-            Logger.setMaxLevel(.ERROR)
-            Logger.removeDestination(.Stdout)
+            Logger.setMaxLevel(.DEBUG)
+            //Logger.removeDestination(.Stdout)
         #endif
         
         let downloadsDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
@@ -159,9 +159,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         self.setupUserNotifications()
                 
         // connect bookmarkat startup
+        var bookmarksToConnect:[Bookmark] = []
         for bookmark in ConnectionsController.shared.bookmarks() {
             if bookmark.connectAtStartup {
-                _ = ConnectionWindowController.connectConnectionWindowController(withBookmark: bookmark)
+                bookmarksToConnect.append(bookmark)
+            }
+        }
+        
+        if bookmarksToConnect.count > 0 {
+            for bookmark in bookmarksToConnect {
+                let connectController = ConnectController.connectController(withBookmark: bookmark)
+                connectController?.connect(self)
             }
         }
     }
@@ -226,11 +234,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     
     
     // MARK: - IB Actions
-    @IBAction func connect(_ sender: Any) {
 
-    }
-    
-    
     @IBAction func viewsAction(_ sender: Any) {
         NotificationCenter.default.post(name: .didToggleLeftSidebarView, object: sender)
     }
@@ -301,7 +305,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     
     @IBAction func connectBookmark(_ sender: NSMenuItem) {
         if let bookmark = sender.representedObject as? Bookmark {
-            _ = ConnectionWindowController.connectConnectionWindowController(withBookmark: bookmark)
+            let connectController = ConnectController.connectController(withBookmark: bookmark)
+            connectController?.connect(self)
         }
     }
     
@@ -356,6 +361,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+    
+    public static func showWiredError(_ error:WiredError, modalFor window:NSWindow? = nil) {
+        let alert = NSAlert()
+        alert.messageText = error.title
+        alert.informativeText = error.message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        
+        if let w = window {
+            alert.beginSheetModal(for: w) { (resp) in
+                
+            }
+        } else {
+            alert.runModal()
+        }
     }
     
     

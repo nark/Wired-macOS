@@ -22,6 +22,7 @@ class InfosViewController: ConnectionViewController, ConnectionDelegate {
     @IBOutlet weak var protocolLabel: NSTextField!
     @IBOutlet weak var cipherLabel: NSTextField!
     @IBOutlet weak var compressionLabel: NSTextField!
+    @IBOutlet weak var checksumLabel: NSTextField!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -49,13 +50,15 @@ class InfosViewController: ConnectionViewController, ConnectionDelegate {
             self.versionLabel.stringValue = "\(self.connection.serverInfo.applicationName!) \(self.connection.serverInfo.applicationVersion!) on \(self.connection.serverInfo.osName!) \(self.connection.serverInfo.osVersion!) (\(self.connection.serverInfo.arch!))"
             
             self.protocolLabel.stringValue = "\(self.connection.socket.remoteName!) \(self.connection.socket.remoteVersion!)"
-            self.cipherLabel.stringValue = "\(P7Socket.CipherType.pretty(self.connection.socket.cipherType))"
+            self.cipherLabel.stringValue = self.connection.socket.cipherType.description
             self.urlLabel.stringValue = "wiredp7://\(self.connection.url.hostname):\(self.connection.url.port)"
-            let unsupported = NSLocalizedString("Unsupported (yet)", comment: "")
-            self.compressionLabel.stringValue = unsupported
+            self.compressionLabel.stringValue = "\(self.connection.socket.compression)"
+            self.checksumLabel.stringValue = "\(self.connection.socket.checksum)"
             
-            let image = NSImage(data: self.connection.serverInfo.serverBanner)
-            self.bannerImage.image = image
+            if self.connection.serverInfo.serverBanner != nil {
+                let image = NSImage(data: self.connection.serverInfo.serverBanner)
+                self.bannerImage.image = image
+            }
             
             if let string = AppDelegate.timeIntervalFormatter.string(from: Date().timeIntervalSince(self.connection.serverInfo.startTime)) {
                 self.uptimeLabel.stringValue = string

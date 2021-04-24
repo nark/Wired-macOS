@@ -1,0 +1,6 @@
+framework module CNIOLinux {
+  umbrella header "CNIOLinux.h"
+
+  export *
+  module * { export * }
+}

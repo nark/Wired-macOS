@@ -36,6 +36,7 @@ class FilesViewController: ConnectionViewController, ConnectionDelegate, NSBrows
     @IBOutlet weak var historySegmentedControl: NSSegmentedControl!
     @IBOutlet weak var downloadButton: NSButton!
     @IBOutlet weak var uploadButton: NSButton!
+    @IBOutlet weak var deleteButton: NSButton!
     
     var filesController:FilesController!
     var filePreviewController:FilePreviewController!
@@ -56,6 +57,8 @@ class FilesViewController: ConnectionViewController, ConnectionDelegate, NSBrows
         outlineView.doubleAction = #selector(doubleClickFile)
         
         NotificationCenter.default.addObserver(self, selector:  #selector(didLoadDirectory(_:)), name: .didLoadDirectory, object: nil)
+        NotificationCenter.default.addObserver(self, selector:  #selector(didDeleteFile(_:)), name: .didDeleteFile, object: nil)
+
         UserDefaults.standard.addObserver(self, forKeyPath: "WSSelectedFilesViewType", options: NSKeyValueObservingOptions.new, context: nil)
     }
     
@@ -88,6 +91,24 @@ class FilesViewController: ConnectionViewController, ConnectionDelegate, NSBrows
     @IBAction func reload(_ sender: Any) {
         self.filesController.load(ofFile: self.currentRoot, reload: true)
         self.progressIndicator.startAnimation(self)
+    }
+    
+    @IBAction func delete(_ sender: Any) {
+        if let file = selectedFile(), let window = self.view.window {
+            let alert = NSAlert()
+            alert.messageText = "Are you sure to delete this file?"
+            alert.informativeText = "This operation is not recoverable"
+            alert.alertStyle = .critical
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Cancel")
+            
+            alert.beginSheetModal(for: window) { (response) in
+                if response == .alertFirstButtonReturn {
+                    self.progressIndicator.startAnimation(self)
+                    self.filesController.delete(file: file)
+                }
+            }
+        }
     }
     
     @IBAction func download(_ sender: Any) {
@@ -152,8 +173,16 @@ class FilesViewController: ConnectionViewController, ConnectionDelegate, NSBrows
     
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if keyPath == "WSSelectedFilesViewType" {
-            self.browser.reloadColumn(self.browser.lastColumn)
+            //self.browser.reloadColumn(self.browser.lastColumn)
             self.validate()
+        }
+    }
+    
+    @objc func didDeleteFile(_ notification: Notification) {
+        if let file = notification.object as? File {
+            if let parent = self.outlineView.parent(forItem: file) as? File {
+                self.filesController.load(ofFile: parent, reload: true)
+            }
         }
     }
     
@@ -293,7 +322,7 @@ class FilesViewController: ConnectionViewController, ConnectionDelegate, NSBrows
     
     func outlineViewItemDidExpand(_ notification: Notification) {
         if (notification.object as? NSOutlineView) == outlineView {
-            if let file = notification.userInfo?["NSObject"] as? File {
+            if let file = notification.userInfo?["NSObject"] as? File, !file.loaded {
                 self.filesController.load(ofFile: file)
                 self.progressIndicator.startAnimation(self)
             }
@@ -499,6 +528,7 @@ class FilesViewController: ConnectionViewController, ConnectionDelegate, NSBrows
             historySegmentedControl.setEnabled(false, forSegment: 1)
         }
         
+        deleteButton.isEnabled = self.selectedFile() != nil
         downloadButton.isEnabled = self.selectedFile() != nil && !self.selectedFile()!.isFolder()
         uploadButton.isEnabled = self.selectedFile() != nil && self.selectedFile()!.isFolder() // is upload folder
     }

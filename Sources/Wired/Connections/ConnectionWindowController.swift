@@ -16,7 +16,8 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
     var autoreconnectTimer:Timer!
     var reconnectCounter = 0
     
-    public var manualyDisconnected = false
+    public var manualyDisconnected  = false
+    public var manualyReconnected   = false
     
     public static func connectConnectionWindowController(withBookmark bookmark:Bookmark) -> ConnectionWindowController? {
         if let cwc = AppDelegate.windowController(forBookmark: bookmark) {
@@ -27,48 +28,62 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
         }
                 
         let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
-        if let connectionWindowController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("ConnectionWindowController")) as? ConnectionWindowController {
-            let url = bookmark.url()
+        guard let connectionWindowController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("ConnectionWindowController")) as? ConnectionWindowController else {
+            return nil
+        }
+        
+        let url = bookmark.url()
+        
+        connectionWindowController.connection = ServerConnection(withSpec: spec, delegate: connectionWindowController as? ConnectionDelegate)
+        connectionWindowController.connection.clientInfoDelegate = AppDelegate.shared
+        connectionWindowController.connection.nick = UserDefaults.standard.string(forKey: "WSUserNick") ?? connectionWindowController.connection.nick
+        connectionWindowController.connection.status = UserDefaults.standard.string(forKey: "WSUserStatus") ?? connectionWindowController.connection.status
+        
+        connectionWindowController.connection.connectionWindowController = connectionWindowController
+        
+        if let b64string = AppDelegate.currentIcon?.tiffRepresentation(using: NSBitmapImageRep.TIFFCompression.none, factor: 0)?.base64EncodedString() {
+            connectionWindowController.connection.icon = b64string
+        }
             
-            connectionWindowController.connection = ServerConnection(withSpec: spec, delegate: connectionWindowController as? ConnectionDelegate)
-            connectionWindowController.connection.clientInfoDelegate = AppDelegate.shared
-            connectionWindowController.connection.nick = UserDefaults.standard.string(forKey: "WSUserNick") ?? connectionWindowController.connection.nick
-            connectionWindowController.connection.status = UserDefaults.standard.string(forKey: "WSUserStatus") ?? connectionWindowController.connection.status
-            
-            connectionWindowController.connection.connectionWindowController = connectionWindowController
-            
-            if let b64string = AppDelegate.currentIcon?.tiffRepresentation(using: NSBitmapImageRep.TIFFCompression.none, factor: 0)?.base64EncodedString() {
-                connectionWindowController.connection.icon = b64string
-            }
-            
-            DispatchQueue.global().async {
-                if connectionWindowController.connection.connect(withUrl: url) == true {
-                    DispatchQueue.main.async {
-                        if let bannerItem = connectionWindowController.toolbarItem(withIdentifier: "Banner") {
-                            if let imageView = bannerItem.view as? NSImageView {
+        DispatchQueue.global().async {
+            if connectionWindowController.connection.connect(withUrl: url) == true {
+                DispatchQueue.main.async {
+                    if let bannerItem = connectionWindowController.toolbarItem(withIdentifier: "Banner") {
+                        if let imageView = bannerItem.view as? NSImageView {
+                            if connectionWindowController.connection.serverInfo.serverBanner != nil {
                                 imageView.image = NSImage(data: connectionWindowController.connection.serverInfo.serverBanner)
                             }
                         }
-                        
-                        ConnectionsController.shared.addConnection(connectionWindowController.connection)
-                        
-                        connectionWindowController.attach(connection: connectionWindowController.connection)
-                        //connectionWindowController.windowDidLoad() // not good!
-                        connectionWindowController.showWindow(connectionWindowController)
                     }
-                } else {
-                    DispatchQueue.main.async {
-                        if let wiredError = connectionWindowController.connection.socket.errors.first {
-                            AppDelegate.showWiredError(wiredError)
-                        }
+                    
+                    ConnectionsController.shared.addConnection(connectionWindowController.connection)
+                    
+                    connectionWindowController.attach(connection: connectionWindowController.connection)
+                    connectionWindowController.showWindow(connectionWindowController)
+                }
+            } else {
+                DispatchQueue.main.async {
+                    if let wiredError = connectionWindowController.connection.socket.errors.first {
+                        AppDelegate.showWiredError(wiredError)
                     }
+                    
+                    connectionWindowController.disconnect()
+                    connectionWindowController.connection = nil
+                    
+                    if let w = connectionWindowController.window {
+                        NSApp.removeWindowsItem(w)
+                    }
+
+                    connectionWindowController.window = nil
+
+                    NotificationCenter.default.removeObserver(connectionWindowController)
+                    
+                    connectionWindowController.close()
                 }
             }
-            
-            return connectionWindowController
         }
-        
-        return nil
+            
+        return connectionWindowController
     }
     
     
@@ -101,7 +116,7 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
 //            }
 //        #endif
         
-        self.perform(#selector(showConnectSheet), with: nil, afterDelay: 0.2)
+         self.perform(#selector(showConnectSheet), with: nil, afterDelay: 0.2)
     }
 
     
@@ -116,20 +131,22 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
     
     
     @objc private func showConnectSheet() {
-        if self.connection == nil {
-            let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
-            if let connectWindowController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("ConnectWindowController")) as? NSWindowController {
-                if let connectViewController = connectWindowController.window?.contentViewController as? ConnectController {
-                    connectViewController.connectionWindowController = self
-                    
-                    self.window!.beginSheet(connectWindowController.window!) { (modalResponse) in
-                        if modalResponse == .cancel {
-                            self.close()
-                        }
-                    }
-                }
-            }
-        }
+//        if self.connection == nil {
+//            let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
+//            if let connectWindowController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("ConnectWindowController")) as? NSWindowController {
+//                if let connectViewController = connectWindowController.window?.contentViewController as? ConnectController {
+//                    connectViewController.connectionWindowController = self
+//                    
+//                    if let window = self.window, let connectWindow = connectWindowController.window {
+//                        window.beginSheet(connectWindow) { (modalResponse) in
+//                            if modalResponse == .cancel {
+//                                //self.close()
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
     }
     
 
@@ -182,7 +199,22 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
                     if let identifier = tabViewController.tabView.tabViewItem(at: tabViewController.selectedTabViewItemIndex).identifier as? String {
                         if identifier == "Chat" {
                             if self.connection != nil {
-                                AppDelegate.resetChatUnread(forKey: "WSUnreadChatMessages", forConnection: self.connection)
+                                // unread selected chat if any
+                                if let splitViewController2 = tabViewController.tabViewItems.first?.viewController as? NSSplitViewController {
+                                    if let chatsViewController = splitViewController2.splitViewItems.first?.viewController as? ChatsViewController {
+                                        if self.connection == chatsViewController.connection {
+                                            if let item = chatsViewController.selectedItem() as? Chat {
+                                                if item.unreads > 0 {
+                                                    AppDelegate.decrementChatUnread(withValue: item.unreads, forConnection: self.connection)
+                                                    
+                                                    item.unreads = 0
+                                                    
+                                                    chatsViewController.chatsOutlineView.reloadItem(item)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         else if identifier == "Messages" {
@@ -214,7 +246,7 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
     }
     
     private func windowDidBecomeKey(_ notification: Notification) {
-        print("windowDidBecomeKey: \(notification.object)")
+        //print("windowDidBecomeKey: \(notification.object)")
     }
     
     
@@ -227,34 +259,47 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
     
     @IBAction func disconnect(_ sender: Any) {
         if let item = self.toolbarItem(withIdentifier: "Disconnect") {
-            if self.connection.isConnected() {
-                if UserDefaults.standard.bool(forKey: "WSCheckActiveConnectionsBeforeQuit") == true {
-                    let alert = NSAlert()
-                    alert.messageText = NSLocalizedString("Are you sure you want to disconnect?", comment: "")
-                    alert.informativeText = NSLocalizedString("Every running transfers may be stopped", comment: "")
-                    alert.alertStyle = .warning
-                    let YesButtonText = NSLocalizedString("Yes", comment: "")
-                    alert.addButton(withTitle: YesButtonText)
-                    let CancelButtonText = NSLocalizedString("Cancel", comment: "")
-                    alert.addButton(withTitle: CancelButtonText)
-                    
-                    alert.beginSheetModal(for: self.window!) { (modalResponse: NSApplication.ModalResponse) -> Void in
-                        if modalResponse == .alertFirstButtonReturn {
-                            self.manualyDisconnected = true
-                            self.connection.disconnect()
-                            item.image = NSImage(named: "Reconnect")
-                            item.label = "Reconnect"
+            if self.connection != nil {
+                if self.connection.isConnected() {
+                    if UserDefaults.standard.bool(forKey: "WSCheckActiveConnectionsBeforeQuit") == true {
+                        let alert = NSAlert()
+                        alert.messageText = NSLocalizedString("Are you sure you want to disconnect?", comment: "")
+                        alert.informativeText = NSLocalizedString("Every running transfers may be stopped", comment: "")
+                        alert.alertStyle = .warning
+                        let YesButtonText = NSLocalizedString("Yes", comment: "")
+                        alert.addButton(withTitle: YesButtonText)
+                        let CancelButtonText = NSLocalizedString("Cancel", comment: "")
+                        alert.addButton(withTitle: CancelButtonText)
+                        
+                        if let window = self.window {
+                            alert.beginSheetModal(for: window) { (modalResponse: NSApplication.ModalResponse) -> Void in
+                                if modalResponse == .alertFirstButtonReturn {
+                                    self.manualyDisconnected = true
+                                    self.connection.disconnect()
+                                    item.image = NSImage(named: "Reconnect")
+                                    item.label = "Reconnect"
+                                }
+                            }
+                        } else {
+                            if alert.runModal() == .alertFirstButtonReturn {
+                                self.manualyDisconnected = true
+                                self.connection.disconnect()
+                                item.image = NSImage(named: "Reconnect")
+                                item.label = "Reconnect"
+                            }
                         }
+
+                    } else {
+                        self.manualyDisconnected = true
+                        self.connection.disconnect()
+                        item.image = NSImage(named: "Reconnect")
+                        item.label = "Reconnect"
                     }
+        
                 } else {
-                    self.manualyDisconnected = true
-                    self.connection.disconnect()
-                    item.image = NSImage(named: "Reconnect")
-                    item.label = "Reconnect"
+                    self.manualyReconnected = true
+                    self.reconnect()
                 }
-    
-            } else {
-                self.reconnect()
             }
         }
     }
@@ -270,13 +315,9 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
                 
                 DispatchQueue.global().async {
                     if self.connection.connect(withUrl: self.connection.url) {
-                        DispatchQueue.main.async {
-                            print("reconnected")
-                            
+                        DispatchQueue.main.async {                            
                             self.stopAutoReconnect()
-                            
-                            _ = self.connection.joinChat(chatID: 1)
-                            
+                                                        
                             NotificationCenter.default.post(name: .linkConnectionDidReconnect, object: self.connection)
                             
                             item.image = NSImage(named: "Disconnect")
@@ -295,11 +336,29 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
             }
         }
     }
+    
+    
+    @IBAction func newPublicChat(_ sender: Any) {
+        let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
+        
+        if let newChatWindowController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("NewChatWindowController")) as? NSWindowController {
+            if let newChatViewController = newChatWindowController.contentViewController as? NewChatViewController {
+                newChatViewController.connection = self.connection
+                
+                self.window!.beginSheet(newChatWindowController.window!) { (modalResponse) in
+                    if modalResponse == .OK {
+                        // reload public chats eventually
+                    }
+                }
+            }
+        }
+    }
 
     
     
     public func attach(connection:ServerConnection) {
         self.connection = connection
+        self.window?.title = self.connection.serverInfo.serverName
         
         if let splitViewController = self.contentViewController as? NSSplitViewController {
             if let resourcesController = splitViewController.splitViewItems[0].viewController as? ResourcesController {
@@ -308,15 +367,9 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
               
             if let tabViewController = splitViewController.splitViewItems[1].viewController as? NSTabViewController {
                 if let splitViewController2 = tabViewController.tabViewItems[0].viewController as? NSSplitViewController {
-                    if let userController = splitViewController2.splitViewItems[1].viewController as? UsersViewController {
-                        userController.representedObject = self.connection
+                    if let chatsController = splitViewController2.splitViewItems[0].viewController as? ChatsViewController {
+                        chatsController.representedObject = self.connection
                     }
-
-                    if let chatController = splitViewController2.splitViewItems[0].viewController as? ChatViewController {
-                        chatController.representedObject = self.connection
-                    }
-                    
-                    self.window?.title = self.connection.serverInfo.serverName
                 }
                 
                 for item in tabViewController.tabViewItems {
@@ -382,6 +435,7 @@ public class ConnectionWindowController: NSWindowController, NSToolbarDelegate, 
     }
     
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        print("validateToolbarItem")
         return true
     }
     

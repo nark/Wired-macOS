@@ -10,8 +10,9 @@ import Cocoa
 import WiredSwift
 
 
-class UsersController: ConnectionObject {
-    private var users:[UserInfo] = []
+public class UsersController: ConnectionObject {
+    public var users:[UserInfo] = []
+    public var chatID:UInt32 = 0
     
     
     
@@ -23,7 +24,7 @@ class UsersController: ConnectionObject {
     
     public func userJoin(message:P7Message) {
         let userInfo = UserInfo(message: message)
-        
+                
         if userInfo.userID == self.connection.userID {
             self.connection.userInfo = userInfo
         }

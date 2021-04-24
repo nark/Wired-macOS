@@ -9,6 +9,6 @@
 import Cocoa
 import WiredSwift
 
-public class ServerConnection: Connection {
+public class ServerConnection: BlockConnection {
     public var connectionWindowController:ConnectionWindowController?
 }

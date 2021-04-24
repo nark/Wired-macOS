@@ -9,15 +9,19 @@
 import Cocoa
 import WiredSwift
 
-class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTableViewDelegate, NSTableViewDataSource, NSUserInterfaceValidations {
+public class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTableViewDelegate, NSTableViewDataSource, NSUserInterfaceValidations {
     @IBOutlet weak var usersTableView: NSTableView!
     
-    private var usersController:UsersController?
+    public var chatID:UInt32 = 0
+    public var chatController:ChatController?
     var selectedUser:UserInfo!
     
+    
+    
+
     // MARK: - View Controller
     
-    override func viewDidLoad() {
+    override public func viewDidLoad() {
         super.viewDidLoad()
         
         NotificationCenter.default.addObserver(
@@ -28,20 +32,34 @@ class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTable
             self, selector:#selector(linkConnectionDidClose(notification:)) ,
             name: .linkConnectionDidClose, object: nil)
         
+        NotificationCenter.default.addObserver(
+            self, selector:#selector(selectedChatDidChange(_:)) ,
+            name: .selectedChatDidChange, object: nil)
+        
+        NotificationCenter.default.addObserver(
+            self, selector:#selector(userJoinChat(_:)) ,
+            name: .userJoinChat, object: nil)
+        
+        NotificationCenter.default.addObserver(
+            self, selector:#selector(userLeaveChat(_:)) ,
+            name: .userLeaveChat, object: nil)
+        
         self.usersTableView.target = self
         self.usersTableView.doubleAction = #selector(doubleClickAction(_:))
     }
     
     
-    override var representedObject: Any? {
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    
+    
+    override public var representedObject: Any? {
         didSet {
             if let c = self.representedObject as? ServerConnection {
                 self.connection = c
-                self.usersController = ConnectionsController.shared.usersController(forConnection: self.connection)
-                
-                c.delegates.append(self)
-                
-                _ = self.connection.joinChat(chatID: 1)
+                self.connection.addDelegate(self)
             }
         }
     }
@@ -49,26 +67,79 @@ class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTable
     
     
     
+    
     // MARK: - Notification
+    
+    @objc func selectedChatDidChange(_ n:Notification) {
+        if let chatController = n.object as? ChatController {
+            if chatController.chat?.chatID == self.chatID {
+                if self.chatController == nil {
+                    self.chatController = chatController
+                    self.usersTableView.reloadData()
+                }
+            }
+        } else {
+            self.usersTableView.reloadData()
+        }
+    }
+    
+    
+    @objc func userJoinChat(_ n:Notification) {
+        if let chatController = n.object as? ChatController {
+            if chatController.chat?.chatID == self.chatID {
+                if self.chatController == nil {
+                    self.chatController = chatController
+                }
+                self.usersTableView.reloadData()
+            }
+        }
+    }
+    
+    
+    @objc func userLeaveChat(_ n:Notification) {
+        if let chatController = n.object as? ChatController {
+            if chatController.chat?.chatID == self.chatID {
+                self.chatController = nil
+                self.usersTableView.reloadData()
+                
+                if let c = self.connection {
+                    c.removeDelegate(self)
+                }
+            }
+        }
+    }
+    
+    
+    @objc func linkConnectionDidReconnect(_ notification: Notification) {
+        if let c = notification.object as? Connection, c == self.connection {
+            self.usersTableView.reloadData()
+        }
+    }
+    
+    
+    @objc private func linkConnectionDidClose(notification: Notification) -> Void {
+        if let c = notification.object as? Connection, c == self.connection {
+            self.chatController?.usersController.removeAllUsers()
+            
+            //self.chatController = nil
+                        
+            self.usersTableView.reloadData()
+        }
+    }
+    
     
     @objc func userLeftPublicChat(_ n:Notification) {
         if let c = n.object as? Connection, self.connection == c {
             self.usersTableView.reloadData()
         }
     }
+
     
-    
-    
-    @objc private func linkConnectionDidClose(notification: Notification) -> Void {
-        if let c = notification.object as? Connection, c == self.connection {
-            self.usersController?.removeAllUsers()
-            self.usersTableView.reloadData()
-        }
-    }
     
     
     
     // MARK: - IBAction
+    
     @IBAction func doubleClickAction(_ sender: Any) {
         self.selectedUser = self.selectedItem()
         
@@ -82,6 +153,19 @@ class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTable
             self.selectedUser = nil
         }
     }
+    
+    
+    @IBAction func inviteToPrivateChat(_ sender: Any) {
+        if self.selectedUser != nil {
+            // create private chat
+            let privateChatController = PrivateChatController(self.connection, creator: self.connection.userInfo, invite: self.selectedUser)
+            
+            NotificationCenter.default.post(name: .userCreatePrivateChat, object: privateChatController)
+            
+            self.selectedUser = nil
+        }
+    }
+    
     
     @IBAction func getUserInfo(_ sender: Any) {
         let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
@@ -101,7 +185,13 @@ class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTable
     }
     
     @IBAction func kickUser(_ sender: Any) {
-        print("kickUser")
+        if let user = self.selectedItem() {
+            let message = P7Message(withName: "wired.chat.kick_user", spec: spec)
+            message.addParameter(field: "wired.chat.id", value: self.chatController?.chat?.chatID)
+            message.addParameter(field: "wired.user.id", value: user.userID)
+            message.addParameter(field: "wired.user.disconnect_message", value: "")
+            _ = self.connection.send(message: message)
+        }
     }
     
     @IBAction func banUser(_ sender: Any) {
@@ -109,43 +199,60 @@ class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTable
     }
     
     
+    
+    
+    
     // MARK: - connection Delegate
     
-    
-    func connectionDidConnect(connection: Connection) {
+    public func connectionDidConnect(connection: Connection) {
         
     }
     
-    func connectionDidFailToConnect(connection: Connection, error: Error) {
+    public func connectionDidFailToConnect(connection: Connection, error: Error) {
         
     }
     
-    func connectionDisconnected(connection: Connection, error: Error?) {
+    public func connectionDisconnected(connection: Connection, error: Error?) {
         
     }
     
-    func connectionDidReceiveError(connection: Connection, message: P7Message) {
+    public func connectionDidReceiveError(connection: Connection, message: P7Message) {
         
     }
     
-    func connectionDidReceiveMessage(connection: Connection, message: P7Message) {
+    public func connectionDidReceiveMessage(connection: Connection, message: P7Message) {
         if  message.name == "wired.chat.user_list" ||
             message.name == "wired.chat.user_join"  {
-        
-            self.usersController!.userJoin(message: message)
-            self.usersTableView.reloadData()
+                        
+            guard let chatID = message.uint32(forField: "wired.chat.id") else { return }
+            
+            if chatID == self.chatID {
+                self.chatController?.usersController.userJoin(message: message)
+                        
+                self.usersTableView.reloadData()
+            }
         }
         else if  message.name == "wired.chat.user_status" {
-            self.usersController!.updateStatus(message: message)
-            self.usersTableView.reloadData()
+            guard let chatID = message.uint32(forField: "wired.chat.id") else { return }
+            
+            if chatID == self.chatID {
+                self.chatController?.usersController.updateStatus(message: message)
+                
+                self.usersTableView.reloadData()
+            }
         }
         else if  message.name == "wired.chat.user_icon" {
-            self.usersController!.updateStatus(message: message)
-            self.usersTableView.reloadData()
+            guard let chatID = message.uint32(forField: "wired.chat.id") else { return }
+            
+            if chatID == self.chatID {
+                self.chatController?.usersController.updateStatus(message: message)
+                
+                self.usersTableView.reloadData()
+            }
         }
         else if message.name == "wired.chat.user_leave" {
-            // self.usersController!.userLeave(message: message)
-            // self.usersTableView.reloadData()
+             //self.chatController?.usersController.userLeave(message: message)
+             self.usersTableView.reloadData()
         }
         else if message.name == "wired.account.privileges" {
 
@@ -160,11 +267,15 @@ class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTable
     
     
     // MARK: NSValidatedUserInterfaceItem
-    func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+    
+    public func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if let user = self.selectedItem() {
             self.selectedUser = user
             
             if item.action == #selector(showPrivateMessages(_:)) {
+                return connection.isConnected()
+            }
+            else if item.action == #selector(inviteToPrivateChat(_:)) {
                 return connection.isConnected()
             }
             else if item.action == #selector(getUserInfo(_:)) {
@@ -185,16 +296,16 @@ class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTable
     
     // MARK: - Table View
     
-    func numberOfRows(in tableView: NSTableView) -> Int {
-        return self.usersController?.numberOfUsers() ?? 0
+    public func numberOfRows(in tableView: NSTableView) -> Int {
+        return self.chatController?.usersController.numberOfUsers() ?? 0
     }
     
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         var view: UserCellView?
         
         view = tableView.makeView(withIdentifier: NSUserInterfaceItemIdentifier(rawValue: "UserCell"), owner: self) as? UserCellView
         
-        if let uc = self.usersController, let user = uc.user(at: row) {
+        if let uc = self.chatController?.usersController, let user = uc.user(at: row) {
             view?.userNick?.stringValue = user.nick
             view?.userNick?.textColor = NSColor.color(forEnum: user.color)
             view?.userStatus?.stringValue = user.status
@@ -230,6 +341,6 @@ class UsersViewController: ConnectionViewController, ConnectionDelegate, NSTable
             return nil
         }
                 
-        return self.usersController?.user(at: selectedIndex)
+        return self.chatController?.usersController.user(at: selectedIndex)
     }
 }
