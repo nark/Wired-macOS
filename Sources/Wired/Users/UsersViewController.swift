@@ -141,61 +141,74 @@ public class UsersViewController: ConnectionViewController, ConnectionDelegate, 
     // MARK: - IBAction
     
     @IBAction func doubleClickAction(_ sender: Any) {
-        self.selectedUser = self.selectedItem()
+        if self.connection.hasPrivilege(key: "wired.account.message.send_messages") {
+            self.selectedUser = self.selectedItem()
         
-        self.showPrivateMessages(sender)
+            self.showPrivateMessages(sender)
+            
+        }
     }
     
     @IBAction func showPrivateMessages(_ sender: Any) {
-        if let selectedUser = self.selectedUser {
-            _ = ConversationsController.shared.openConversation(onConnection: self.connection, withUser: selectedUser)
-            
-            self.selectedUser = nil
+        if self.connection.hasPrivilege(key: "wired.account.message.send_messages") {
+            if let selectedUser = self.selectedUser {
+                _ = ConversationsController.shared.openConversation(onConnection: self.connection, withUser: selectedUser)
+                
+                self.selectedUser = nil
+            }
         }
     }
     
     
     @IBAction func inviteToPrivateChat(_ sender: Any) {
-        if self.selectedUser != nil {
-            // create private chat
-            let privateChatController = PrivateChatController(self.connection, creator: self.connection.userInfo, invite: self.selectedUser)
-            
-            NotificationCenter.default.post(name: .userCreatePrivateChat, object: privateChatController)
-            
-            self.selectedUser = nil
+        if self.connection.hasPrivilege(key: "wired.account.chat.create_chats") {
+            if self.selectedUser != nil {
+                // create private chat
+                let privateChatController = PrivateChatController(self.connection, creator: self.connection.userInfo, invite: self.selectedUser)
+                
+                NotificationCenter.default.post(name: .userCreatePrivateChat, object: privateChatController)
+                
+                self.selectedUser = nil
+            }
         }
     }
     
     
     @IBAction func getUserInfo(_ sender: Any) {
-        let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
-        if let userInfoViewController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("UserInfoViewController")) as? UserInfoViewController {
-            let popover = NSPopover()
-            popover.contentSize = userInfoViewController.view.frame.size
-            popover.behavior = .transient
-            popover.animates = true
-            popover.contentViewController = userInfoViewController
-            
-            userInfoViewController.connection = self.connection
-            userInfoViewController.user = self.selectedUser
-            self.selectedUser = nil
-            
-            popover.show(relativeTo: self.usersTableView.frame, of: self.usersTableView, preferredEdge: .minX)
+        if self.connection.hasPrivilege(key: "wired.account.user.get_info") {
+            let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
+            if let userInfoViewController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("UserInfoViewController")) as? UserInfoViewController {
+                let popover = NSPopover()
+                popover.contentSize = userInfoViewController.view.frame.size
+                popover.behavior = .transient
+                popover.animates = true
+                popover.contentViewController = userInfoViewController
+                
+                userInfoViewController.connection = self.connection
+                userInfoViewController.user = self.selectedUser
+                self.selectedUser = nil
+                
+                popover.show(relativeTo: self.usersTableView.frame, of: self.usersTableView, preferredEdge: .minX)
+            }
         }
     }
     
     @IBAction func kickUser(_ sender: Any) {
-        if let user = self.selectedItem() {
-            let message = P7Message(withName: "wired.chat.kick_user", spec: spec)
-            message.addParameter(field: "wired.chat.id", value: self.chatController?.chat?.chatID)
-            message.addParameter(field: "wired.user.id", value: user.userID)
-            message.addParameter(field: "wired.user.disconnect_message", value: "")
-            _ = self.connection.send(message: message)
+        if self.connection.hasPrivilege(key: "wired.account.chat.kick_users") {
+            if let user = self.selectedItem() {
+                let message = P7Message(withName: "wired.chat.kick_user", spec: spec)
+                message.addParameter(field: "wired.chat.id", value: self.chatController?.chat?.chatID)
+                message.addParameter(field: "wired.user.id", value: user.userID)
+                message.addParameter(field: "wired.user.disconnect_message", value: "")
+                _ = self.connection.send(message: message)
+            }
         }
     }
     
     @IBAction func banUser(_ sender: Any) {
-        print("banUser")
+        if self.connection.hasPrivilege(key: "wired.account.chat.ban_users") {
+            print("banUser")
+        }
     }
     
     
@@ -273,19 +286,24 @@ public class UsersViewController: ConnectionViewController, ConnectionDelegate, 
             self.selectedUser = user
             
             if item.action == #selector(showPrivateMessages(_:)) {
-                return connection.isConnected()
+                return  connection.isConnected() &&
+                        self.connection.hasPrivilege(key: "wired.account.message.send_messages")
             }
             else if item.action == #selector(inviteToPrivateChat(_:)) {
-                return connection.isConnected()
+                return  connection.isConnected() &&
+                        self.connection.hasPrivilege(key: "wired.account.chat.create_chats")
             }
             else if item.action == #selector(getUserInfo(_:)) {
-                return connection.isConnected()
+                return  connection.isConnected() &&
+                        self.connection.hasPrivilege(key: "wired.account.user.get_info")
             }
             else if item.action == #selector(kickUser(_:)) {
-                return connection.isConnected()
+                return  connection.isConnected() &&
+                        self.connection.hasPrivilege(key: "wired.account.chat.kick_users")
             }
             else if item.action == #selector(banUser(_:)) {
-                return connection.isConnected()
+                return  connection.isConnected() &&
+                        self.connection.hasPrivilege(key: "wired.account.chat.ban_users")
             }
         }
         return false

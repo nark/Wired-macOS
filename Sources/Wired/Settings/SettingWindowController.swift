@@ -8,9 +8,9 @@
 
 import Cocoa
 
-class SettingWindowController: NSWindowController {
+public class SettingWindowController: NSWindowController {
 
-    override func windowDidLoad() {
+    public override func windowDidLoad() {
         super.windowDidLoad()
     
         // Implement this method to handle any initialization after your window controller's window has been loaded from its nib file.

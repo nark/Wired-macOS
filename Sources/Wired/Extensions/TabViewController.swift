@@ -28,5 +28,23 @@ class TabViewController: NSTabViewController {
                 }
             }
         }
+        
+        // sync all windows
+//        for c in ConnectionsController.shared.connections {
+//            if let cwc = c.connectionWindowController {
+//                if let window = cwc.window {
+//                    if let identifier = window.toolbar?.selectedItemIdentifier?.rawValue {
+//                        if let myWindow = self.view.window, let toolbar = myWindow.toolbar {
+//                            for item in toolbar.items {
+//                                if item.itemIdentifier.rawValue == identifier {
+//                                    toolbar.selectedItemIdentifier = item.itemIdentifier
+//                                }
+//                            }
+//                        }
+//                        //self.tabView.selectTabViewItem(withIdentifier: identifier)
+//                    }
+//                }
+//            }
+//        }
     }
 }

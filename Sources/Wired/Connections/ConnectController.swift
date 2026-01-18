@@ -94,7 +94,7 @@ class ConnectController: ConnectionViewController, ConnectionDelegate {
         self.connection = ServerConnection(withSpec: spec, delegate: self)
         self.connection.nick = UserDefaults.standard.string(forKey: "WSUserNick") ?? self.connection.nick
         self.connection.status = UserDefaults.standard.string(forKey: "WSUserStatus") ?? self.connection.status
-        
+
         if let b64string = AppDelegate.currentIcon?.tiffRepresentation(using: NSBitmapImageRep.TIFFCompression.none, factor: 0)?.base64EncodedString() {
             self.connection.icon = b64string
         }
@@ -104,24 +104,7 @@ class ConnectController: ConnectionViewController, ConnectionDelegate {
                 
         DispatchQueue.global().async {
             if self.connection.connect(withUrl: url) {
-                DispatchQueue.main.async {
-                    let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
-                    guard let connectionWindowController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("ConnectionWindowController")) as? ConnectionWindowController else {
-                        return
-                    }
-                    self.connectionWindowController = connectionWindowController
-                    self.connection.connectionWindowController = self.connectionWindowController
-                    ConnectionsController.shared.addConnection(self.connection)
-                    
-                    self.progressIndicator.stopAnimation(sender)
-                    
-                    self.view.window?.orderOut(sender)
-                    self.view.window?.close()
-                    
-                    // distribute connection to sub components
-                    self.connectionWindowController.attach(connection: self.connection)
-                    self.connectionWindowController.showWindow(self)
-                }
+
             } else {
                 DispatchQueue.main.async {
 //                    if let wiredError = self.connection.socket.errors.first {
@@ -144,8 +127,28 @@ class ConnectController: ConnectionViewController, ConnectionDelegate {
     
     
     func connectionDidConnect(connection: Connection) {
-        
+        if self.connectionWindowController == nil {
+            let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
+            self.connectionWindowController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("ConnectionWindowController")) as? ConnectionWindowController
+        }
+
+        self.connection.connectionWindowController = self.connectionWindowController
+        self.connection.connectionWindowController = self.connectionWindowController
+        ConnectionsController.shared.addConnection(self.connection)
+
+        self.progressIndicator.stopAnimation(self)
     }
+    
+    func connectionDidLogin(connection: Connection, message: P7Message) {
+        print("connectionDidLogin")
+        self.view.window?.orderOut(self)
+        self.view.window?.close()
+
+        // distribute connection to sub components
+        self.connectionWindowController.attach(connection: self.connection)
+        self.connectionWindowController.showWindow(self)
+    }
+    
     
     func connectionDidFailToConnect(connection: Connection, error: Error) {
         if let e = error as? WiredError {
@@ -156,17 +159,17 @@ class ConnectController: ConnectionViewController, ConnectionDelegate {
     }
     
     func connectionDisconnected(connection: Connection, error: Error?) {
-        // print("connectionDisconnected")
-        //ConnectionsController.shared.removeConnection(connection as! ServerConnection)
+        self.connectButton.isEnabled = true
+        self.progressIndicator.stopAnimation(self)
     }
     
     
     func connectionDidReceiveMessage(connection: Connection, message: P7Message) {
-        // print("connectionDidReceiveMessage")
+
     }
     
     func connectionDidReceiveError(connection: Connection, message: P7Message) {
-        // print("connectionDidReceiveError")
+
     }
 
 }

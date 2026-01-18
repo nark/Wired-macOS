@@ -140,9 +140,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         }
     
         // various data formatters
-        AppDelegate.byteCountFormatter.allowedUnits = [.useMB]
+        AppDelegate.byteCountFormatter.allowedUnits = [.useAll]
         AppDelegate.byteCountFormatter.countStyle = .file
         AppDelegate.byteCountFormatter.zeroPadsFractionDigits = true
+        
+        
         
         AppDelegate.dateTimeFormatter.dateStyle = .medium
         AppDelegate.dateTimeFormatter.timeStyle = .medium

@@ -12,6 +12,19 @@
 
 import Cocoa
 import WiredSwift
+import Queuer
+
+
+
+@inline(__always) func TransfersTimeInterval() -> Double {
+    var tv = timeval()
+    
+    gettimeofday(&tv, nil)
+    
+    return Double(tv.tv_sec) + Double(tv.tv_usec) / Double(USEC_PER_SEC)
+}
+
+
 
 
 
@@ -24,12 +37,12 @@ extension Notification.Name {
 
 
 
-public class TransfersController {
+public class TransfersController: ConnectionDelegate {
     public static let shared = TransfersController()
     
     //var transfers:[Transfer] = []
     let semaphore = DispatchSemaphore(value: 2)
-    var queue:DispatchQueue = DispatchQueue(label: "transfers-queue", qos: .utility, attributes: .concurrent)
+    let queue = Queuer(name: "WiredTransfersQueue", maxConcurrentOperationCount: Int.max, qualityOfService: .default)
     
     private init() {
         NotificationCenter.default.addObserver(
@@ -50,9 +63,12 @@ public class TransfersController {
     }
     
     
+    
+    
+    // MARK: -
+    
     @objc func linkConnectionWillDisconnect(_ n:Notification) {
         if let connection = n.object as? Connection {
-            print("linkConnectionWillDisconnect")
             for transfer in self.transfers() {
                 if transfer.connection == connection && transfer.isWorking() {
                     transfer.state = .Disconnecting
@@ -72,6 +88,29 @@ public class TransfersController {
 
     }
     
+    
+    
+    
+    
+    
+    // MARK: -
+    public func connectionDidConnect(connection: Connection) {
+        
+    }
+    
+    public func connectionDidReceiveMessage(connection: Connection, message: P7Message) {
+        
+    }
+    
+    public func connectionDidReceiveError(connection: Connection, message: P7Message) {
+        
+    }
+    
+    
+    
+    
+    
+    // MARK: -
     
     public func transfers() -> [Transfer] {
         let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "Transfer")
@@ -230,9 +269,9 @@ public class TransfersController {
     
     
     private func transferThread(_ transfer: Transfer) {
-        semaphore.wait()
+        //semaphore.wait()
         
-        queue.async {
+        queue.addOperation {
             if transfer is DownloadTransfer {
                 self.runDownload(transfer)
             }
@@ -248,7 +287,10 @@ public class TransfersController {
         var data = true
         var dataLength:UInt64? = 0
         var rsrcLength:UInt64? = 0
-        let start:TimeInterval = Date.timeIntervalSinceReferenceDate
+        var time:Double = 0.0, speedTime:Double = 0.0
+        var speedBytes:Int = 0
+        
+        print("runDownload \(transfer)")
         
         if transfer.transferConnection == nil {
             transfer.transferConnection = self.transfertConnectionForTransfer(transfer)
@@ -256,13 +298,15 @@ public class TransfersController {
         
         let connection = transfer.transferConnection
         
+        transfer.transferConnection?.addDelegate(self)
+        
         transfer.transferConnection?.interactive = false
         
         // create a secondary connection
-        if connection?.connect(withUrl: transfer.connection.url, cipher: .ECDH_AES256_SHA256, compression: .DEFLATE, checksum: .Poly1305) == false {
+        if connection?.connect(withUrl: transfer.connection.url, cipher: .ECDH_AES256_SHA256, compression: .NONE, checksum: .SHA2_256) == false {
             transfer.state = .Stopped
             
-            self.semaphore.signal()
+            // self.semaphore.signal()
             
             DispatchQueue.main.async {
                 let downloaderror = NSLocalizedString("Download Error", comment: "")
@@ -276,6 +320,9 @@ public class TransfersController {
             
             return
         }
+        
+        speedTime = TransfersTimeInterval()
+        transfer.speed = 0.0
                 
         // recover remote file on transfer connection if needed
         if transfer.file == nil {
@@ -283,19 +330,19 @@ public class TransfersController {
             message.addParameter(field: "wired.file.path", value: transfer.remotePath)
             
             if transfer.transferConnection!.send(message: message) == true {
-                if let response = transfer.transferConnection!.readMessage() {
-                    transfer.file = File(response, connection: transfer.transferConnection!)
-                }
+//                if let response = transfer.transferConnection!.readMessage() {
+//                    transfer.file = File(response, connection: transfer.transferConnection!)
+//                }
             }
         }
-            
+                    
         // request download
         if self.sendDownloadFileMessage(onConnection: connection!, forTransfer: transfer) == false {
             if (transfer.isTerminating() == false) {
                 transfer.state = .Disconnecting
             }
             
-            self.semaphore.signal()
+            // self.semaphore.signal()
             
             DispatchQueue.main.async {
                 let downloaderror = NSLocalizedString("Download Error", comment: "")
@@ -310,13 +357,15 @@ public class TransfersController {
             return
         }
         
+        print("before run \(transfer)")
+        
         // run download
         guard let runMessage = self.run(transfer.transferConnection!, forTransfer: transfer, untilReceivingMessageName: "wired.transfer.download") else {
             if transfer.isTerminating() == false {
                 transfer.state = .Disconnecting
             }
             
-            self.semaphore.signal()
+            // self.semaphore.signal()
                      
             DispatchQueue.main.async {
                 self.finish(transfer)
@@ -324,7 +373,7 @@ public class TransfersController {
             
             return
         }
-                        
+                                
         dataLength = runMessage.uint64(forField: "wired.transfer.data")
         rsrcLength = runMessage.uint64(forField: "wired.transfer.rsrc")
         
@@ -340,7 +389,7 @@ public class TransfersController {
                 if fileSize == dataLength! {
                     transfer.state = .Stopped
                     
-                    self.semaphore.signal()
+                    // self.semaphore.signal()
                                             
                     DispatchQueue.main.async {
                         transfer.state = .Stopped
@@ -411,7 +460,7 @@ public class TransfersController {
                 
                 }
             } catch let e {
-                self.semaphore.signal()
+                // self.semaphore.signal()
                 
                 let downloaderror = NSLocalizedString("Download Error", comment: "")
                 error = WiredError(withTitle: downloaderror, message: "IO Error: \(e)")
@@ -436,6 +485,8 @@ public class TransfersController {
                 NotificationCenter.default.post(name: .didUpdateTransfers, object: transfer)
             }
         }
+        
+        transfer.speedCalculator.add(bytes: 0, time: 0)
                         
         while(transfer.isTerminating() == false) {
             if data == true && dataLength == 0 {
@@ -491,20 +542,27 @@ public class TransfersController {
                         
             // update transfered data offsets
             if data {
-                transfer.dataTransferred += Int64(oobdata.count)
+                transfer.dataTransferred    += Int64(oobdata.count)
             } else {
-                transfer.rsrcTransferred += Int64(oobdata.count)
+                transfer.rsrcTransferred    += Int64(oobdata.count)
             }
             
-            let totalTransferSize = transfer.file!.dataSize + transfer.file!.rsrcSize
-            transfer.actualTransferred += Int64(oobdata.count)
+            let totalTransferSize           = transfer.file!.dataSize + transfer.file!.rsrcSize
+            transfer.actualTransferred      += Int64(oobdata.count)
+            speedBytes                      += oobdata.count
             
-            let percent         =  Double(transfer.actualTransferred) / Double(totalTransferSize) * 100.0
-            transfer.percent    = percent
+            let percent                     = Double(transfer.actualTransferred) / Double(totalTransferSize) * 100.0
+            transfer.percent                = percent
+            time                            = TransfersTimeInterval()
             
-            let speed           = (Double(transfer.actualTransferred) / (Date.timeIntervalSinceReferenceDate - start)) * 8.0
-            transfer.speed      = 0.5 * speed + (1 - 0.5) * transfer.speed
-                        
+            if transfer.speed == 0.0 || time - speedTime > 0.33 {
+                transfer.speedCalculator.add(bytes: speedBytes, time: (time - speedTime))
+                transfer.speed = transfer.speedCalculator.speed()
+                
+                speedBytes = 0
+                speedTime = time
+            }
+
             // update progress in view
             if let progressIndicator = transfer.progressIndicator {
                 DispatchQueue.main.async {
@@ -513,7 +571,7 @@ public class TransfersController {
                     transfer.transferStatusField?.stringValue = transfer.transferStatus()
                 }
             }
-                        
+                                    
             // transfer done
             if transfer.dataTransferred + transfer.rsrcTransferred >= transfer.file!.dataSize + transfer.file!.rsrcSize {
                 transfer.state = .Disconnecting
@@ -536,7 +594,10 @@ public class TransfersController {
             }
         }
         
-        self.semaphore.signal()
+        transfer.speedCalculator.add(bytes: speedBytes, time: (time - speedTime))
+        transfer.speed = transfer.speedCalculator.speed()
+        
+        // self.semaphore.signal()
         
         try? AppDelegate.shared.persistentContainer.viewContext.save()
         
@@ -552,7 +613,8 @@ public class TransfersController {
         var dataLength:UInt64? = 0
         var sendBytes:UInt64 = 0
         var data = true
-        let start:TimeInterval = Date.timeIntervalSinceReferenceDate
+        var time:Double = 0.0, speedTime:Double = 0.0
+        var speedBytes:Int = 0
                 
         if transfer.transferConnection == nil {
             transfer.transferConnection = self.transfertConnectionForTransfer(transfer)
@@ -560,12 +622,14 @@ public class TransfersController {
         
         let connection = transfer.transferConnection
         
+        speedTime = TransfersTimeInterval()
+        
         transfer.transferConnection?.interactive = false
         
         if connection?.connect(withUrl: transfer.connection.url, cipher: .ECDH_AES256_SHA256, compression: .DEFLATE, checksum: .Poly1305) == false {
             transfer.state = .Stopped
             
-            self.semaphore.signal()
+            // self.semaphore.signal()
             
             DispatchQueue.main.async {
                 let uploaderror = NSLocalizedString("Upload Error", comment: "")
@@ -585,7 +649,7 @@ public class TransfersController {
                 transfer.state = .Disconnecting
             }
             
-            self.semaphore.signal()
+            // self.semaphore.signal()
             
             DispatchQueue.main.async {
                 let uploaderror = NSLocalizedString("Upload Error", comment: "")
@@ -605,7 +669,7 @@ public class TransfersController {
                 transfer.state = .Disconnecting
             }
             
-            self.semaphore.signal()
+            // self.semaphore.signal()
                      
             DispatchQueue.main.async {
                 self.finish(transfer)
@@ -630,7 +694,7 @@ public class TransfersController {
                 transfer.state = .Disconnecting
             }
             
-            self.semaphore.signal()
+            // self.semaphore.signal()
             
             DispatchQueue.main.async {
                 let uploaderror = NSLocalizedString("Upload Error", comment: "")
@@ -653,8 +717,8 @@ public class TransfersController {
                 NotificationCenter.default.post(name: .didUpdateTransfers, object: transfer)
             }
         }
-
-        Logger.info("sendUploadMessage OK")
+        
+        transfer.speedCalculator.add(bytes: 0, time: 0)
 
         if let fileHandle = FileHandle(forReadingAtPath: transfer.localPath!) {
             while transfer.isTerminating() == false {
@@ -702,10 +766,9 @@ public class TransfersController {
                 dataLength!                 -= sendBytes
                 transfer.dataTransferred    += Int64(sendBytes)
                 transfer.actualTransferred  += Int64(readBytes)
+                speedBytes                  += Int(readBytes)
                 transfer.percent            = Double(transfer.dataTransferred) / Double(transfer.size) * 100
-
-                let speed                   = (Double(transfer.dataTransferred) / (Date.timeIntervalSinceReferenceDate - start)) * 8.0
-                transfer.speed              = 0.5 * speed + (1 - 0.5) * transfer.speed
+                time                        = TransfersTimeInterval()
 
                 // update progress in view
                 if let progressIndicator = transfer.progressIndicator {
@@ -715,12 +778,24 @@ public class TransfersController {
                         transfer.transferStatusField?.stringValue = transfer.transferStatus()
                     }
                 }
+                
+                // speed calculation
+                if transfer.speed == 0.0 || time - speedTime > 0.33 {
+                    transfer.speedCalculator.add(bytes: speedBytes, time: (time - speedTime))
+                    transfer.speed = transfer.speedCalculator.speed()
+                    
+                    speedBytes = 0
+                    speedTime = time
+                }
             }
 
             fileHandle.closeFile()
         }
+        
+        transfer.speedCalculator.add(bytes: speedBytes, time: (time - speedTime))
+        transfer.speed = transfer.speedCalculator.speed()
 
-        self.semaphore.signal()
+        // self.semaphore.signal()
 
         try? AppDelegate.shared.persistentContainer.viewContext.save()
 
@@ -759,57 +834,47 @@ public class TransfersController {
     
     
     private func sendUploadMessage(onConnection connection:TransferConnection, forTransfer transfer:Transfer, dataLength:UInt64, rsrcLength:UInt64) -> Bool {
+        let data = FileManager.default.finderInfo(atPath: transfer.file!.path)!
+
+        
         let message = P7Message(withName: "wired.transfer.upload", spec: transfer.connection.spec)
         message.addParameter(field: "wired.file.path", value: transfer.file?.path)
-        
-        print("dataLength : \(dataLength)")
-        
-        var data = Data()
-        data.append(uint64: dataLength)
         message.addParameter(field: "wired.transfer.data", value: dataLength)
-
-        data = Data()
-        data.append(uint64: rsrcLength)
         message.addParameter(field: "wired.transfer.rsrc", value: UInt64(0))
-
-        data = FileManager.default.finderInfo(atPath: transfer.file!.path)!
         message.addParameter(field: "wired.transfer.finderinfo", value: data.base64EncodedData())
         
-        print("message XML : \(message.xml())")
-        
-        print("message BIN : \(message.bin().toHexString())")
-
         return transfer.transferConnection?.send(message: message) ?? false
     }
     
     
     private func run(_ connection: TransferConnection, forTransfer transfer:Transfer, untilReceivingMessageName messageName:String) -> P7Message? {
         while transfer.isWorking() {
+            // how to make large data transfert with Swift-NIO?
             guard let message = transfer.transferConnection?.readMessage() else {
                 let localstring = NSLocalizedString("Transfer cannot read message, probably timed out", comment: "")
                 print(localstring)
                 return nil
             }
-            
+
             if message.name == messageName {
                 return message
             }
-            
+
             if message.name == "wired.transfer.queue" {
-                
+
             } else if message.name == "wired.transfer.send_ping" {
                 let reply = P7Message(withName: "wired.ping", spec: transfer.connection.spec)
-                
+
                 if let t = message.uint32(forField: "wired.transaction") {
                     reply.addParameter(field: "wired.transaction", value: t)
                 }
-                
+
                 if transfer.transferConnection?.send(message: message) == false {
                     let localstring = NSLocalizedString("Transfer cannot reply ping", comment: "")
                     print(localstring)
                     return nil
                 }
-                
+
             } else if message.name == "wired.error" {
                 let localstring = NSLocalizedString("Transfer error", comment: "")
                 print(localstring)

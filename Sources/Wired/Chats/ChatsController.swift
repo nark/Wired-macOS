@@ -29,6 +29,16 @@ public class ChatsController: ConnectionObject {
     }
     
     
+    public func removePublicChat(_ chat: PublicChat) {
+        self.publicChats.removeAll(where: { (publicChat) -> Bool in
+            publicChat.chatID == chat.chatID
+        })
+        
+        self.chats[chat.chatID] = nil
+    }
+    
+    
+    
     public func addPrivateChat(_ chat: PrivateChat) {
         self.privateChats.append(chat)
         self.chats[chat.chatID] = chat

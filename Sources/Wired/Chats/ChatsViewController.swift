@@ -18,7 +18,148 @@ extension Notification.Name {
     static let chatUnreadsChanged = Notification.Name("chatUnreadsChanged")
 }
 
-class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOutlineViewDataSource, ConnectionDelegate, NSUserInterfaceValidations {
+
+
+private extension ChatsViewController {
+    // MARK: - Notification
+    @objc private func linkConnectionDidClose(notification: Notification) -> Void {
+        if let c = notification.object as? Connection, c == self.connection {
+            self.reloadDataRetainingSelection()
+            
+            self.updateChatController()
+        }
+    }
+        
+    @objc private func linkConnectionDidReconnect(_ n: Notification) {
+        if let c = n.object as? Connection, c == self.connection {
+            self.chatsController?.getChats()
+        }
+    }
+    
+    @objc private func userCreatePrivateChat(_ n: Notification) {
+        if let privateChatController = n.object as? PrivateChatController, privateChatController.connection == self.connection {
+            self.currentInvitationPrivateChatController = privateChatController
+            self.currentInvitationPrivateChatController?.createChat()
+        }
+    }
+    
+    @objc private func userPrivateChatCreated(_ n: Notification) {
+        if let privateChatController = n.object as? PrivateChatController, privateChatController.connection == self.connection {
+            // TODO: understand why this condition does not work
+            // related to `wired.chat.invitation` message where is set currentInvitationPrivateChatController
+            //if privateChatController == self.currentInvitationPrivateChatController {
+                self.chatsController?.addPrivateChat(privateChatController.chat! as! PrivateChat)
+                self.reloadDataRetainingSelection()
+                
+                self.chatControllers[privateChatController.chat!.chatID] = privateChatController
+                
+                self.selectedChatController = privateChatController
+                self.selectChatItem(item: privateChatController.chat!)
+            
+                self.joinChatController(chatController: privateChatController)
+                
+                self.currentInvitationPrivateChatController = nil
+            //}
+        }
+    }
+    
+    @objc private func chatUnreadsChanged(_ n: Notification) {
+        if let chatController = n.object as? ChatController, chatController.connection == self.connection {
+            //let indexSet = IndexSet(integer: chatsOutlineView.row(forItem: chatController.chat))
+            chatsOutlineView.reloadItem(chatController.chat)
+            
+        }
+    }
+    
+    
+    
+    // MARK: -
+    @objc private func doubleClickChat() {
+        self.joinChat(self)
+    }
+    
+    
+    
+    // MARK: -
+    private func updateChatController() {
+        if self.selectedChatController != nil {
+            guard let splitViewController = self.parent as? NSSplitViewController else {
+                return
+            }
+                        
+            guard let tabViewController = splitViewController.splitViewItems.last?.viewController as? NSTabViewController else {
+                return
+            }
+            
+            var currentTabViewItem = tabViewController.tabViewItem(for: self.selectedChatController!.chatSplitViewController)
+                        
+            if currentTabViewItem == nil {
+                currentTabViewItem = NSTabViewItem(viewController: self.selectedChatController!.chatSplitViewController)
+                tabViewController.addTabViewItem(currentTabViewItem!)
+            }
+            
+            if let index = tabViewController.tabViewItems.index(of: currentTabViewItem!) {
+                tabViewController.selectedTabViewItemIndex = index
+            }
+
+            self.selectedChatController!.chatSplitViewController.addSplitViewItem(NSSplitViewItem(viewController: self.selectedChatController!.chatViewController))
+            self.selectedChatController!.chatSplitViewController.addSplitViewItem(NSSplitViewItem(viewController: self.selectedChatController!.usersViewController))
+            
+            NotificationCenter.default.post(name: .selectedChatDidChange, object: self.selectedChatController)
+        } else {
+            guard let tabViewController = self.chatsTabViewController() else {
+                return
+            }
+            
+            tabViewController.selectedTabViewItemIndex = 0
+            
+            NotificationCenter.default.post(name: .selectedChatDidChange, object: nil)
+        }
+    }
+    
+    
+    
+    private func joinChatController(chatController: ChatController) {
+        chatController.join()
+                
+        self.updateChatController()
+    }
+    
+    
+    private func reloadDataRetainingSelection() {
+        let index = chatsOutlineView.selectedRowIndexes
+        
+        chatsOutlineView.reloadData()
+        
+        chatsOutlineView.selectRowIndexes(index, byExtendingSelection: true)
+        chatsOutlineView.becomeFirstResponder()
+    }
+    
+    
+    private func chatsTabViewController() -> NSTabViewController? {
+        guard let splitViewController = self.parent as? NSSplitViewController else {
+            return nil
+        }
+            
+        return splitViewController.splitViewItems.last?.viewController as? NSTabViewController
+    }
+    
+    
+    private func selectPublicChat() {
+        if let item = chatsController?.publicChats.first {
+            self.selectChatItem(item: item)
+        }
+    }
+    
+    
+    private func selectChatItem(item:Chat) {
+        chatsOutlineView.selectRowIndexes(IndexSet(integer: chatsOutlineView.row(forItem: item)), byExtendingSelection: false)
+    }
+}
+
+
+
+class ChatsViewController: ConnectionViewController {
     @IBOutlet weak var chatsOutlineView: NSOutlineView!
 
     public var chatsController:ChatsController?
@@ -37,6 +178,9 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
         ResourceIdentifiers.privateChats,
     ]
 
+    
+    
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -57,6 +201,10 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
         self.chatsOutlineView.expandItem(nil, expandChildren: true)
     }
     
+    
+    
+    
+    // MARK: -
     override var representedObject: Any? {
         didSet {
             if let c = self.representedObject as? ServerConnection {
@@ -76,64 +224,48 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
     }
     
     
-    // MARK: - Notification
-    @objc private func linkConnectionDidClose(notification: Notification) -> Void {
-        if let c = notification.object as? Connection, c == self.connection {
-            self.reloadDataRetainingSelection()
-            
-            self.updateChatController()
-        }
-    }
-    
-    @objc func linkConnectionDidReconnect(_ n: Notification) {
-        if let c = n.object as? Connection, c == self.connection {
-            self.chatsController?.getChats()
-        }
-    }
-    
-    @objc func userCreatePrivateChat(_ n: Notification) {
-        if let privateChatController = n.object as? PrivateChatController, privateChatController.connection == self.connection {
-            self.currentInvitationPrivateChatController = privateChatController
-            self.currentInvitationPrivateChatController?.createChat()
-        }
-    }
-    
-    @objc func userPrivateChatCreated(_ n: Notification) {
-        if let privateChatController = n.object as? PrivateChatController, privateChatController.connection == self.connection {
-            // TODO: understand why this condition does not work
-            // related to `wired.chat.invitation` message where is set currentInvitationPrivateChatController
-            //if privateChatController == self.currentInvitationPrivateChatController {
-                self.chatsController?.addPrivateChat(privateChatController.chat! as! PrivateChat)
-                self.reloadDataRetainingSelection()
+    public func selectedItem() -> Any? {
+        var selectedIndex = chatsOutlineView.clickedRow
                 
-                self.chatControllers[privateChatController.chat!.chatID] = privateChatController
-                
-                self.selectedChatController = privateChatController
-                self.selectChatItem(item: privateChatController.chat!)
-            
-                self.joinChatController(chatController: privateChatController)
-                
-                self.currentInvitationPrivateChatController = nil
-            //}
+        if selectedIndex == -1 {
+            selectedIndex = chatsOutlineView.selectedRow
         }
+        
+        if selectedIndex == -1 {
+            return nil
+        }
+                
+        return chatsOutlineView.item(atRow: selectedIndex)
     }
     
-    @objc func chatUnreadsChanged(_ n: Notification) {
-        if let chatController = n.object as? ChatController, chatController.connection == self.connection {
-            //let indexSet = IndexSet(integer: chatsOutlineView.row(forItem: chatController.chat))
-            chatsOutlineView.reloadItem(chatController.chat)
-            
+    
+    
+    
+    
+    @IBAction func newPublicChat(_ sender: Any) {
+        let storyboard = NSStoryboard(name: NSStoryboard.Name("Main"), bundle: Bundle.main)
+        
+        if let newChatWindowController = storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier("NewChatWindowController")) as? NSWindowController {
+            if let newChatViewController = newChatWindowController.contentViewController as? NewChatViewController {
+                newChatViewController.connection = self.connection
+                
+                self.view.window!.beginSheet(newChatWindowController.window!) { (modalResponse) in
+                    if modalResponse == .OK {
+                        // reload public chats eventually
+                    }
+                }
+            }
         }
+    }
+
+    
+    @IBAction func renamePublicChat(_ sender: Any) {
+        
     }
     
     
     
     // MARK: -
-    @objc private func doubleClickChat() {
-        self.joinChat(self)
-    }
-    
-    
     @IBAction func joinChat(_ sender: Any) {
         if let clickedItem = self.selectedItem() {
             if let chat = clickedItem as? PublicChat {
@@ -157,10 +289,29 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
     }
     
     
-    private func joinChatController(chatController: ChatController) {
-        chatController.join()
+    @IBAction func deletePublicChat(_ sender: Any) {
+        if let clickedItem = self.selectedItem() {
+            if let chat = clickedItem as? PublicChat {
+                let alert = NSAlert()
+                alert.messageText = NSLocalizedString("Are you sure you want to delete this public chat?", comment: "")
+                alert.informativeText = NSLocalizedString("All joined users will be unjoined from this chat. This operation is not recoverable.", comment: "")
+                alert.alertStyle = .informational
                 
-        self.updateChatController()
+                alert.addButton(withTitle: NSLocalizedString("OK", comment: ""))
+                alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
+                
+                if let w = self.view.window {
+                    alert.beginSheetModal(for: w) { (response) in
+                        if response == .alertFirstButtonReturn {
+                            let message = P7Message(withName: "wired.chat.delete_public_chat", spec: spec)
+                            message.addParameter(field: "wired.chat.id", value: chat.chatID)
+                            
+                            self.connection.send(message: message)
+                        }
+                    }
+                }
+            }
+        }
     }
     
     
@@ -182,12 +333,6 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
                         tabViewController.removeTabViewItem(tabViewController.tabViewItem(for: self.selectedChatController!.chatSplitViewController)!)
                         
                         self.selectedChatController = self.publicChatController
-                                                
-                        chatController.chatViewController.chatController = nil
-                        chatController.usersViewController.chatController = nil
-                        
-                        self.connection.removeDelegate(chatController.chatViewController)
-                        self.connection.removeDelegate(chatController.usersViewController)
                         
                         NotificationCenter.default.post(name: .userLeaveChat, object: chatController)
                         
@@ -208,14 +353,18 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
             }
         }
     }
-    
-    
+}
+
+
+extension ChatsViewController: ConnectionDelegate {
     
     // MARK: -
     func connectionDidReceiveMessage(connection: Connection, message: P7Message) {
         let selectedRowIndexes = chatsOutlineView.selectedRowIndexes
         
-        if message.name == "wired.chat.chat_list" || message.name == "wired.chat.public_chat_created" {
+        if message.name == "wired.login" {
+            
+        } else if message.name == "wired.chat.chat_list" || message.name == "wired.chat.public_chat_created" {
             guard let chatID = message.uint32(forField: "wired.chat.id") else { return }
             
             if chatsController?.chats[chatID] == nil {
@@ -246,8 +395,37 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
             
             self.reloadDataRetainingSelection()
         }
+        else if message.name == "wired.chat.public_chat_deleted" {
+            guard let chatID = message.uint32(forField: "wired.chat.id") else {
+              return
+            }
+
+            guard let publicChat = self.chatsController?.chats[chatID] as? PublicChat else {
+                return
+            }
+            
+            if let chatController = chatControllers[publicChat.chatID] {
+                chatControllers[publicChat.chatID] = nil
+                
+                chatController.leave(sendMessage: false)
+                
+                guard let tabViewController = self.chatsTabViewController() else {
+                    return
+                }
+                
+                tabViewController.removeTabViewItem(tabViewController.tabViewItem(for: self.selectedChatController!.chatSplitViewController)!)
+                
+                self.selectedChatController = self.publicChatController
+                
+                self.updateChatController()
+            }
+            
+            self.chatsController?.removePublicChat(publicChat)
+            
+            self.reloadDataRetainingSelection()
+        }
         else if message.name == "wired.chat.invitation" {
-            guard let chatID = message.uint32(forField: "wired.chat.id") else { return }
+            guard let _ = message.uint32(forField: "wired.chat.id") else { return }
             guard let userID = message.uint32(forField: "wired.user.id") else { return }
             guard let user = publicChatController?.usersController.user(forID: userID) else { return }
             
@@ -260,8 +438,8 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
             alert.addButton(withTitle: NSLocalizedString("Decline", comment: ""))
 
             if alert.runModal() == .alertFirstButtonReturn {
-                let c = PrivateChatController(self.connection, message: message, creator: user)
-                self.currentInvitationPrivateChatController = c
+                let privateChatController = PrivateChatController(self.connection, message: message, creator: user)
+                self.currentInvitationPrivateChatController = privateChatController
                 
             } else {
                 
@@ -272,9 +450,13 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
     func connectionDidReceiveError(connection: Connection, message: P7Message) {
         
     }
-    
-    
-    
+}
+
+
+
+
+// MARK: NSValidatedUserInterfaceItem
+extension ChatsViewController: NSUserInterfaceValidations {
     // MARK: NSValidatedUserInterfaceItem
     func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if self.connection != nil && self.connection.isConnected() {
@@ -284,6 +466,15 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
                 }
                 else if item.action == #selector(leaveChat(_:)) {
                     return self.chatControllers[publicChat.chatID] != nil && publicChat.chatID != 1
+                }
+                else if item.action == #selector(renamePublicChat(_:)) {
+                    return publicChat.chatID != 1 && self.connection.hasPrivilege(key: "wired.account.chat.create_public_chats")
+                }
+                else if item.action == #selector(deletePublicChat(_:)) {
+                    return publicChat.chatID != 1 && self.connection.hasPrivilege(key: "wired.account.chat.delete_public_chats")
+                }
+                else if item.action == #selector(newPublicChat(_:)) {
+                    return self.connection.hasPrivilege(key: "wired.account.chat.create_public_chats")
                 }
             }
             else if let privateChat = self.selectedItem() as? PrivateChat {
@@ -298,12 +489,14 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
            
         return false
     }
+}
+
+
+
+
+// MARK: OutlineView DataSource & Delegate -
+extension ChatsViewController: NSOutlineViewDelegate, NSOutlineViewDataSource {
     
-    
-    
-    
-    
-    // MARK: OutlineView DataSource & Delegate -
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         if let c = item as? String {
             if c == ResourceIdentifiers.publicChats {
@@ -432,90 +625,5 @@ class ChatsViewController: ConnectionViewController, NSOutlineViewDelegate, NSOu
         }
         
         self.updateChatController()
-    }
-    
-    
-    
-    // MARK: -
-    private func updateChatController() {
-        if self.selectedChatController != nil {
-            guard let splitViewController = self.parent as? NSSplitViewController else {
-                return
-            }
-                        
-            guard let tabViewController = splitViewController.splitViewItems.last?.viewController as? NSTabViewController else {
-                return
-            }
-            
-            var currentTabViewItem = tabViewController.tabViewItem(for: self.selectedChatController!.chatSplitViewController)
-                        
-            if currentTabViewItem == nil {
-                currentTabViewItem = NSTabViewItem(viewController: self.selectedChatController!.chatSplitViewController)
-                tabViewController.addTabViewItem(currentTabViewItem!)
-            }
-            
-            if let index = tabViewController.tabViewItems.index(of: currentTabViewItem!) {
-                tabViewController.selectedTabViewItemIndex = index
-            }
-
-            self.selectedChatController!.chatSplitViewController.addSplitViewItem(NSSplitViewItem(viewController: self.selectedChatController!.chatViewController))
-            self.selectedChatController!.chatSplitViewController.addSplitViewItem(NSSplitViewItem(viewController: self.selectedChatController!.usersViewController))
-            
-            NotificationCenter.default.post(name: .selectedChatDidChange, object: self.selectedChatController)
-        } else {
-            guard let tabViewController = self.chatsTabViewController() else {
-                return
-            }
-            
-            tabViewController.selectedTabViewItemIndex = 0
-            
-            NotificationCenter.default.post(name: .selectedChatDidChange, object: nil)
-        }
-    }
-    
-    
-    public func selectedItem() -> Any? {
-        var selectedIndex = chatsOutlineView.clickedRow
-                
-        if selectedIndex == -1 {
-            selectedIndex = chatsOutlineView.selectedRow
-        }
-        
-        if selectedIndex == -1 {
-            return nil
-        }
-                
-        return chatsOutlineView.item(atRow: selectedIndex)
-    }
-    
-    
-    private func reloadDataRetainingSelection() {
-        let index = chatsOutlineView.selectedRowIndexes
-        
-        chatsOutlineView.reloadData()
-        
-        chatsOutlineView.selectRowIndexes(index, byExtendingSelection: true)
-        chatsOutlineView.becomeFirstResponder()
-    }
-    
-    
-    private func chatsTabViewController() -> NSTabViewController? {
-        guard let splitViewController = self.parent as? NSSplitViewController else {
-            return nil
-        }
-            
-        return splitViewController.splitViewItems.last?.viewController as? NSTabViewController
-    }
-    
-    
-    private func selectPublicChat() {
-        if let item = chatsController?.publicChats.first {
-            self.selectChatItem(item: item)
-        }
-    }
-    
-    
-    private func selectChatItem(item:Chat) {
-        chatsOutlineView.selectRowIndexes(IndexSet(integer: chatsOutlineView.row(forItem: item)), byExtendingSelection: false)
     }
 }

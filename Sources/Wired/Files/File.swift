@@ -124,6 +124,12 @@ public class File: ConnectionObject, ConnectionDelegate {
     }
     
     
+    public func isUpload() -> Bool {
+        return self.type != .uploads
+    }
+    
+    
+    
     public func parentPath() -> String? {
         if self.isRoot() {
             return nil

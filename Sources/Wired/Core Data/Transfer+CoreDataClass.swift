@@ -19,22 +19,26 @@ public class Transfer: NSManagedObject {
     public var progressIndicator:NSProgressIndicator?
     public var transferStatusField:NSTextField?
     public var error:String = ""
+    public var speedCalculator:SpeedCalculator = SpeedCalculator()
     
     public func transferStatus() -> String {
+        let remaining = dataTransferred < size ? size - dataTransferred : 0
+        let interval  = (speed > 0) ? Double(remaining) / speed : 0;
         
-        let typeString = self is DownloadTransfer ? "Download" : "Upload"
-        let speedString = AppDelegate.byteCountFormatter.string(fromByteCount: Int64(speed.rounded()))
-        let sizeString = AppDelegate.byteCountFormatter.string(fromByteCount: dataTransferred)
-        let totalString = AppDelegate.byteCountFormatter.string(fromByteCount: size)
+        let typeString      = self is DownloadTransfer ? "Download" : "Upload"
+        let speedString     = AppDelegate.byteCountFormatter.string(fromByteCount: Int64(speed.rounded()))
+        let sizeString      = AppDelegate.byteCountFormatter.string(fromByteCount: dataTransferred)
+        let totalString     = AppDelegate.byteCountFormatter.string(fromByteCount: size)
+        let intervalString  = TimeInterval(exactly: interval)!.stringFromTimeInterval()
         
         let speed = NSLocalizedString("speed", comment: "")
         
         var s = "\(typeString) \(state), \(percent.rounded())%, \(speed) \(speedString)/s"
         
         if isWorking() {
-            s = "\(typeString) \(state), \(sizeString) of \(totalString), \(percent.rounded())%, \(speed) \(speedString)/s"
+            s = "\(typeString) \(state), \(sizeString) of \(totalString), \(percent.rounded())%, \(speed) \(speedString)/s, \(intervalString)"
         } else {
-            s = "\(typeString) \(state), \(sizeString), \(speed) \(speedString)/s"
+            s = "\(typeString) \(state), \(sizeString), \(speed) \(speedString)/s, \(intervalString)"
         }
         
         if error != "" {

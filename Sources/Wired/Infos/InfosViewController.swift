@@ -35,7 +35,7 @@ class InfosViewController: ConnectionViewController, ConnectionDelegate {
             if let c = self.representedObject as? ServerConnection {
                 self.connection = c
                                 
-                c.delegates.append(self)
+                self.connection.addDelegate(self)
                 
                 self.updateView()
             }
@@ -86,7 +86,11 @@ class InfosViewController: ConnectionViewController, ConnectionDelegate {
     }
     
     func connectionDidReceiveMessage(connection: Connection, message: P7Message) {
-        
+        if self.connection == connection && connection.isConnected() {
+            if message.name == "wired.server_info" {
+                self.updateView()
+            }
+        }
     }
     
     func connectionDidReceiveError(connection: Connection, message: P7Message) {

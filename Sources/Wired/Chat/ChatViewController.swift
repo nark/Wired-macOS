@@ -517,11 +517,16 @@ public class ChatViewController: ConnectionViewController, ConnectionDelegate, N
     
     private func chatCommand(_ command: String) -> P7Message? {
         let comps = command.split(separator: " ")
-        
+                
         if comps[0] == "/me" {
-            let message = P7Message(withName: "wired.chat.send_me", spec: self.connection.spec)
             let value = command.deletingPrefix(comps[0]+" ")
-            
+                        
+            if value.count == 0 || value == comps[0] {
+                return nil
+            }
+
+            let message = P7Message(withName: "wired.chat.send_me", spec: self.connection.spec)
+
             message.addParameter(field: "wired.chat.id", value: self.chatController?.chat?.chatID)
             message.addParameter(field: "wired.chat.me", value: value)
             
@@ -531,6 +536,10 @@ public class ChatViewController: ConnectionViewController, ConnectionDelegate, N
         else if comps[0] == "/nick" {
             let value = command.deletingPrefix(comps[0]+" ")
             
+            if value.count == 0 || value == comps[0] {
+                return nil
+            }
+            
             UserDefaults.standard.set(value, forKey: "WSUserNick")
             
             return self.setNickMessage(value)
@@ -539,17 +548,42 @@ public class ChatViewController: ConnectionViewController, ConnectionDelegate, N
         else if comps[0] == "/status" {
             let value = command.deletingPrefix(comps[0]+" ")
             
+            if value.count == 0 || value == comps[0] {
+                return nil
+            }
+            
             UserDefaults.standard.set(value, forKey: "WSUserStatus")
             
             return self.setStatusMessage(value)
         }
         
         else if comps[0] == "/topic" {
-            let message = P7Message(withName: "wired.chat.set_topic", spec: self.connection.spec)
             let value = command.deletingPrefix(comps[0]+" ")
             
+            if value.count == 0 || value == comps[0] {
+                return nil
+            }
+
+            let message = P7Message(withName: "wired.chat.set_topic", spec: self.connection.spec)
+
             message.addParameter(field: "wired.chat.id", value: self.chatController?.chat?.chatID)
             message.addParameter(field: "wired.chat.topic.topic", value: value)
+            
+            return message
+        }
+            
+        else if comps[0] == "/help" {
+            var string = "Chat commands:\n\n"
+            string += "/me\t\tSend a third-person message\n"
+            string += "/nick\tUpdate your user nick\n"
+            string += "/status\tUpdate your user status\n"
+            string += "/topic\tSet the chat topic\n"
+            string += "/help\tShow this help message\n"
+            
+            let message = P7Message(withName: "wired.chat.send_say", spec: self.connection.spec)
+
+            message.addParameter(field: "wired.chat.id", value: self.chatController?.chat?.chatID)
+            message.addParameter(field: "wired.chat.say", value: string)
             
             return message
         }

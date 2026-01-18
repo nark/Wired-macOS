@@ -56,11 +56,19 @@ public class ChatController : ConnectionObject {
     }
     
     
-    public func leave() {
-        let message = P7Message(withName: "wired.chat.leave_chat", spec: spec)
-        message.addParameter(field: "wired.chat.id", value: chat!.chatID)
+    public func leave(sendMessage:Bool = true) {
+        self.chatViewController.chatController = nil
+        self.usersViewController.chatController = nil
         
-        _ = self.connection.send(message: message)
+        self.connection.removeDelegate(self.chatViewController)
+        self.connection.removeDelegate(self.usersViewController)
+        
+        if sendMessage {
+            let message = P7Message(withName: "wired.chat.leave_chat", spec: spec)
+            message.addParameter(field: "wired.chat.id", value: chat!.chatID)
+            
+            _ = self.connection.send(message: message)
+        }
     }
     
     

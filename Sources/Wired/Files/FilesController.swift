@@ -33,6 +33,12 @@ public class FilesController: ConnectionObject {
     }
     
     
+    
+    public func clear() {
+        self.rootFile = File("/", connection: connection)
+    }
+    
+    
     public func delete(file:File) {
         let message = P7Message(withName: "wired.file.delete", spec: self.connection.spec)
         
