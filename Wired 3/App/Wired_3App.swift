@@ -10,6 +10,9 @@ import SwiftUI
 import SwiftData
 import WiredSwift
 import UserNotifications
+#if os(macOS)
+import AppKit
+#endif
 
 let specURL = Bundle.main.url(forResource: "wired", withExtension: "xml")!
 let spec = P7Spec(withUrl: specURL)
@@ -40,6 +43,7 @@ struct Wired_3App: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Bookmark.self,
+            Transfer.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -52,16 +56,9 @@ struct Wired_3App: App {
 
     var body: some Scene {
         WindowGroup {
-            MainView()
+            AppRootView()
                 .environment(controller)
                 .environmentObject(transfers)
-                .onAppear {
-                    UNUserNotificationCenter.current().requestAuthorization(
-                        options: [.badge, .alert, .sound]
-                    ) { granted, error in
-                        print("Notifications permission:", granted)
-                    }
-                }
         }
         .modelContainer(sharedModelContainer)
         
@@ -69,6 +66,32 @@ struct Wired_3App: App {
         Settings {
             SettingsView()
         }
+#endif
+    }
+}
+
+/// A small root view that has access to SwiftData's ModelContext.
+/// This avoids threading ModelContext manually through your whole view tree.
+private struct AppRootView: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var transfers: TransferManager
+
+    var body: some View {
+        MainView()
+            .onAppear {
+                // Attach SwiftData once, and restore persisted transfers.
+                transfers.attach(modelContext: modelContext)
+
+                UNUserNotificationCenter.current().requestAuthorization(
+                    options: [.badge, .alert, .sound]
+                ) { granted, _ in
+                    print("Notifications permission:", granted)
+                }
+            }
+#if os(macOS)
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                transfers.prepareForTermination()
+            }
 #endif
     }
 }
