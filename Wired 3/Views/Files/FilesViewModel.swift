@@ -282,6 +282,9 @@ final class FilesViewModel: ObservableObject {
         if item.type == .directory || item.type == .uploads || item.type == .dropbox {
             await ensureTreeChildren(for: item.path)
         }
+        let includeSelf = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
+        await expandTreeAncestors(for: item.path, includeSelf: includeSelf)
+        _ = await revealRemotePath(item.path)
     }
 
     @MainActor
@@ -400,8 +403,22 @@ private extension FilesViewModel {
             let item = columns[index].items.first(where: { $0.id == id }),
             (item.type == .directory || item.type == .uploads || item.type == .dropbox)
         else {
+            if let id = newID,
+               let selected = columns[index].items.first(where: { $0.id == id }) {
+                treeSelectionPath = selected.path
+                Task { @MainActor in
+                    await self.expandTreeAncestors(for: selected.path, includeSelf: false)
+                }
+            } else {
+                treeSelectionPath = columns[index].path
+                Task { @MainActor in
+                    await self.expandTreeAncestors(for: columns[index].path, includeSelf: true)
+                }
+            }
             return
         }
+
+        treeSelectionPath = item.path
 
         Task {
             let newColumn = await loadColumn(for: item)
@@ -409,6 +426,29 @@ private extension FilesViewModel {
             if let column = newColumn {
                 onColumnAppended(column)
             }
+            await self.expandTreeAncestors(for: item.path, includeSelf: true)
+        }
+    }
+
+    @MainActor
+    func expandTreeAncestors(for path: String, includeSelf: Bool) async {
+        let normalized = normalizedRemotePath(path)
+        expandedTreePaths.insert("/")
+        guard normalized != "/" else { return }
+
+        let components = normalized
+            .split(separator: "/")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+
+        var current = ""
+        let maxIndex = includeSelf ? components.count - 1 : max(components.count - 2, -1)
+        guard maxIndex >= 0 else { return }
+
+        for (idx, component) in components.enumerated() where idx <= maxIndex {
+            current += "/" + component
+            expandedTreePaths.insert(current)
+            await ensureTreeChildren(for: current)
         }
     }
 }
