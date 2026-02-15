@@ -9,6 +9,15 @@
 import SwiftUI
 import WiredSwift
 
+extension Notification.Name {
+    static let revealRemoteTransferPath = Notification.Name("revealRemoteTransferPath")
+}
+
+struct RemoteTransferPathRequest {
+    let connectionID: UUID
+    let path: String
+}
+
 @MainActor
 final class FilesViewModel: ObservableObject {
 
@@ -20,7 +29,7 @@ final class FilesViewModel: ObservableObject {
     
     @Published var error: Error? = nil
     
-    private var fileService: FileServiceProtocol?
+    var fileService: FileServiceProtocol?
     private var runtime: ConnectionRuntime?
     private var root = FileItem("/", path: "/")
 
@@ -172,10 +181,77 @@ final class FilesViewModel: ObservableObject {
             self.error = error
         }
     }
+
+    @MainActor
+    func revealRemotePath(_ path: String) async -> Bool {
+        let normalizedPath = normalizedRemotePath(path)
+        if normalizedPath.isEmpty { return false }
+
+        if columns.isEmpty {
+            await loadRoot()
+        }
+        guard !columns.isEmpty else { return false }
+
+        if normalizedPath == "/" {
+            columns = Array(columns.prefix(1))
+            columns[0].selection = nil
+            return true
+        }
+
+        let components = normalizedPath
+            .split(separator: "/")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+
+        guard !components.isEmpty else { return false }
+
+        var currentPath = ""
+        var columnIndex = 0
+
+        for (idx, component) in components.enumerated() {
+            if !columns.indices.contains(columnIndex) {
+                return false
+            }
+
+            currentPath += "/" + component
+
+            if columns[columnIndex].items.isEmpty {
+                await reloadColumn(at: columnIndex)
+            }
+
+            var item = columns[columnIndex].items.first(where: { normalizedRemotePath($0.path) == currentPath })
+
+            if item == nil {
+                await reloadColumn(at: columnIndex)
+                item = columns[columnIndex].items.first(where: { normalizedRemotePath($0.path) == currentPath })
+            }
+
+            guard let matched = item else {
+                return false
+            }
+
+            columns[columnIndex].selection = matched.id
+            columns = Array(columns.prefix(columnIndex + 1))
+
+            let isLastComponent = idx == components.count - 1
+            if !isLastComponent && (matched.type == .directory || matched.type == .uploads || matched.type == .dropbox) {
+                _ = await loadColumn(for: matched)
+                columnIndex += 1
+            }
+        }
+
+        return true
+    }
 }
 
 
 private extension FilesViewModel {
+    func normalizedRemotePath(_ path: String) -> String {
+        if path == "/" { return "/" }
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if trimmed.isEmpty { return "/" }
+        return "/" + trimmed
+    }
 
     func handleSelection(
         _ newID: UUID?,

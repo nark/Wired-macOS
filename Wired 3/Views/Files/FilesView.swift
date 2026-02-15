@@ -32,6 +32,15 @@ struct FilesView: View {
                 .frame(width: 80)
                 
                 Button {
+                    Task {
+                        await filesViewModel.reloadSelectedColumn()
+                    }
+                    
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                }
+                
+                Button {
                     if let selectedFile = filesViewModel.selectedItem {
                         if selectedFile.type == .file {
                             transfers.download(selectedFile, with: bookmark.id)
@@ -89,8 +98,8 @@ struct FilesView: View {
         }
         .fileImporter(
             isPresented: $filesViewModel.showFilesBrowser,
-            allowedContentTypes: [.data],
-            allowsMultipleSelection: false
+            allowedContentTypes: [.data, .directory],
+            allowsMultipleSelection: true,
         ) { result in
             switch result {
             case .success(let urls):
@@ -132,6 +141,14 @@ struct FilesView: View {
         .disabled(filesViewModel.selectedItem == nil)
         
         .errorAlert(error: $filesViewModel.error)
+        .onReceive(NotificationCenter.default.publisher(for: .revealRemoteTransferPath)) { notification in
+            guard let request = notification.object as? RemoteTransferPathRequest else { return }
+            guard request.connectionID == bookmark.id else { return }
+
+            Task { @MainActor in
+                _ = await filesViewModel.revealRemotePath(request.path)
+            }
+        }
     }
     
     func fileImporterSuccess(_ url: URL) {
