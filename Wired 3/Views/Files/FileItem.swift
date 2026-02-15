@@ -40,6 +40,8 @@ struct FileItem: Identifiable, Hashable {
     
     var dataSize:UInt64 = 0
     var rsrcSize:UInt64 = 0
+    var creationDate: Date? = nil
+    var modificationDate: Date? = nil
     var uploadDataSize:UInt64 = 0
     var uploadRsrcSize:UInt64 = 0
     var dataTransferred:UInt64 = 0
@@ -72,6 +74,12 @@ struct FileItem: Identifiable, Hashable {
         }
         if let s = message.uint32(forField: "wired.file.directory_count") {
             self.directoryCount = Int(s)
+        }
+        if let date = message.date(forField: "wired.file.creation_time") {
+            self.creationDate = date
+        }
+        if let date = message.date(forField: "wired.file.modification_time") {
+            self.modificationDate = date
         }
     }
 }

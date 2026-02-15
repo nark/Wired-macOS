@@ -18,10 +18,21 @@ struct RemoteTransferPathRequest {
     let path: String
 }
 
+struct RemoteTreeNode: Identifiable, Hashable {
+    var id: String { path }
+    let path: String
+    let level: Int
+    let item: FileItem
+}
+
 @MainActor
 final class FilesViewModel: ObservableObject {
 
     @Published var columns: [FileColumn] = []
+    @Published var treeChildrenByPath: [String: [FileItem]] = [:]
+    @Published var expandedTreePaths: Set<String> = ["/"]
+    @Published var treeSelectionPath: String? = nil
+    @Published var treeViewRevision: Int = 0
     
     @Published var showFilesBrowser: Bool = false
     @Published var showCreateFolderSheet: Bool = false
@@ -90,19 +101,22 @@ final class FilesViewModel: ObservableObject {
     // MARK: -
 
     func loadRoot() async {
-        await loadColumn(for: root)
+        _ = await loadColumn(for: root)
+        await loadTreeRoot()
     }
 
     func loadColumn(for item: FileItem) async -> FileColumn? {
-        guard let connection = runtime?.connection as? AsyncConnection else {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else {
             return nil
         }
 
         var files: [FileItem] = []
 
         do {
-            for try await file in fileService!.listDirectory(
+            for try await file in fileService.listDirectory(
                 path: item.path,
+                recursive: false,
                 connection: connection
             ) {
                 files.append(file)
@@ -139,6 +153,7 @@ final class FilesViewModel: ObservableObject {
         do {
             for try await file in fileService.listDirectory(
                 path: path,
+                recursive: false,
                 connection: connection
             ) {
                 files.append(file)
@@ -167,6 +182,14 @@ final class FilesViewModel: ObservableObject {
         guard let index = columns.indices.last else { return }
         await reloadColumn(at: index)
     }
+
+    @MainActor
+    func reloadAll() async {
+        for idx in columns.indices {
+            await reloadColumn(at: idx)
+        }
+        await loadTreeRoot()
+    }
     
     @MainActor
     func deleteFile(_ path: String) async {
@@ -180,6 +203,114 @@ final class FilesViewModel: ObservableObject {
         } catch {
             self.error = error
         }
+    }
+
+    @MainActor
+    func loadTreeRoot() async {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return }
+
+        do {
+            var items: [FileItem] = []
+            for try await file in fileService.listDirectory(path: "/", recursive: false, connection: connection) {
+                items.append(file)
+            }
+            treeChildrenByPath["/"] = items
+            treeViewRevision &+= 1
+        } catch {
+            self.error = error
+        }
+    }
+
+    @MainActor
+    func ensureTreeChildren(for directoryPath: String) async {
+        if treeChildrenByPath[directoryPath] != nil { return }
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return }
+
+        do {
+            var items: [FileItem] = []
+            for try await file in fileService.listDirectory(path: directoryPath, recursive: false, connection: connection) {
+                items.append(file)
+            }
+            treeChildrenByPath[directoryPath] = items
+            treeViewRevision &+= 1
+        } catch {
+            self.error = error
+        }
+    }
+
+    @MainActor
+    func toggleTreeExpansion(for path: String) async {
+        if expandedTreePaths.contains(path) {
+            expandedTreePaths.remove(path)
+        } else {
+            expandedTreePaths.insert(path)
+            await ensureTreeChildren(for: path)
+        }
+    }
+
+    @MainActor
+    func visibleTreeNodes() -> [RemoteTreeNode] {
+        var nodes: [RemoteTreeNode] = []
+
+        func appendChildren(for path: String, level: Int) {
+            guard let children = treeChildrenByPath[path] else { return }
+
+            let sortedChildren = children.sorted {
+                if ($0.type == .directory || $0.type == .uploads || $0.type == .dropbox) != ($1.type == .directory || $1.type == .uploads || $1.type == .dropbox) {
+                    return ($0.type == .directory || $0.type == .uploads || $0.type == .dropbox)
+                }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+
+            for child in sortedChildren {
+                nodes.append(RemoteTreeNode(path: child.path, level: level, item: child))
+                if expandedTreePaths.contains(child.path) {
+                    appendChildren(for: child.path, level: level + 1)
+                }
+            }
+        }
+
+        appendChildren(for: "/", level: 0)
+        return nodes
+    }
+
+    @MainActor
+    func selectTreeItem(_ item: FileItem) async {
+        treeSelectionPath = item.path
+        if item.type == .directory || item.type == .uploads || item.type == .dropbox {
+            await ensureTreeChildren(for: item.path)
+        }
+    }
+
+    @MainActor
+    func selectedTreeItem() -> FileItem? {
+        guard let selection = treeSelectionPath else { return nil }
+        for (_, items) in treeChildrenByPath {
+            if let found = items.first(where: { $0.path == selection }) {
+                return found
+            }
+        }
+        if selection == "/" {
+            return FileItem("/", path: "/", type: .directory)
+        }
+        return nil
+    }
+
+    @MainActor
+    func moveRemoteItem(from sourcePath: String, to targetDirectoryPath: String) async throws {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return }
+        let sourceName = (sourcePath as NSString).lastPathComponent
+        let destinationPath = (targetDirectoryPath as NSString).appendingPathComponent(sourceName)
+
+        if normalizedRemotePath(sourcePath) == normalizedRemotePath(destinationPath) {
+            return
+        }
+
+        try await fileService.moveFile(from: sourcePath, to: destinationPath, connection: connection)
+        await reloadAll()
     }
 
     @MainActor
@@ -267,8 +398,10 @@ private extension FilesViewModel {
         guard
             let id = newID,
             let item = columns[index].items.first(where: { $0.id == id }),
-            item.type == .directory
-        else { return }
+            (item.type == .directory || item.type == .uploads || item.type == .dropbox)
+        else {
+            return
+        }
 
         Task {
             let newColumn = await loadColumn(for: item)
