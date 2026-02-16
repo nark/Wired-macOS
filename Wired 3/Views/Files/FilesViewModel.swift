@@ -87,13 +87,11 @@ final class FilesViewModel: ObservableObject {
                     self.columns[index].selection
                 },
                 set: { newID in
-                    Task { @MainActor in
-                        self.handleSelection(
-                            newID,
-                            in: index,
-                            onColumnAppended: onColumnAppended
-                        )
-                    }
+                    self.handleSelection(
+                        newID,
+                        in: index,
+                        onColumnAppended: onColumnAppended
+                    )
                 }
             )
         }
@@ -299,6 +297,21 @@ final class FilesViewModel: ObservableObject {
             return FileItem("/", path: "/", type: .directory)
         }
         return nil
+    }
+
+    @MainActor
+    func preselectColumnItem(id: UUID, at index: Int) {
+        guard columns.indices.contains(index) else { return }
+        columns[index].selection = id
+    }
+
+    @MainActor
+    func selectColumnItem(
+        id: UUID,
+        at index: Int,
+        onColumnAppended: @escaping (FileColumn) -> Void
+    ) {
+        handleSelection(id, in: index, onColumnAppended: onColumnAppended)
     }
 
     @MainActor

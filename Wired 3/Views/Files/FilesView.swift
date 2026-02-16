@@ -28,6 +28,44 @@ struct RemoteFileDragPayload: Codable, Transferable {
     }
 }
 
+private func dragExportTypeIdentifier(forFileName fileName: String) -> String {
+    let ext = (fileName as NSString).pathExtension
+    guard !ext.isEmpty else { return UTType.data.identifier }
+    return UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier
+}
+
+private func dragExportFileName(for item: FileItem) -> String {
+    let name = item.name.isEmpty ? (item.path as NSString).lastPathComponent : item.name
+    return name.isEmpty ? "file" : name
+}
+
+private func dragExportSuggestedName(forFileName fileName: String) -> String {
+    let baseName = (fileName as NSString).deletingPathExtension
+    let ext = (fileName as NSString).pathExtension
+    if ext.isEmpty || baseName.isEmpty {
+        return fileName
+    }
+    return baseName
+}
+
+private func dragExportTemporaryFileName(forFileName fileName: String) -> String {
+    let baseName = (fileName as NSString).deletingPathExtension
+    let ext = (fileName as NSString).pathExtension
+    if ext.isEmpty || baseName.isEmpty {
+        return fileName
+    }
+    return baseName
+}
+
+private func dragExportTemporaryURL(for item: FileItem) -> URL {
+    let fileName = dragExportFileName(for: item)
+    let base = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("WiredDragExports", isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+    return base.appendingPathComponent(dragExportTemporaryFileName(forFileName: fileName), isDirectory: false)
+}
+
 struct FilesView: View {
     @Environment(ConnectionController.self) private var connectionController
     @Environment(ConnectionRuntime.self) private var runtime
@@ -244,15 +282,21 @@ struct FilesTreeView: View {
         let item = node.item
         let isDirectory = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
         let isExpanded = filesViewModel.expandedTreePaths.contains(item.path)
+        let isSelected = filesViewModel.treeSelectionPath == item.path
 
         HStack(spacing: 6) {
             Color.clear
                 .frame(width: CGFloat(node.level) * 14, height: 1)
 
             if isDirectory {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Button {
+                    Task { await filesViewModel.toggleTreeExpansion(for: item.path) }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                }
+                .buttonStyle(.plain)
             } else {
                 Color.clear.frame(width: 12, height: 1)
             }
@@ -260,22 +304,27 @@ struct FilesTreeView: View {
             FinderFileIconView(item: item, size: 16)
 
             Text(item.name)
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
                 .lineLimit(1)
 
             Spacer()
         }
-        .contentShape(Rectangle())
-        .background(filesViewModel.treeSelectionPath == item.path ? Color.accentColor.opacity(0.15) : .clear)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 6)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isSelected ? Color.accentColor : Color.clear)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .onTapGesture {
             Task {
-                if isDirectory {
-                    await filesViewModel.toggleTreeExpansion(for: item.path)
-                }
                 await filesViewModel.selectTreeItem(item)
             }
         }
         .onDrag {
-            dragProvider(for: item, isDirectory: isDirectory)
+            Task { await filesViewModel.selectTreeItem(item) }
+            return dragProvider(for: item, isDirectory: isDirectory)
         }
         .dropDestination(for: URL.self) { urls, _ in
             guard isDirectory else { return false }
@@ -314,7 +363,7 @@ struct FilesTreeView: View {
         ) {
             provider.registerDataRepresentation(
                 forTypeIdentifier: UTType.wiredRemoteFile.identifier,
-                visibility: .all
+                visibility: .ownProcess
             ) { completion in
                 completion(payloadData, nil)
                 return nil
@@ -323,16 +372,20 @@ struct FilesTreeView: View {
 
         guard item.type == .file else { return provider }
 
+        let fileName = dragExportFileName(for: item)
+        let fileType = dragExportTypeIdentifier(forFileName: fileName)
+        provider.suggestedName = dragExportSuggestedName(forFileName: fileName)
+
         provider.registerFileRepresentation(
-            forTypeIdentifier: UTType.data.identifier,
+            forTypeIdentifier: fileType,
             fileOptions: [],
             visibility: .all
         ) { completion in
             let progress = Progress(totalUnitCount: 100)
 
             Task {
-                let destinationPath = TransferWorker.defaultDownloadDestination(forPath: item.path)
-                let destinationURL = URL(fileURLWithPath: destinationPath)
+                let destinationURL = dragExportTemporaryURL(for: item)
+                let destinationPath = destinationURL.path
 
                 if !FileManager.default.fileExists(atPath: destinationPath) {
                     await MainActor.run {
@@ -347,7 +400,7 @@ struct FilesTreeView: View {
 
                 if FileManager.default.fileExists(atPath: destinationPath) {
                     progress.completedUnitCount = 100
-                    completion(destinationURL, true, nil)
+                    completion(destinationURL, false, nil)
                 } else {
                     let error = NSError(
                         domain: "Wired.DragAndDrop",
@@ -383,15 +436,16 @@ struct FilesColumnsView: View {
                 HStack(spacing: 0) {
                     ForEach(Array(filesViewModel.columns.enumerated()), id: \.element.id) { index, column in
                         List(
-                            column.items,
-                            selection: filesViewModel.selectionBinding(
-                                column: index,
+                            column.items
+                        ) { item in
+                            row(
+                                item,
+                                in: column,
+                                columnIndex: index,
                                 onColumnAppended: { appended in
                                     proxy.scrollTo(appended.id, anchor: .trailing)
                                 }
                             )
-                        ) { item in
-                            row(item, in: column)
                         }
                         .frame(width: width(for: column))
                         .background(column.selection != nil ? Color.gray.opacity(0.12) : .clear)
@@ -423,17 +477,42 @@ struct FilesColumnsView: View {
     }
 
     @ViewBuilder
-    private func row(_ item: FileItem, in column: FileColumn) -> some View {
+    private func row(
+        _ item: FileItem,
+        in column: FileColumn,
+        columnIndex: Int,
+        onColumnAppended: @escaping (FileColumn) -> Void
+    ) -> some View {
         let isDirectory = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
         let destination = isDirectory ? item : FileItem((column.path as NSString).lastPathComponent, path: column.path, type: .directory)
 
         HStack {
             FinderFileIconView(item: item, size: 16)
             Text(item.name)
+                .foregroundStyle(column.selection == item.id ? Color.white : Color.primary)
                 .lineLimit(1)
+            Spacer(minLength: 6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 6)
+        .tag(item.id)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(column.selection == item.id ? Color.accentColor : Color.clear)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
+        .listRowBackground(Color.clear)
+        .onTapGesture {
+            filesViewModel.selectColumnItem(
+                id: item.id,
+                at: columnIndex,
+                onColumnAppended: onColumnAppended
+            )
         }
         .onDrag {
-            dragProvider(for: item, isDirectory: isDirectory)
+            return dragProvider(for: item, isDirectory: isDirectory)
         }
         .dropDestination(for: URL.self) { urls, _ in
             onUploadURLs(urls, destination)
@@ -471,7 +550,7 @@ struct FilesColumnsView: View {
         ) {
             provider.registerDataRepresentation(
                 forTypeIdentifier: UTType.wiredRemoteFile.identifier,
-                visibility: .all
+                visibility: .ownProcess
             ) { completion in
                 completion(payloadData, nil)
                 return nil
@@ -480,16 +559,20 @@ struct FilesColumnsView: View {
 
         guard item.type == .file else { return provider }
 
+        let fileName = dragExportFileName(for: item)
+        let fileType = dragExportTypeIdentifier(forFileName: fileName)
+        provider.suggestedName = dragExportSuggestedName(forFileName: fileName)
+
         provider.registerFileRepresentation(
-            forTypeIdentifier: UTType.data.identifier,
+            forTypeIdentifier: fileType,
             fileOptions: [],
             visibility: .all
         ) { completion in
             let progress = Progress(totalUnitCount: 100)
 
             Task {
-                let destinationPath = TransferWorker.defaultDownloadDestination(forPath: item.path)
-                let destinationURL = URL(fileURLWithPath: destinationPath)
+                let destinationURL = dragExportTemporaryURL(for: item)
+                let destinationPath = destinationURL.path
 
                 if !FileManager.default.fileExists(atPath: destinationPath) {
                     await MainActor.run {
@@ -504,7 +587,7 @@ struct FilesColumnsView: View {
 
                 if FileManager.default.fileExists(atPath: destinationPath) {
                     progress.completedUnitCount = 100
-                    completion(destinationURL, true, nil)
+                    completion(destinationURL, false, nil)
                 } else {
                     let error = NSError(
                         domain: "Wired.DragAndDrop",
