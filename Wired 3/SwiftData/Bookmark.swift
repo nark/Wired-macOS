@@ -27,7 +27,7 @@ final class Bookmark {
         set { cipherRawValue = newValue.rawValue }
     }
     
-    var compressionRawValue: UInt32 = P7Socket.Compression.LZFSE.rawValue
+    var compressionRawValue: UInt32 = P7Socket.Compression.LZ4.rawValue
     var compression: P7Socket.Compression {
         get { P7Socket.Compression(rawValue: compressionRawValue) }
         set { compressionRawValue = newValue.rawValue }
