@@ -104,7 +104,15 @@ final class TransferManager: ObservableObject {
 
     /// Remove finished transfers from the list.
     func clear() {
+        let finishedTransfers = transfers.filter { $0.state == .finished }
         transfers.removeAll { $0.state == .finished }
+
+        if let modelContext {
+            for transfer in finishedTransfers {
+                modelContext.delete(transfer)
+            }
+        }
+
         persist()
     }
 
