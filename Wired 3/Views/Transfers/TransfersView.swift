@@ -7,8 +7,10 @@
 //
 
 import SwiftUI
+import Foundation
 #if os(macOS)
 import AppKit
+import UniformTypeIdentifiers
 #endif
 
 struct TransfersView: View {
@@ -18,6 +20,8 @@ struct TransfersView: View {
     @State private var errorAlertTitle: String = "Transfer Error"
     @State private var errorAlertMessage: String = ""
     @State private var selection: Set<UUID> = []
+    @State private var showRemoveConfirmation: Bool = false
+    @State private var pendingRemovalTransferIDs: [UUID] = []
     
     var body: some View {
         VStack(spacing: 0) {
@@ -31,6 +35,22 @@ struct TransfersView: View {
                     Button("OK", role: .cancel) { }
                 } message: {
                     Text(errorAlertMessage)
+                }
+                .alert(
+                    "Remove transfer?",
+                    isPresented: $showRemoveConfirmation,
+                    presenting: pendingRemovalTransferIDs.count
+                ) { count in
+                    Button("Cancel", role: .cancel) {
+                        pendingRemovalTransferIDs = []
+                    }
+                    Button(count > 1 ? "Remove Transfers" : "Remove Transfer", role: .destructive) {
+                        confirmRemove()
+                    }
+                } message: { count in
+                    Text(count > 1
+                         ? "Are you sure you want to remove these \(count) transfers?"
+                         : "Are you sure you want to remove this transfer?")
                 }
             
             Divider()
@@ -72,8 +92,7 @@ struct TransfersView: View {
                 .help("Stop transfer")
                 
                 Button {
-                    applyToSelection { transfers.remove($0) }
-                    selection = selection.intersection(Set(transfers.transfers.map(\.id)))
+                    requestRemove(selectedTransfers)
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -124,6 +143,8 @@ struct TransfersView: View {
                 HStack {
                     Image(systemName: transfer.type == .download ? "arrow.down.square.fill" : "arrow.up.square.fill")
                         .foregroundStyle(transfer.type == .download ? .blue : .red)
+
+                    TransferItemIconView(transfer: transfer, size: 16)
                     
                     Text(transfer.name)
                     
@@ -142,7 +163,7 @@ struct TransfersView: View {
 //                                .help(transfer.error)
 //                            }
                     
-                    Text(transfer.uri ?? "")
+                    Text(serverName(for: transfer))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -179,7 +200,7 @@ struct TransfersView: View {
                 Button("Stop") { stop(targets) }
                     .disabled(!canStop(targets))
 
-                Button("Remove") { remove(targets) }
+                Button("Remove") { requestRemove(targets) }
                     .disabled(targets.isEmpty)
 
                 Divider()
@@ -254,6 +275,25 @@ struct TransfersView: View {
         items.contains { ($0.remotePath?.isEmpty == false) && $0.connectionID != nil }
     }
 
+    private func serverName(for transfer: Transfer) -> String {
+        if let connectionID = transfer.connectionID,
+           let runtime = connectionController.runtime(for: connectionID),
+           let serverInfo = runtime.connection?.serverInfo {
+            let trimmedServerName = serverInfo.serverName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedServerName.isEmpty {
+                return trimmedServerName
+            }
+        }
+
+        if let uri = transfer.uri,
+           let host = URLComponents(string: uri)?.host,
+           !host.isEmpty {
+            return host
+        }
+
+        return "Unknown Server"
+    }
+
     private func start(_ items: [Transfer]) {
         for transfer in items { transfers.start(transfer) }
     }
@@ -269,6 +309,20 @@ struct TransfersView: View {
     private func remove(_ items: [Transfer]) {
         for transfer in items { transfers.remove(transfer) }
         selection = selection.intersection(Set(transfers.transfers.map(\.id)))
+    }
+
+    private func requestRemove(_ items: [Transfer]) {
+        let ids = items.map(\.id)
+        guard !ids.isEmpty else { return }
+        pendingRemovalTransferIDs = ids
+        showRemoveConfirmation = true
+    }
+
+    private func confirmRemove() {
+        let idSet = Set(pendingRemovalTransferIDs)
+        let items = transfers.transfers.filter { idSet.contains($0.id) }
+        remove(items)
+        pendingRemovalTransferIDs = []
     }
 
     private func showDownloadsInFinder(_ items: [Transfer]) {
@@ -311,4 +365,41 @@ struct TransfersView: View {
             )
         }
     }
+}
+
+private struct TransferItemIconView: View {
+    let transfer: Transfer
+    let size: CGFloat
+
+    var body: some View {
+        #if os(macOS)
+        Image(nsImage: iconImage())
+            .resizable()
+            .frame(width: size, height: size)
+        #else
+        Image(systemName: transfer.isFolder ? "folder" : "document")
+            .font(.system(size: size * 0.7))
+        #endif
+    }
+
+    #if os(macOS)
+    private func iconImage() -> NSImage {
+        let icon = NSWorkspace.shared.icon(forFileType: fileTypeIdentifier())
+        icon.size = NSSize(width: size, height: size)
+        return icon
+    }
+
+    private func fileTypeIdentifier() -> String {
+        if transfer.isFolder {
+            return UTType.folder.identifier
+        }
+
+        let name = (transfer.name as NSString)
+        let ext = name.pathExtension
+        if ext.isEmpty {
+            return UTType.data.identifier
+        }
+        return ext
+    }
+    #endif
 }
