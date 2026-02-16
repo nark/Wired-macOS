@@ -15,14 +15,24 @@ actor TransferWorker {
     private let spec: P7Spec
     private let downloadRoot: String
 
-    private let cipher: P7Socket.CipherType = .ECDH_CHACHA20_POLY1305
-    private let compression: P7Socket.Compression = .LZFSE
-    private let checksum: P7Socket.Checksum = .HMAC_256
+    private let cipher: P7Socket.CipherType
+    private let compression: P7Socket.Compression
+    private let checksum: P7Socket.Checksum
 
-    init(transfer: Transfer, spec: P7Spec, downloadRoot: String) {
+    init(
+        transfer: Transfer,
+        spec: P7Spec,
+        downloadRoot: String,
+        cipher: P7Socket.CipherType,
+        compression: P7Socket.Compression,
+        checksum: P7Socket.Checksum
+    ) {
         self.transfer = transfer
         self.spec = spec
         self.downloadRoot = downloadRoot
+        self.cipher = cipher
+        self.compression = compression
+        self.checksum = checksum
     }
 
     private func mutate(_ body: @MainActor (Transfer) -> Void) async {

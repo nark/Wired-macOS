@@ -29,6 +29,12 @@ final class TransferManager: ObservableObject {
     /// Running tasks keyed by transfer id.
     private var tasks: [UUID: Task<Void, Never>] = [:]
 
+    private struct TransferSecurityOptions {
+        let cipher: P7Socket.CipherType
+        let compression: P7Socket.Compression
+        let checksum: P7Socket.Checksum
+    }
+
     init(spec: P7Spec, connectionController: ConnectionController) {
         self.spec = spec
         self.connectionController = connectionController
@@ -364,9 +370,18 @@ final class TransferManager: ObservableObject {
         persist()
 
         let id = transfer.id
+        let downloadRoot = self.downloadPath
+        let security = transferSecurityOptions(for: transfer.connectionID)
 
         let t = Task.detached(priority: .userInitiated) { [spec] in
-            let worker = await TransferWorker(transfer: transfer, spec: spec, downloadRoot: self.downloadPath)
+            let worker = await TransferWorker(
+                transfer: transfer,
+                spec: spec,
+                downloadRoot: downloadRoot,
+                cipher: security.cipher,
+                compression: security.compression,
+                checksum: security.checksum
+            )
             await worker.run()
 
             await MainActor.run {
@@ -380,6 +395,39 @@ final class TransferManager: ObservableObject {
         }
 
         tasks[transfer.id] = t
+    }
+
+    private func transferSecurityOptions(for connectionID: UUID?) -> TransferSecurityOptions {
+        let defaults = TransferSecurityOptions(
+            cipher: .ECDH_CHACHA20_POLY1305,
+            compression: .DEFLATE,
+            checksum: .HMAC_256
+        )
+
+        guard let modelContext, let connectionID else {
+            return defaults
+        }
+
+        do {
+            var descriptor = FetchDescriptor<Bookmark>(
+                predicate: #Predicate { bookmark in
+                    bookmark.id == connectionID
+                }
+            )
+            descriptor.fetchLimit = 1
+
+            guard let bookmark = try modelContext.fetch(descriptor).first else {
+                return defaults
+            }
+
+            return TransferSecurityOptions(
+                cipher: bookmark.cipher,
+                compression: bookmark.compression,
+                checksum: bookmark.checksum
+            )
+        } catch {
+            return defaults
+        }
     }
 
     private func numberOfWorkingTransfers(type: TransferType, uri: String) -> Int {
