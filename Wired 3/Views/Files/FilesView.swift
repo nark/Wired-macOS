@@ -63,7 +63,13 @@ private func dragExportTemporaryURL(for item: FileItem) -> URL {
         .appendingPathComponent("WiredDragExports", isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-    return base.appendingPathComponent(dragExportTemporaryFileName(forFileName: fileName), isDirectory: false)
+    let isDirectory = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
+    return base.appendingPathComponent(dragExportTemporaryFileName(forFileName: fileName), isDirectory: isDirectory)
+}
+
+private func isDownloadableRemoteItem(_ item: FileItem) -> Bool {
+    if item.path == "/" { return false }
+    return item.type == .file || item.type == .directory || item.type == .uploads || item.type == .dropbox
 }
 
 struct FilesView: View {
@@ -95,6 +101,11 @@ struct FilesView: View {
         let parentPath = selected.path.stringByDeletingLastPathComponent
         selected = FileItem(parentPath.lastPathComponent, path: parentPath, type: .directory)
         return selected
+    }
+
+    private var selectedDownloadableItem: FileItem? {
+        guard let selectedItem, isDownloadableRemoteItem(selectedItem) else { return nil }
+        return selectedItem
     }
 
     var body: some View {
@@ -230,13 +241,13 @@ struct FilesView: View {
             }
 
             Button {
-                if let selectedFile = selectedItem, selectedFile.type == .file {
+                if let selectedFile = selectedDownloadableItem {
                     transfers.download(selectedFile, with: bookmark.id)
                 }
             } label: {
                 Image(systemName: "arrow.down")
             }
-            .disabled(selectedItem?.type != .file)
+            .disabled(selectedDownloadableItem == nil)
 
             Button {
                 filesViewModel.showFilesBrowser = true
@@ -398,7 +409,7 @@ struct FilesTreeView: View {
             return true
         }
         .contextMenu {
-            if item.type == .file {
+            if isDownloadableRemoteItem(item) {
                 Button("Download") {
                     transfers.download(item, with: bookmark.id)
                 }
@@ -421,10 +432,10 @@ struct FilesTreeView: View {
             }
         }
 
-        guard item.type == .file else { return provider }
+        guard isDownloadableRemoteItem(item) else { return provider }
 
         let fileName = dragExportFileName(for: item)
-        let fileType = dragExportTypeIdentifier(forFileName: fileName)
+        let fileType = isDirectory ? UTType.folder.identifier : dragExportTypeIdentifier(forFileName: fileName)
         provider.suggestedName = dragExportSuggestedName(forFileName: fileName)
 
         provider.registerFileRepresentation(
@@ -627,7 +638,7 @@ struct FilesColumnsView: View {
             return true
         }
         .contextMenu {
-            if item.type == .file {
+            if isDownloadableRemoteItem(item) {
                 Button("Download") {
                     transfers.download(item, with: bookmark.id)
                 }
@@ -658,10 +669,10 @@ struct FilesColumnsView: View {
             }
         }
 
-        guard item.type == .file else { return provider }
+        guard isDownloadableRemoteItem(item) else { return provider }
 
         let fileName = dragExportFileName(for: item)
-        let fileType = dragExportTypeIdentifier(forFileName: fileName)
+        let fileType = isDirectory ? UTType.folder.identifier : dragExportTypeIdentifier(forFileName: fileName)
         provider.suggestedName = dragExportSuggestedName(forFileName: fileName)
 
         provider.registerFileRepresentation(
