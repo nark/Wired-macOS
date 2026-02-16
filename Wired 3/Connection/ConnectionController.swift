@@ -397,6 +397,23 @@ final class ConnectionController {
                     }
                 }
             }
+
+        case "wired.file.directory_changed":
+            if let path = message.string(forField: "wired.file.path") {
+                NotificationCenter.default.post(
+                    name: .wiredFileDirectoryChanged,
+                    object: RemoteDirectoryEvent(connectionID: id, path: path)
+                )
+            }
+
+        case "wired.file.directory_deleted":
+            if let path = message.string(forField: "wired.file.path") {
+                NotificationCenter.default.post(
+                    name: .wiredFileDirectoryDeleted,
+                    object: RemoteDirectoryEvent(connectionID: id, path: path)
+                )
+            }
+
         default:
             break
         }

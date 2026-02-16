@@ -11,9 +11,16 @@ import WiredSwift
 
 extension Notification.Name {
     static let revealRemoteTransferPath = Notification.Name("revealRemoteTransferPath")
+    static let wiredFileDirectoryChanged = Notification.Name("wiredFileDirectoryChanged")
+    static let wiredFileDirectoryDeleted = Notification.Name("wiredFileDirectoryDeleted")
 }
 
 struct RemoteTransferPathRequest {
+    let connectionID: UUID
+    let path: String
+}
+
+struct RemoteDirectoryEvent {
     let connectionID: UUID
     let path: String
 }
@@ -43,6 +50,8 @@ final class FilesViewModel: ObservableObject {
     var fileService: FileServiceProtocol?
     private var runtime: ConnectionRuntime?
     private var root = FileItem("/", path: "/")
+    private var subscribedDirectoryPaths: Set<String> = []
+    private var pendingDirectoryReloadTasks: [String: Task<Void, Never>] = [:]
 
     // MARK: -
     
@@ -56,6 +65,29 @@ final class FilesViewModel: ObservableObject {
     ) {
         self.fileService = fileService
         self.runtime = runtime
+    }
+
+    func clearDirectorySubscriptions() async {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else {
+            subscribedDirectoryPaths.removeAll()
+            return
+        }
+
+        let previous = subscribedDirectoryPaths
+        subscribedDirectoryPaths.removeAll()
+
+        for path in previous {
+            do {
+                try await fileService.unsubscribeDirectory(path: path, connection: connection)
+            } catch {
+                if isFileNotFoundError(error) {
+                    continue
+                }
+
+                self.error = error
+            }
+        }
     }
     
     
@@ -101,6 +133,7 @@ final class FilesViewModel: ObservableObject {
     func loadRoot() async {
         _ = await loadColumn(for: root)
         await loadTreeRoot()
+        await syncDirectorySubscriptions()
     }
 
     func loadColumn(for item: FileItem) async -> FileColumn? {
@@ -126,6 +159,7 @@ final class FilesViewModel: ObservableObject {
             )
 
             columns.append(column)
+            await syncDirectorySubscriptions()
             return column
 
         } catch {
@@ -170,6 +204,11 @@ final class FilesViewModel: ObservableObject {
             }
 
         } catch {
+            if isFileNotFoundError(error) {
+                await remoteDirectoryDeleted(path)
+                return
+            }
+
             print("reloadColumn error:", error)
             self.error = error
         }
@@ -187,6 +226,7 @@ final class FilesViewModel: ObservableObject {
             await reloadColumn(at: idx)
         }
         await loadTreeRoot()
+        await syncDirectorySubscriptions()
     }
     
     @MainActor
@@ -198,6 +238,7 @@ final class FilesViewModel: ObservableObject {
         
         do {
             try await fileService.deleteFile(path: path, connection: connection)
+            await remoteDirectoryDeleted(path)
         } catch {
             self.error = error
         }
@@ -215,6 +256,7 @@ final class FilesViewModel: ObservableObject {
             }
             treeChildrenByPath["/"] = items
             treeViewRevision &+= 1
+            await syncDirectorySubscriptions()
         } catch {
             self.error = error
         }
@@ -233,6 +275,7 @@ final class FilesViewModel: ObservableObject {
             }
             treeChildrenByPath[directoryPath] = items
             treeViewRevision &+= 1
+            await syncDirectorySubscriptions()
         } catch {
             self.error = error
         }
@@ -342,6 +385,7 @@ final class FilesViewModel: ObservableObject {
         if normalizedPath == "/" {
             columns = Array(columns.prefix(1))
             columns[0].selection = nil
+            await syncDirectorySubscriptions()
             return true
         }
 
@@ -387,12 +431,238 @@ final class FilesViewModel: ObservableObject {
             }
         }
 
+        await syncDirectorySubscriptions()
         return true
+    }
+
+    @MainActor
+    func remoteDirectoryChanged(_ path: String) {
+        let normalized = normalizedRemotePath(path)
+
+        pendingDirectoryReloadTasks[normalized]?.cancel()
+        pendingDirectoryReloadTasks[normalized] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(100))
+            guard let self else { return }
+            await self.reloadVisibleDirectory(normalized)
+            self.pendingDirectoryReloadTasks[normalized] = nil
+        }
+    }
+
+    @MainActor
+    func remoteDirectoryDeleted(_ path: String) async {
+        let normalized = normalizedRemotePath(path)
+        cancelPendingReloads(under: normalized)
+
+        if normalized == "/" {
+            columns.removeAll()
+            treeChildrenByPath.removeAll()
+            expandedTreePaths = ["/"]
+            treeSelectionPath = nil
+            await loadRoot()
+            return
+        }
+
+        if let deletedColumnIndex = columns.firstIndex(where: { isSameOrDescendant($0.path, of: normalized) }) {
+            let kept = max(1, deletedColumnIndex)
+            columns = Array(columns.prefix(kept))
+
+            if columns.indices.contains(kept - 1) {
+                let parentPath = columns[kept - 1].path
+                treeSelectionPath = parentPath
+            }
+        }
+
+        treeChildrenByPath = treeChildrenByPath.filter { !isSameOrDescendant($0.key, of: normalized) }
+        expandedTreePaths = Set(expandedTreePaths.filter { !isSameOrDescendant($0, of: normalized) })
+        if let selected = treeSelectionPath, isSameOrDescendant(selected, of: normalized) {
+            treeSelectionPath = parentPath(of: normalized) ?? "/"
+        }
+        treeViewRevision &+= 1
+
+        if let parent = parentPath(of: normalized) {
+            await reloadVisibleDirectory(parent)
+        }
+
+        await syncDirectorySubscriptions()
     }
 }
 
 
 private extension FilesViewModel {
+    @MainActor
+    func syncDirectorySubscriptions() async {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else {
+            subscribedDirectoryPaths.removeAll()
+            return
+        }
+
+        var desired: Set<String> = ["/"]
+        desired.formUnion(columns.map { normalizedRemotePath($0.path) })
+        desired.formUnion(treeChildrenByPath.keys.map { normalizedRemotePath($0) })
+
+        let toSubscribe = desired.subtracting(subscribedDirectoryPaths)
+        let toUnsubscribe = subscribedDirectoryPaths.subtracting(desired)
+
+        for path in toSubscribe.sorted() {
+            do {
+                try await fileService.subscribeDirectory(path: path, connection: connection)
+                subscribedDirectoryPaths.insert(path)
+            } catch {
+                self.error = error
+            }
+        }
+
+        for path in toUnsubscribe.sorted() {
+            do {
+                try await fileService.unsubscribeDirectory(path: path, connection: connection)
+                subscribedDirectoryPaths.remove(path)
+            } catch {
+                if isIgnorableUnsubscribeError(error) {
+                    // Directory already removed (or no longer subscribed) server-side:
+                    // treat as successful unsubscribe.
+                    subscribedDirectoryPaths.remove(path)
+                    continue
+                }
+
+                self.error = error
+            }
+        }
+    }
+
+    @MainActor
+    func reloadVisibleDirectory(_ path: String) async {
+        let normalized = normalizedRemotePath(path)
+
+        if let columnIndex = columns.firstIndex(where: { normalizedRemotePath($0.path) == normalized }) {
+            await reloadColumn(at: columnIndex)
+        }
+
+        if treeChildrenByPath[normalized] != nil || expandedTreePaths.contains(normalized) || normalized == "/" {
+            await reloadTreeDirectory(normalized)
+        }
+    }
+
+    @MainActor
+    func reloadTreeDirectory(_ path: String) async {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return }
+
+        do {
+            var items: [FileItem] = []
+            for try await file in fileService.listDirectory(path: path, recursive: false, connection: connection) {
+                items.append(file)
+            }
+            treeChildrenByPath[path] = items
+            treeViewRevision &+= 1
+        } catch {
+            if isFileNotFoundError(error) {
+                treeChildrenByPath.removeValue(forKey: path)
+                expandedTreePaths.remove(path)
+                if let selected = treeSelectionPath, isSameOrDescendant(selected, of: path) {
+                    treeSelectionPath = parentPath(of: path) ?? "/"
+                }
+                treeViewRevision &+= 1
+                await syncDirectorySubscriptions()
+                return
+            }
+
+            self.error = error
+        }
+    }
+
+    @MainActor
+    func cancelPendingReloads(under path: String) {
+        let keys = pendingDirectoryReloadTasks.keys.filter { isSameOrDescendant($0, of: path) }
+        for key in keys {
+            pendingDirectoryReloadTasks[key]?.cancel()
+            pendingDirectoryReloadTasks[key] = nil
+        }
+    }
+
+    func parentPath(of path: String) -> String? {
+        let normalized = normalizedRemotePath(path)
+        guard normalized != "/" else { return nil }
+        let parent = (normalized as NSString).deletingLastPathComponent
+        return parent.isEmpty ? "/" : parent
+    }
+
+    func isSameOrDescendant(_ path: String, of ancestor: String) -> Bool {
+        let normalizedPath = normalizedRemotePath(path)
+        let normalizedAncestor = normalizedRemotePath(ancestor)
+
+        if normalizedAncestor == "/" {
+            return true
+        }
+
+        return normalizedPath == normalizedAncestor || normalizedPath.hasPrefix(normalizedAncestor + "/")
+    }
+
+    func isFileNotFoundError(_ error: Error) -> Bool {
+        if let errorName = wiredErrorName(error), errorName.contains("file_not_found") {
+            return true
+        }
+
+        if let errorCode = wiredErrorCode(error), errorCode == 14 {
+            return true
+        }
+
+        if let asyncError = error as? AsyncConnectionError,
+           case let .serverError(message) = asyncError {
+            let messageText = (message.string(forField: "wired.error.string") ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return messageText.contains("file_not_found") || messageText.contains("file not found")
+        }
+
+        if let wiredError = error as? WiredError {
+            let messageText = wiredError.message
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return messageText.contains("file_not_found") || messageText.contains("file not found")
+        }
+
+        return false
+    }
+
+    func isIgnorableUnsubscribeError(_ error: Error) -> Bool {
+        if isFileNotFoundError(error) {
+            return true
+        }
+
+        if let errorName = wiredErrorName(error), errorName.contains("not_subscribed") {
+            return true
+        }
+
+        if let errorCode = wiredErrorCode(error), errorCode == 6 {
+            return true
+        }
+
+        return false
+    }
+
+    func wiredErrorName(_ error: Error) -> String? {
+        if let asyncError = error as? AsyncConnectionError,
+           case let .serverError(message) = asyncError {
+            return message.string(forField: "wired.error.string")?.lowercased()
+        }
+
+        if let wiredError = error as? WiredError {
+            return wiredError.message.lowercased()
+        }
+
+        return nil
+    }
+
+    func wiredErrorCode(_ error: Error) -> UInt32? {
+        if let asyncError = error as? AsyncConnectionError,
+           case let .serverError(message) = asyncError {
+            return message.uint32(forField: "wired.error")
+        }
+
+        return nil
+    }
+
     func normalizedRemotePath(_ path: String) -> String {
         if path == "/" { return "/" }
         let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -410,6 +680,9 @@ private extension FilesViewModel {
 
         // 2️⃣ supprimer les colonnes à droite
         columns = Array(columns.prefix(index + 1))
+        Task { @MainActor in
+            await self.syncDirectorySubscriptions()
+        }
 
         guard
             let id = newID,

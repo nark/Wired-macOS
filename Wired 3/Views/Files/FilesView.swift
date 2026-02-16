@@ -162,7 +162,6 @@ struct FilesView: View {
                 if let item = selectedItem {
                     Task {
                         await filesViewModel.deleteFile(item.path)
-                        await filesViewModel.reloadAll()
                     }
                 }
             }
@@ -183,6 +182,27 @@ struct FilesView: View {
 
             Task { @MainActor in
                 _ = await filesViewModel.revealRemotePath(request.path)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .wiredFileDirectoryChanged)) { notification in
+            guard let event = notification.object as? RemoteDirectoryEvent else { return }
+            guard event.connectionID == bookmark.id else { return }
+
+            Task { @MainActor in
+                filesViewModel.remoteDirectoryChanged(event.path)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .wiredFileDirectoryDeleted)) { notification in
+            guard let event = notification.object as? RemoteDirectoryEvent else { return }
+            guard event.connectionID == bookmark.id else { return }
+
+            Task { @MainActor in
+                await filesViewModel.remoteDirectoryDeleted(event.path)
+            }
+        }
+        .onDisappear {
+            Task { @MainActor in
+                await filesViewModel.clearDirectorySubscriptions()
             }
         }
     }
@@ -266,6 +286,7 @@ struct FilesTreeView: View {
 
     let onUploadURLs: ([URL], FileItem) -> Void
     let onMoveRemoteItem: (_ sourcePath: String, _ destinationDirectory: FileItem) async throws -> Void
+    @State private var finderDropTargetPath: String?
 
     var body: some View {
         List(filesViewModel.visibleTreeNodes()) { node in
@@ -320,6 +341,14 @@ struct FilesTreeView: View {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(isSelected ? Color.accentColor : Color.clear)
         }
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.accentColor.opacity(finderDropTargetPath == item.path ? 0.9 : 0), lineWidth: 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(finderDropTargetPath == item.path ? 0.12 : 0))
+                )
+        }
         .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .gesture(
             TapGesture(count: 2)
@@ -342,8 +371,16 @@ struct FilesTreeView: View {
         }
         .dropDestination(for: URL.self) { urls, _ in
             guard isDirectory else { return false }
+            finderDropTargetPath = nil
             onUploadURLs(urls, item)
             return !urls.isEmpty
+        } isTargeted: { targeted in
+            guard isDirectory else { return }
+            if targeted {
+                finderDropTargetPath = item.path
+            } else if finderDropTargetPath == item.path {
+                finderDropTargetPath = nil
+            }
         }
         .dropDestination(for: RemoteFileDragPayload.self) { payloads, _ in
             guard isDirectory else { return false }
@@ -443,6 +480,9 @@ struct FilesColumnsView: View {
 
     @State private var columnWidths: [UUID: CGFloat] = [:]
     @State private var previewWidth: CGFloat = 320
+    @State private var finderDropTargetColumnID: UUID?
+    @State private var finderDropTargetFolderPath: String?
+    @State private var finderDropTargetFolderColumnID: UUID?
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -460,6 +500,23 @@ struct FilesColumnsView: View {
                                     proxy.scrollTo(appended.id, anchor: .trailing)
                                 }
                             )
+                        }
+                        .dropDestination(for: URL.self) { urls, _ in
+                            finderDropTargetColumnID = nil
+                            let destination = FileItem((column.path as NSString).lastPathComponent, path: column.path, type: .directory)
+                            onUploadURLs(urls, destination)
+                            return !urls.isEmpty
+                        } isTargeted: { targeted in
+                            if targeted {
+                                finderDropTargetColumnID = column.id
+                            } else if finderDropTargetColumnID == column.id {
+                                finderDropTargetColumnID = nil
+                            }
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.accentColor.opacity(showsColumnDropHalo(columnID: column.id) ? 0.85 : 0), lineWidth: 2)
+                                .padding(3)
                         }
                         .frame(width: width(for: column))
                         .background(column.selection != nil ? Color.gray.opacity(0.12) : .clear)
@@ -539,8 +596,20 @@ struct FilesColumnsView: View {
             return dragProvider(for: item, isDirectory: isDirectory)
         }
         .dropDestination(for: URL.self) { urls, _ in
+            guard isDirectory else { return false }
+            finderDropTargetFolderPath = nil
+            finderDropTargetFolderColumnID = nil
             onUploadURLs(urls, destination)
             return !urls.isEmpty
+        } isTargeted: { targeted in
+            guard isDirectory else { return }
+            if targeted {
+                finderDropTargetFolderPath = item.path
+                finderDropTargetFolderColumnID = column.id
+            } else if finderDropTargetFolderPath == item.path {
+                finderDropTargetFolderPath = nil
+                finderDropTargetFolderColumnID = nil
+            }
         }
         .dropDestination(for: RemoteFileDragPayload.self) { payloads, _ in
             guard let payload = payloads.first else { return false }
@@ -563,6 +632,14 @@ struct FilesColumnsView: View {
                     transfers.download(item, with: bookmark.id)
                 }
             }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.accentColor.opacity(finderDropTargetFolderPath == item.path ? 0.9 : 0), lineWidth: 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(finderDropTargetFolderPath == item.path ? 0.12 : 0))
+                )
         }
     }
 
@@ -637,6 +714,10 @@ struct FilesColumnsView: View {
             get: { min(max(columnWidths[id] ?? 240, 180), 620) },
             set: { columnWidths[id] = min(max($0, 180), 620) }
         )
+    }
+
+    private func showsColumnDropHalo(columnID: UUID) -> Bool {
+        finderDropTargetColumnID == columnID && finderDropTargetFolderColumnID != columnID
     }
 }
 
