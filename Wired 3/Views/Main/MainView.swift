@@ -22,6 +22,10 @@ struct MainView: View {
     @AppStorage("transfersHeight") private var transfersHeight: Double = 0
     @State private var lastTransfersHeight: CGFloat = 200
     @State private var isTransfersVisible = false
+
+    private var activeTransfersCount: Int {
+        transfers.transfers.filter { !$0.isStopped() }.count
+    }
     
     var body: some View {
         VSplitView {
@@ -63,7 +67,23 @@ struct MainView: View {
                         toggleTransfers()
                         
                     } label: {
-                        Image(systemName: isTransfersVisible ? "menubar.arrow.down.rectangle" : "menubar.arrow.up.rectangle")
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: isTransfersVisible ? "menubar.arrow.down.rectangle" : "menubar.arrow.up.rectangle")
+
+                            if activeTransfersCount > 0 {
+                                Text(activeTransfersCount > 99 ? "99" : "\(activeTransfersCount)")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 18, height: 18)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.red)
+                                    )
+                                    .offset(x: 10, y: -8)
+                                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+                            }
+                        }
+                        .animation(.spring(response: 0.25, dampingFraction: 0.72), value: activeTransfersCount)
                     }
                     .foregroundStyle(isTransfersVisible ? .blue : .black)
                     .buttonStyle(.plain)
@@ -121,6 +141,15 @@ struct MainView: View {
                 if b.connectAtStartup {
                     connectionController.connect(b)
                 }
+            }
+        }
+        .onChange(of: activeTransfersCount) { oldValue, newValue in
+            guard newValue > oldValue else { return }
+            guard !isTransfersVisible else { return }
+
+            withAnimation(.smooth) {
+                isTransfersVisible = true
+                transfersHeight = max(lastTransfersHeight, 200)
             }
         }
     }
