@@ -29,8 +29,8 @@ enum FileType: UInt32, CustomStringConvertible {
     }
 }
 
-struct FileItem: Identifiable, Hashable {
-    let id = UUID()
+public struct FileItem: Identifiable, Hashable {
+    public let id = UUID()
     var name: String = ""
     var path: String = ""
     

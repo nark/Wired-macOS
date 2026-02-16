@@ -308,6 +308,10 @@ struct FilesTreeView: View {
                 .lineLimit(1)
 
             Spacer()
+            
+            Text(sizeString(for: item))
+                .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                .font(Font.caption2.monospacedDigit())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 3)
@@ -652,23 +656,16 @@ private struct FilePreviewColumn: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Preview")
-                .font(.headline)
-
-            Divider()
-
             if let item = selectedItem {
-                HStack(spacing: 10) {
-                    FinderFileIconView(item: item, size: 48)
-                    VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Spacer()
+                    VStack(alignment: .center, spacing: 10) {
+                        FinderFileIconView(item: item, size: 128)
+                        
                         Text(item.name.isEmpty ? item.path : item.name)
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .lineLimit(1)
-                        Text(item.path)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
                     }
                     Spacer()
                 }
@@ -708,14 +705,6 @@ private struct FilePreviewColumn: View {
         }
     }
 
-    private func sizeString(for item: FileItem) -> String {
-        if item.type == .directory || item.type == .uploads || item.type == .dropbox {
-            return "-"
-        }
-        let total = Int64(item.dataSize + item.rsrcSize)
-        return ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
-    }
-
     private func containsString(for item: FileItem) -> String {
         if item.type == .directory || item.type == .uploads || item.type == .dropbox {
             return "\(item.directoryCount)"
@@ -726,6 +715,17 @@ private struct FilePreviewColumn: View {
     private func dateString(_ date: Date?) -> String {
         guard let date else { return "-" }
         return dateFormatter.string(from: date)
+    }
+}
+
+
+extension View {
+    public func sizeString(for item: FileItem) -> String {
+        if item.type == .directory || item.type == .uploads || item.type == .dropbox {
+            return "-"
+        }
+        let total = Int64(item.dataSize + item.rsrcSize)
+        return ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
     }
 }
 
