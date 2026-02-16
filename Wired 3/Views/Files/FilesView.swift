@@ -361,21 +361,15 @@ struct FilesTreeView: View {
                 )
         }
         .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .gesture(
-            TapGesture(count: 2)
-                .onEnded {
-                    guard item.type == .file else { return }
-                    transfers.download(item, with: bookmark.id)
-                }
-                .exclusively(
-                    before: TapGesture(count: 1)
-                        .onEnded {
-                            Task {
-                                await filesViewModel.selectTreeItem(item)
-                            }
-                        }
-                )
-        )
+        .onTapGesture {
+            Task {
+                await filesViewModel.selectTreeItem(item)
+            }
+        }
+        .onTapGesture(count: 2) {
+            guard item.type == .file else { return }
+            transfers.download(item, with: bookmark.id)
+        }
         .onDrag {
             Task { await filesViewModel.selectTreeItem(item) }
             return dragProvider(for: item, isDirectory: isDirectory)
@@ -586,23 +580,17 @@ struct FilesColumnsView: View {
         .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
         .listRowBackground(Color.clear)
-        .gesture(
-            TapGesture(count: 2)
-                .onEnded {
-                    guard item.type == .file else { return }
-                    transfers.download(item, with: bookmark.id)
-                }
-                .exclusively(
-                    before: TapGesture(count: 1)
-                        .onEnded {
-                            filesViewModel.selectColumnItem(
-                                id: item.id,
-                                at: columnIndex,
-                                onColumnAppended: onColumnAppended
-                            )
-                        }
-                )
-        )
+        .onTapGesture {
+            filesViewModel.selectColumnItem(
+                id: item.id,
+                at: columnIndex,
+                onColumnAppended: onColumnAppended
+            )
+        }
+        .onTapGesture(count: 2) {
+            guard item.type == .file else { return }
+            transfers.download(item, with: bookmark.id)
+        }
         .onDrag {
             return dragProvider(for: item, isDirectory: isDirectory)
         }
