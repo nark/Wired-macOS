@@ -40,43 +40,64 @@ struct TransfersView: View {
                     transfers.clear()
                     selection = selection.intersection(Set(transfers.transfers.map(\.id)))
                 } label: {
-                    Image(systemName: "xmark.circle")
+                    Image(systemName: "xmark")
                 }
                 .help("Clear finished transfers")
 
                 Divider()
                     .frame(height: 16)
 
-                Button("Start") {
+                Button {
                     applyToSelection { transfers.start($0) }
+                } label: {
+                    Image(systemName: "play")
                 }
                 .disabled(!canStartSelection)
-
-                Button("Pause") {
+                .help("Play transfer")
+                
+                Button() {
                     applyToSelection { transfers.pause($0) }
+                } label: {
+                    Image(systemName: "pause")
                 }
                 .disabled(!canPauseSelection)
-
-                Button("Stop") {
+                .help("Pause transfer")
+                
+                Button {
                     applyToSelection { transfers.stop($0) }
+                } label: {
+                    Image(systemName: "stop")
                 }
                 .disabled(!canStopSelection)
-
-                Button("Remove") {
+                .help("Stop transfer")
+                
+                Button {
                     applyToSelection { transfers.remove($0) }
                     selection = selection.intersection(Set(transfers.transfers.map(\.id)))
+                } label: {
+                    Image(systemName: "trash")
                 }
                 .disabled(selection.isEmpty)
-
-                Button("Show in Finder") {
+                .help("Remove transfer")
+                
+                Divider()
+                    .frame(height: 16)
+                
+                Button {
                     showDownloadsInFinder(selectedTransfers)
+                } label: {
+                    Image(systemName: "folder")
                 }
                 .disabled(!canShowFinderSelection)
-
-                Button("Show Remote Location") {
+                .help("Show in Finder")
+                
+                Button {
                     showRemoteLocation(selectedTransfers)
+                } label: {
+                    Image(systemName: "network")
                 }
                 .disabled(!canShowRemoteSelection)
+                .help("Show Remote Location")
                 
                 Spacer()
             }
