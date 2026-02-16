@@ -10,6 +10,7 @@ import SwiftUI
 import WiredSwift
 
 actor TransferWorker {
+    private static let transferIOTimeout: TimeInterval = 120.0
 
     private let transfer: Transfer
     private let spec: P7Spec
@@ -250,7 +251,24 @@ actor TransferWorker {
             transfer.file = FileItem((file.remote as NSString).lastPathComponent, path: file.remote)
             await mutate { $0.currentLocalFilePath = file.local }
 
-            try await runUploadSingle(localPath: file.local, remotePath: file.remote, expectedSize: file.size)
+            // Retry once per file to survive transient transport hiccups on large recursive uploads.
+            var uploaded = false
+            var lastError: Error?
+            for attempt in 1...2 {
+                do {
+                    let actualSize = Int64(fileSize(atPath: file.local))
+                    try await runUploadSingle(localPath: file.local, remotePath: file.remote, expectedSize: actualSize)
+                    uploaded = true
+                    break
+                } catch {
+                    lastError = error
+                    if attempt == 2 { break }
+                }
+            }
+
+            if !uploaded {
+                throw WiredError(withTitle: "Upload Error", message: "Failed file '\(file.local)': \(String(describing: lastError))")
+            }
 
             await mutate { $0.transferredFiles += 1 }
         }
@@ -431,7 +449,7 @@ actor TransferWorker {
             if data && dataLength == 0 { data = false }
             if !data && rsrcLength == 0 { break }
 
-            let oob = try tconn.socket.readOOB(timeout: 30.0)
+            let oob = try tconn.socket.readOOB(timeout: Self.transferIOTimeout)
 
             // Append data to appropriate fork
             if data {
@@ -591,13 +609,16 @@ actor TransferWorker {
 
             let chunk = try fileHandle.read(upToCount: 8192) ?? Data()
             if chunk.isEmpty {
+                if remaining > 0 {
+                    throw WiredError(withTitle: "Upload Error", message: "Unexpected EOF for '\(localPath)' (\(remaining) bytes remaining)")
+                }
                 break
             }
 
             let sendBytes = min(UInt64(chunk.count), remaining)
             let toSend = (sendBytes == UInt64(chunk.count)) ? chunk : chunk.prefix(Int(sendBytes))
 
-            try tconn.socket.writeOOB(data: Data(toSend), timeout: 30.0)
+            try tconn.socket.writeOOB(data: Data(toSend), timeout: Self.transferIOTimeout)
 
             remaining -= sendBytes
 
@@ -656,8 +677,9 @@ actor TransferWorker {
                 continue
             }
 
-            if message.name == "wired.transfer.send_ping" {
-                // Correct behavior: reply with wired.ping, preserving transaction
+            if message.name == "wired.send_ping" || message.name == "wired.transfer.send_ping" {
+                // Spec uses wired.send_ping; keep wired.transfer.send_ping for compatibility.
+                // Reply with wired.ping while preserving the transaction id.
                 let reply = P7Message(withName: "wired.ping", spec: spec)
                 if let t = message.uint32(forField: "wired.transaction") {
                     reply.addParameter(field: "wired.transaction", value: t)
