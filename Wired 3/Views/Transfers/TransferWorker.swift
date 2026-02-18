@@ -597,6 +597,9 @@ actor TransferWorker {
 
         guard let ready = await waitForMessage(on: tconn, untilReceivingMessageName: "wired.transfer.upload_ready") else {
             if let term = await terminationReason() { throw term }
+            if await isRemoteFileExistsError() {
+                throw WiredError(withTitle: "Upload Error", message: "Remote file already exists: \(remotePath)")
+            }
             throw WiredError(withTitle: "Upload Error", message: "Server did not reply upload_ready")
         }
 
@@ -705,6 +708,14 @@ actor TransferWorker {
         tconn.disconnect()
 
         if let term = await terminationReason() { throw term }
+    }
+
+    private func isRemoteFileExistsError() async -> Bool {
+        let lowered = await MainActor.run { self.transfer.error.lowercased() }
+        if lowered.contains("wired.error.file_exists") { return true }
+        if lowered.contains("file_exists") { return true }
+        if lowered.contains("already exists") { return true }
+        return false
     }
 
     // MARK: - Protocol helpers (queue, ping, errors)

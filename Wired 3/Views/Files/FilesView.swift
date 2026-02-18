@@ -187,6 +187,12 @@ private extension View {
 }
 
 struct FilesView: View {
+    private struct UploadConflict: Identifiable {
+        let id = UUID()
+        let localPath: String
+        let remotePath: String
+    }
+
     @Environment(ConnectionController.self) private var connectionController
     @Environment(ConnectionRuntime.self) private var runtime
     @EnvironmentObject private var transfers: TransferManager
@@ -199,6 +205,9 @@ struct FilesView: View {
     @State private var pendingDeleteItems: [FileItem] = []
     @State private var showDeleteSelectionConfirmation: Bool = false
     @State private var createFolderTargetOverride: FileItem? = nil
+    @State private var pendingDownloadItems: [FileItem] = []
+    @State private var pendingUploadConflicts: [UploadConflict] = []
+    @State private var activeUploadConflict: UploadConflict? = nil
 
     private var selectedItem: FileItem? {
         switch selectedFileViewType {
@@ -355,6 +364,15 @@ struct FilesView: View {
                 Text("Are you sure you want to delete this selection? This operation is not recoverable.")
             }
         )
+        .alert(item: $activeUploadConflict) { conflict in
+            Alert(
+                title: Text("Upload Blocked"),
+                message: Text("A remote file already exists:\n\(conflict.remotePath)\n\nLocal file:\n\(conflict.localPath)"),
+                dismissButton: .default(Text("OK")) {
+                    processPendingUploadConflicts()
+                }
+            )
+        }
         .errorAlert(error: $filesViewModel.error)
         .onChange(of: selectedFileViewType) { _, newValue in
             Task {
@@ -418,7 +436,7 @@ struct FilesView: View {
 
             Button {
                 if let selectedFile = selectedDownloadableItem {
-                    transfers.download(selectedFile, with: bookmark.id)
+                    download([selectedFile])
                 }
             } label: {
                 Image(systemName: "arrow.down")
@@ -455,7 +473,22 @@ struct FilesView: View {
     private func upload(urls: [URL], to targetDirectory: FileItem) {
         for url in urls {
             let accessStarted = url.startAccessingSecurityScopedResource()
-            _ = transfers.upload(url.path, toDirectory: targetDirectory, with: bookmark.id, filesViewModel: filesViewModel)
+            let localPath = url.path
+            if let transfer = transfers.uploadTransfer(localPath, toDirectory: targetDirectory, with: bookmark.id, filesViewModel: filesViewModel) {
+                transfers.onTransferTerminal(id: transfer.id) { terminal in
+                    guard terminal.type == .upload else { return }
+                    guard terminal.state == .stopped || terminal.state == .disconnected else { return }
+                    let lowered = terminal.error.lowercased()
+                    guard lowered.contains("wired.error.file_exists") || lowered.contains("file_exists") || lowered.contains("already exists") else { return }
+                    let conflict = UploadConflict(
+                        localPath: terminal.localPath ?? localPath,
+                        remotePath: terminal.remotePath ?? targetDirectory.path.stringByAppendingPathComponent(path: (localPath as NSString).lastPathComponent)
+                    )
+                    DispatchQueue.main.async {
+                        enqueueUploadConflict(conflict)
+                    }
+                }
+            }
             if accessStarted {
                 url.stopAccessingSecurityScopedResource()
             }
@@ -475,9 +508,59 @@ struct FilesView: View {
 
     private func download(_ items: [FileItem]) {
         let unique = uniqueItems(items)
-        for item in unique where isDownloadableRemoteItem(item) {
-            transfers.download(item, with: bookmark.id)
+        pendingDownloadItems = unique.filter { isDownloadableRemoteItem($0) }
+        processPendingDownloads()
+    }
+
+    @MainActor
+    private func askOverwrite(path: String) -> Bool {
+        #if os(macOS)
+        let alert = NSAlert()
+        alert.messageText = "File Already Exists"
+        alert.informativeText = "A file already exists at:\n\(path)\n\nOverwrite it?"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Overwrite")
+        alert.addButton(withTitle: "Stop")
+        return alert.runModal() == .alertFirstButtonReturn
+        #else
+        return false
+        #endif
+    }
+
+    private func processPendingDownloads() {
+        while !pendingDownloadItems.isEmpty {
+            let item = pendingDownloadItems.removeFirst()
+            switch transfers.queueDownload(item, with: bookmark.id, overwriteExistingFile: false) {
+            case .started, .resumed:
+                continue
+            case let .needsOverwrite(destination):
+                if askOverwrite(path: destination) {
+                    _ = transfers.queueDownload(item, with: bookmark.id, overwriteExistingFile: true)
+                }
+                continue
+            case .failed:
+                continue
+            }
         }
+    }
+
+    private func enqueueUploadConflict(_ conflict: UploadConflict) {
+        if activeUploadConflict?.remotePath == conflict.remotePath {
+            return
+        }
+        if pendingUploadConflicts.contains(where: { $0.remotePath == conflict.remotePath }) {
+            return
+        }
+        pendingUploadConflicts.append(conflict)
+        processPendingUploadConflicts()
+    }
+
+    private func processPendingUploadConflicts() {
+        if activeUploadConflict != nil {
+            activeUploadConflict = nil
+        }
+        guard !pendingUploadConflicts.isEmpty else { return }
+        activeUploadConflict = pendingUploadConflicts.removeFirst()
     }
 
     private func uniqueItems(_ items: [FileItem]) -> [FileItem] {
@@ -534,7 +617,7 @@ struct FilesTreeView: View {
                 Task { await filesViewModel.setTreeExpansion(for: path, expanded: expanded) }
             },
             onDownloadSingleFile: { item in
-                transfers.download(item, with: bookmark.id)
+                onRequestDownloadSelection([item])
             },
             onRequestCreateFolder: {
                 onRequestCreateFolder(contextMenuTargetDirectory())
@@ -1161,6 +1244,17 @@ private final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProvi
     weak var transferManager: TransferManager?
     private var didStartTransfer = false
 
+    @MainActor
+    private func askOverwrite(path: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "File Already Exists"
+        alert.informativeText = "Do you want to overwrite \"\(path)\"?"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Overwrite")
+        alert.addButton(withTitle: "Stop")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     private func log(_ message: String) {
         NSLog("[WiredTreeDrag] %@", message)
     }
@@ -1190,20 +1284,23 @@ private final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProvi
         }
         didStartTransfer = true
 
-        let targetURL = destinationURL
+        let targetURL: URL = {
+            guard !isDirectory else { return destinationURL }
+            // Finder may disambiguate promised names ("name 2.WiredTransfer").
+            // Force canonical target to support proper resume/overwrite policy.
+            return destinationURL
+                .deletingLastPathComponent()
+                .appendingPathComponent(partialName, isDirectory: false)
+        }()
         let fm = FileManager.default
         log("writePromiseTo start path=\(targetURL.path)")
 
         do {
-            if fm.fileExists(atPath: targetURL.path) {
-                try fm.removeItem(at: targetURL)
-            }
             if isDirectory {
-                try fm.createDirectory(at: targetURL, withIntermediateDirectories: true)
-            } else {
-                guard fm.createFile(atPath: targetURL.path, contents: nil, attributes: nil) else {
-                    throw NSError(domain: "Wired.DragAndDrop", code: 12, userInfo: [NSLocalizedDescriptionKey: "Unable to create placeholder file at destination."])
+                if fm.fileExists(atPath: targetURL.path) {
+                    try fm.removeItem(at: targetURL)
                 }
+                try fm.createDirectory(at: targetURL, withIntermediateDirectories: true)
             }
             log("placeholder ready path=\(targetURL.path)")
 
@@ -1213,7 +1310,26 @@ private final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProvi
 
             if let connectionID, let transferManager {
                 Task { @MainActor in
-                    guard let transfer = transferManager.downloadTransfer(item, to: targetURL.path, with: connectionID) else {
+                    let startedTransfer: Transfer?
+                    switch transferManager.queueDownload(item, to: targetURL.path, with: connectionID, overwriteExistingFile: false) {
+                    case let .started(transfer), let .resumed(transfer):
+                        startedTransfer = transfer
+                    case let .needsOverwrite(destination):
+                        if self.askOverwrite(path: destination) {
+                            switch transferManager.queueDownload(item, to: targetURL.path, with: connectionID, overwriteExistingFile: true) {
+                            case let .started(transfer), let .resumed(transfer):
+                                startedTransfer = transfer
+                            default:
+                                startedTransfer = nil
+                            }
+                        } else {
+                            startedTransfer = nil
+                        }
+                    case .failed:
+                        startedTransfer = nil
+                    }
+
+                    guard let transfer = startedTransfer else {
                         self.log("downloadTransfer returned nil path=\(targetURL.path)")
                         if self.isDirectory {
                             completionHandler(NSError(
@@ -1232,6 +1348,20 @@ private final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProvi
                             done.signal()
                         }
                         return
+                    }
+
+                    if !self.isDirectory && !fm.fileExists(atPath: targetURL.path) {
+                        guard fm.createFile(atPath: targetURL.path, contents: nil, attributes: nil) else {
+                            completionLock.lock()
+                            terminalError = NSError(
+                                domain: "Wired.DragAndDrop",
+                                code: 12,
+                                userInfo: [NSLocalizedDescriptionKey: "Unable to create placeholder file at destination."]
+                            )
+                            completionLock.unlock()
+                            done.signal()
+                            return
+                        }
                     }
 
                     let primaryScope = FinderDropSecurityScopeBroker.shared.retainScope(for: transfer.id, at: targetURL)
@@ -1373,7 +1503,7 @@ struct FilesColumnsView: View {
                 }
             },
             onDownloadSingleFile: { item in
-                transfers.download(item, with: bookmark.id)
+                onRequestDownloadSelection([item])
             },
             onUploadURLs: onUploadURLs,
             onMoveRemoteItem: onMoveRemoteItem,

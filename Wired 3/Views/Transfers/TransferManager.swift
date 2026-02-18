@@ -11,6 +11,13 @@ import WiredSwift
 
 @MainActor
 final class TransferManager: ObservableObject {
+    enum DownloadQueueOutcome {
+        case started(Transfer)
+        case resumed(Transfer)
+        case needsOverwrite(destination: String)
+        case failed
+    }
+
     @Published private(set) var transfers: [Transfer] = []
 
     /// WCTransfers.m model:
@@ -142,6 +149,87 @@ final class TransferManager: ObservableObject {
     }
 
     @discardableResult
+    func queueDownload(_ file: FileItem, with connectionID: UUID, overwriteExistingFile: Bool) -> DownloadQueueOutcome {
+        let destination = (downloadPath as NSString).appendingPathComponent(file.name)
+        return queueDownload(file, to: destination, with: connectionID, overwriteExistingFile: overwriteExistingFile)
+    }
+
+    @discardableResult
+    func queueDownload(_ file: FileItem, to destination: String, with connectionID: UUID, overwriteExistingFile: Bool) -> DownloadQueueOutcome {
+        let requestedFinalDestination = normalizedFinalDestination(for: destination)
+        let finalDestination = canonicalResumeFinalDestination(
+            requestedFinalDestination: requestedFinalDestination,
+            expectedName: file.name,
+            remotePath: file.path,
+            connectionID: connectionID
+        )
+        let partialDestination = finalDestination.appendingFormat(".%@", Wired.transfersFileExtension)
+        let partialExists = FileManager.default.fileExists(atPath: partialDestination)
+        let finalExists = FileManager.default.fileExists(atPath: finalDestination)
+        let existing = existingDownloadTransfer(
+            remotePath: file.path,
+            connectionID: connectionID,
+            finalDestination: finalDestination
+        )
+
+        if let existing, isActivelyProcessing(existing) {
+            return .resumed(existing)
+        }
+
+        // Resume has priority when a partial ".WiredTransfer" exists.
+        if partialExists {
+            if let existing {
+                restartForDownload(existing, resetProgress: false)
+                return .resumed(existing)
+            }
+            guard let transfer = downloadTransfer(file, to: finalDestination, with: connectionID) else {
+                return .failed
+            }
+            return .started(transfer)
+        }
+
+        // No partial file: if final destination exists, user must choose overwrite/stop.
+        if finalExists && !overwriteExistingFile {
+            return .needsOverwrite(destination: finalDestination)
+        }
+
+        // Reuse a previous transfer record when possible, but restart from scratch.
+        if let existing {
+            restartForDownload(existing, resetProgress: true)
+            return .resumed(existing)
+        }
+
+        guard let transfer = downloadTransfer(file, to: finalDestination, with: connectionID) else {
+            return .failed
+        }
+        return .started(transfer)
+    }
+
+    private func isActivelyProcessing(_ transfer: Transfer) -> Bool {
+        transfer.isWorking() || transfer.state == .locallyQueued || transfer.state == .queued
+    }
+
+    private func restartForDownload(_ transfer: Transfer, resetProgress: Bool) {
+        if resetProgress {
+            transfer.dataTransferred = 0
+            transfer.rsrcTransferred = 0
+            transfer.actualTransferred = 0
+            transfer.percent = 0
+            transfer.speed = 0
+            transfer.error = ""
+        }
+        if transfer.state != .locallyQueued {
+            transfer.state = .locallyQueued
+        }
+        persist()
+        if let uri = transfer.uri {
+            requestNextTransfer(forURI: uri)
+        } else {
+            start(transfer)
+        }
+    }
+
+    @discardableResult
     func downloadTransfer(_ file: FileItem, to destination: String, with connectionID: UUID) -> Transfer? {
         guard let runtime = connectionController.runtime(for: connectionID) else { return nil }
         guard let connection = runtime.connection as? AsyncConnection else { return nil }
@@ -174,8 +262,18 @@ final class TransferManager: ObservableObject {
         with connectionID: UUID,
         filesViewModel: FilesViewModel? = nil
     ) -> Bool {
-        guard let runtime = connectionController.runtime(for: connectionID) else { return false }
-        guard let connection = runtime.connection as? AsyncConnection else { return false }
+        uploadTransfer(path, toDirectory: destination, with: connectionID, filesViewModel: filesViewModel) != nil
+    }
+
+    @discardableResult
+    func uploadTransfer(
+        _ path: String,
+        toDirectory destination: FileItem,
+        with connectionID: UUID,
+        filesViewModel: FilesViewModel? = nil
+    ) -> Transfer? {
+        guard let runtime = connectionController.runtime(for: connectionID) else { return nil }
+        guard let connection = runtime.connection as? AsyncConnection else { return nil }
 
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
@@ -216,7 +314,7 @@ final class TransferManager: ObservableObject {
             }
         }
 
-        return true
+        return transfer
     }
 
     func start(_ transfer: Transfer) {
@@ -342,6 +440,67 @@ final class TransferManager: ObservableObject {
 
         if let next {
             requestTransfer(next)
+        }
+    }
+
+    private func normalizedFinalDestination(for destination: String) -> String {
+        if (destination as NSString).pathExtension.caseInsensitiveCompare(Wired.transfersFileExtension) == .orderedSame {
+            return (destination as NSString).deletingPathExtension
+        }
+        return destination
+    }
+
+    /// Finder can disambiguate promised filenames by appending " 2", " 3", …
+    /// after the original full file name (e.g. "name.dmg 2.WiredTransfer").
+    /// If an original partial already exists, force resume on that canonical path.
+    private func canonicalResumeFinalDestination(
+        requestedFinalDestination: String,
+        expectedName: String,
+        remotePath: String,
+        connectionID: UUID
+    ) -> String {
+        let requestedURL = URL(fileURLWithPath: requestedFinalDestination)
+        let requestedName = requestedURL.lastPathComponent
+
+        guard let range = requestedName.range(of: #" \d+$"#, options: .regularExpression) else {
+            return requestedFinalDestination
+        }
+
+        let strippedName = String(requestedName[..<range.lowerBound])
+        guard strippedName == expectedName else {
+            return requestedFinalDestination
+        }
+
+        let canonicalURL = requestedURL.deletingLastPathComponent().appendingPathComponent(strippedName, isDirectory: false)
+        let canonicalPartial = canonicalURL.path.appendingFormat(".%@", Wired.transfersFileExtension)
+        let canonicalFinal = canonicalURL.path
+
+        if FileManager.default.fileExists(atPath: canonicalFinal) {
+            return canonicalFinal
+        }
+        if FileManager.default.fileExists(atPath: canonicalPartial) {
+            return canonicalFinal
+        }
+
+        if existingDownloadTransfer(
+            remotePath: remotePath,
+            connectionID: connectionID,
+            finalDestination: canonicalFinal
+        ) != nil {
+            return canonicalFinal
+        }
+
+        return requestedFinalDestination
+    }
+
+    private func existingDownloadTransfer(remotePath: String, connectionID: UUID, finalDestination: String) -> Transfer? {
+        transfers.first { transfer in
+            guard transfer.type == .download else { return false }
+            guard transfer.connectionID == connectionID else { return false }
+            guard transfer.remotePath == remotePath else { return false }
+            guard transfer.state != .finished && transfer.state != .removing else { return false }
+            let local = transfer.localPath ?? ""
+            return normalizedFinalDestination(for: local) == finalDestination
         }
     }
 
