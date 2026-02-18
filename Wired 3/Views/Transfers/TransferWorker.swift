@@ -330,6 +330,10 @@ actor TransferWorker {
     // MARK: - Single file download
 
     private func runDownloadSingle(remotePath: String, localPath: String, expectedSize: Int64) async throws {
+        func dragLog(_ message: String) {
+            NSLog("[WiredTransfer] %@", message)
+        }
+
         // Prepare a dedicated transfer connection
         let tconn = await ensureTransferConnection()
         tconn.interactive = false
@@ -343,6 +347,10 @@ actor TransferWorker {
 
         transfer.speedCalculator.add(bytes: 0, time: 0)
         await mutate { $0.speed = 0 }
+
+        // If destination is already a ".WiredTransfer" placeholder, write directly into it.
+        let writesToProvidedPlaceholder = ((localPath as NSString).pathExtension.caseInsensitiveCompare(Wired.transfersFileExtension) == .orderedSame)
+        let finalPath = writesToProvidedPlaceholder ? (localPath as NSString).deletingPathExtension : localPath
 
         // Resume support (.WiredTransfer): compute offsets from the temp file(s)
         let tmpPath = temporaryDownloadDestination(forDestination: localPath)
@@ -382,7 +390,7 @@ actor TransferWorker {
         var rsrcLength: UInt64 = runMessage.uint64(forField: "wired.transfer.rsrc") ?? 0
 
         // Make sure parent dir exists
-        try FileManager.default.createDirectory(atPath: (localPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true, attributes: nil)
+        try FileManager.default.createDirectory(atPath: (tmpPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true, attributes: nil)
 
         var time = TransfersTimeInterval()
         var speedTime = TransfersTimeInterval()
@@ -507,10 +515,62 @@ actor TransferWorker {
 
         // Move temp into final destination
         // Remove existing file if any
-        if FileManager.default.fileExists(atPath: localPath) {
-            try? FileManager.default.removeItem(atPath: localPath)
+        let fm = FileManager.default
+        let tmpURL = URL(fileURLWithPath: tmpPath)
+        let finalURL = URL(fileURLWithPath: finalPath)
+        let scopeCandidates: [URL] = [
+            tmpURL,
+            finalURL,
+            tmpURL.deletingLastPathComponent(),
+            finalURL.deletingLastPathComponent()
+        ]
+        var startedScopes: [URL] = []
+        for url in scopeCandidates {
+            if startedScopes.contains(where: { $0.path == url.path }) {
+                continue
+            }
+            if url.startAccessingSecurityScopedResource() {
+                startedScopes.append(url)
+                dragLog("scope start ok path=\(url.path)")
+            } else {
+                dragLog("scope start no-access path=\(url.path)")
+            }
         }
-        try FileManager.default.moveItem(atPath: tmpPath, toPath: localPath)
+        defer {
+            for url in startedScopes {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        if fm.fileExists(atPath: finalPath) {
+            try? fm.removeItem(atPath: finalPath)
+        }
+
+        do {
+            if tmpPath != finalPath {
+                dragLog("rename tmp->final tmp=\(tmpPath) final=\(finalPath)")
+                try fm.moveItem(atPath: tmpPath, toPath: finalPath)
+                dragLog("rename success final=\(finalPath)")
+            } else if (tmpPath as NSString).pathExtension.caseInsensitiveCompare(Wired.transfersFileExtension) == .orderedSame {
+                let inferredFinal = (tmpPath as NSString).deletingPathExtension
+                if inferredFinal != tmpPath {
+                    dragLog("fallback rename tmp->inferred tmp=\(tmpPath) final=\(inferredFinal)")
+                    try fm.moveItem(atPath: tmpPath, toPath: inferredFinal)
+                    dragLog("fallback rename success final=\(inferredFinal)")
+                }
+            }
+        } catch {
+            let ns = error as NSError
+            dragLog(
+                "rename failed domain=\(ns.domain) code=\(ns.code) " +
+                "tmpExists=\(fm.fileExists(atPath: tmpPath)) " +
+                "finalExists=\(fm.fileExists(atPath: finalPath)) " +
+                "tmpParent=\((tmpPath as NSString).deletingLastPathComponent) " +
+                "finalParent=\((finalPath as NSString).deletingLastPathComponent) " +
+                "desc=\(ns.localizedDescription)"
+            )
+            throw error
+        }
     }
 
     // MARK: - Single file upload
@@ -861,7 +921,11 @@ actor TransferWorker {
     }
 
     private func temporaryDownloadDestination(forDestination dest: String) -> String {
-        // Use the same partial extension as single downloads
+        // If caller already provides a partial destination (".WiredTransfer"), use it as-is.
+        if (dest as NSString).pathExtension.caseInsensitiveCompare(Wired.transfersFileExtension) == .orderedSame {
+            return dest
+        }
+        // Otherwise use the standard partial extension.
         return dest.appendingFormat(".%@", Wired.transfersFileExtension)
     }
 }

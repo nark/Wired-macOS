@@ -138,8 +138,13 @@ final class TransferManager: ObservableObject {
 
     @discardableResult
     func download(_ file: FileItem, to destination: String, with connectionID: UUID) -> Bool {
-        guard let runtime = connectionController.runtime(for: connectionID) else { return false }
-        guard let connection = runtime.connection as? AsyncConnection else { return false }
+        downloadTransfer(file, to: destination, with: connectionID) != nil
+    }
+
+    @discardableResult
+    func downloadTransfer(_ file: FileItem, to destination: String, with connectionID: UUID) -> Transfer? {
+        guard let runtime = connectionController.runtime(for: connectionID) else { return nil }
+        guard let connection = runtime.connection as? AsyncConnection else { return nil }
 
         let transfer = Transfer(name: file.name, type: .download, connection: connection)
         transfer.uri = connection.URI
@@ -159,7 +164,7 @@ final class TransferManager: ObservableObject {
         }
 
         addTransfer(transfer)
-        return true
+        return transfer
     }
 
     @discardableResult
@@ -388,6 +393,8 @@ final class TransferManager: ObservableObject {
             await MainActor.run {
                 // Task finished: free slot + schedule next
                 self.tasks[id] = nil
+                self.runTerminalHookIfNeeded(for: transfer)
+                self.runFinishHookIfNeeded(for: transfer)
                 self.persist()
                 if let uri = transfer.uri {
                     self.requestNextTransfer(forURI: uri)
@@ -450,9 +457,14 @@ final class TransferManager: ObservableObject {
     // MARK: - Optional post-finish hooks
 
     private var finishHooks: [UUID: () async -> Void] = [:]
+    private var terminalHooks: [UUID: (Transfer) -> Void] = [:]
 
     private func onTransferFinished(id: UUID, _ hook: @escaping () async -> Void) {
         finishHooks[id] = hook
+    }
+
+    func onTransferTerminal(id: UUID, _ hook: @escaping (Transfer) -> Void) {
+        terminalHooks[id] = hook
     }
 
     /// Called by the UI or worker when a transfer moved to `.finished`.
@@ -460,5 +472,17 @@ final class TransferManager: ObservableObject {
         guard transfer.state == .finished else { return }
         guard let hook = finishHooks.removeValue(forKey: transfer.id) else { return }
         Task { await hook() }
+    }
+
+    private func runTerminalHookIfNeeded(for transfer: Transfer) {
+        let isTerminal = (
+            transfer.state == .finished ||
+            transfer.state == .stopped ||
+            transfer.state == .paused ||
+            transfer.state == .disconnected
+        )
+        guard isTerminal else { return }
+        guard let hook = terminalHooks.removeValue(forKey: transfer.id) else { return }
+        hook(transfer)
     }
 }

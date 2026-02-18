@@ -292,6 +292,18 @@ final class FilesViewModel: ObservableObject {
     }
 
     @MainActor
+    func setTreeExpansion(for path: String, expanded: Bool) async {
+        if expanded {
+            if !expandedTreePaths.contains(path) {
+                expandedTreePaths.insert(path)
+            }
+            await ensureTreeChildren(for: path)
+        } else {
+            expandedTreePaths.remove(path)
+        }
+    }
+
+    @MainActor
     func visibleTreeNodes() -> [RemoteTreeNode] {
         var nodes: [RemoteTreeNode] = []
 
@@ -707,10 +719,18 @@ private extension FilesViewModel {
         treeSelectionPath = item.path
 
         Task {
+            let previousColumnCount = self.columns.count
             let newColumn = await loadColumn(for: item)
 
             if let column = newColumn {
-                onColumnAppended(column)
+                if column.items.isEmpty {
+                    // In column mode, keep preview directly adjacent to the current
+                    // directory column when the selected folder is empty.
+                    self.columns = Array(self.columns.prefix(previousColumnCount))
+                    await self.syncDirectorySubscriptions()
+                } else {
+                    onColumnAppended(column)
+                }
             }
             await self.expandTreeAncestors(for: item.path, includeSelf: true)
         }

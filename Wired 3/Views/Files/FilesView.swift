@@ -12,26 +12,125 @@ import UniformTypeIdentifiers
 import CoreTransferable
 #if os(macOS)
 import AppKit
+import ObjectiveC
 #endif
 
 extension UTType {
-    static let wiredRemoteFile = UTType(exportedAs: "com.read-write.wired.remote-file")
+    static let wiredRemoteFile = UTType(importedAs: "com.read-write.wired.remote-file")
+}
+
+private func resolvedDragItemName(preferredName: String, path: String, fallback: String) -> String {
+    let trimmed = preferredName.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !trimmed.isEmpty {
+        return trimmed
+    }
+
+    let fromPath = (path as NSString).lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !fromPath.isEmpty && fromPath != "/" {
+        return fromPath
+    }
+
+    return fallback
 }
 
 struct RemoteFileDragPayload: Codable, Transferable {
     let path: String
     let name: String
-    let isDirectory: Bool
+    let connectionID: UUID
+
+    var asFileItem: FileItem {
+        let effectiveName = resolvedDragItemName(preferredName: name, path: path, fallback: "file")
+        return FileItem(
+            effectiveName,
+            path: path,
+            type: .file
+        )
+    }
 
     static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .item, shouldAllowToOpenInPlace: true) { item in
+            guard let url = FinderDragExportBroker.shared.prepareExport(for: item) else {
+                throw NSError(
+                    domain: "Wired.DragAndDrop",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Unable to stage file placeholder for Finder drag."]
+                )
+            }
+            return SentTransferredFile(url, allowAccessingOriginalFile: true)
+        }
+
         CodableRepresentation(contentType: .wiredRemoteFile)
     }
 }
 
-private func dragExportTypeIdentifier(forFileName fileName: String) -> String {
-    let ext = (fileName as NSString).pathExtension
-    guard !ext.isEmpty else { return UTType.data.identifier }
-    return UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier
+struct RemoteFolderDragPayload: Codable, Transferable {
+    let path: String
+    let name: String
+    let connectionID: UUID
+
+    var asFileItem: FileItem {
+        let effectiveName = resolvedDragItemName(preferredName: name, path: path, fallback: "folder")
+        return FileItem(effectiveName, path: path, type: .directory)
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .item, shouldAllowToOpenInPlace: true) { item in
+            guard let url = FinderDragExportBroker.shared.prepareExport(for: item) else {
+                throw NSError(
+                    domain: "Wired.DragAndDrop",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Unable to stage folder placeholder for Finder drag."]
+                )
+            }
+            return SentTransferredFile(url, allowAccessingOriginalFile: true)
+        }
+
+        CodableRepresentation(contentType: .wiredRemoteFile)
+    }
+}
+
+private final class FinderDragExportBroker {
+    static let shared = FinderDragExportBroker()
+
+    private init() {}
+
+    func configure(transferManager: TransferManager) {
+        _ = transferManager
+    }
+
+    func prepareExport(for payload: RemoteFileDragPayload) -> URL? {
+        prepareExport(file: payload.asFileItem, connectionID: payload.connectionID)
+    }
+
+    func prepareExport(for payload: RemoteFolderDragPayload) -> URL? {
+        prepareExport(file: payload.asFileItem, connectionID: payload.connectionID)
+    }
+
+    private func prepareExport(file: FileItem, connectionID: UUID) -> URL? {
+        guard isDownloadableRemoteItem(file) else { return nil }
+
+        let stagedURL = dragExportStagingURL(for: file, connectionID: connectionID)
+        let stagedPath = stagedURL.path
+        let fm = FileManager.default
+
+        if fm.fileExists(atPath: stagedPath) {
+            try? fm.removeItem(atPath: stagedPath)
+        }
+
+        if file.type == .file {
+            guard fm.createFile(atPath: stagedPath, contents: nil, attributes: nil) else {
+                return nil
+            }
+            return stagedURL
+        }
+
+        do {
+            try fm.createDirectory(at: stagedURL, withIntermediateDirectories: true)
+            return stagedURL
+        } catch {
+            return nil
+        }
+    }
 }
 
 private func dragExportFileName(for item: FileItem) -> String {
@@ -39,37 +138,52 @@ private func dragExportFileName(for item: FileItem) -> String {
     return name.isEmpty ? "file" : name
 }
 
-private func dragExportSuggestedName(forFileName fileName: String) -> String {
-    let baseName = (fileName as NSString).deletingPathExtension
-    let ext = (fileName as NSString).pathExtension
-    if ext.isEmpty || baseName.isEmpty {
-        return fileName
-    }
-    return baseName
-}
-
-private func dragExportTemporaryFileName(forFileName fileName: String) -> String {
-    let baseName = (fileName as NSString).deletingPathExtension
-    let ext = (fileName as NSString).pathExtension
-    if ext.isEmpty || baseName.isEmpty {
-        return fileName
-    }
-    return baseName
-}
-
-private func dragExportTemporaryURL(for item: FileItem) -> URL {
+private func dragExportTemporaryURL(for item: FileItem, connectionID: UUID) -> URL {
+    let _ = connectionID
     let fileName = dragExportFileName(for: item)
+    let unique = UUID().uuidString
     let base = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("WiredDragExports", isDirectory: true)
-        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        .appendingPathComponent(unique, isDirectory: true)
     try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
     let isDirectory = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
-    return base.appendingPathComponent(dragExportTemporaryFileName(forFileName: fileName), isDirectory: isDirectory)
+    return base.appendingPathComponent(fileName, isDirectory: isDirectory)
+}
+
+private func dragExportStagingURL(for item: FileItem, connectionID: UUID) -> URL {
+    let baseURL = dragExportTemporaryURL(for: item, connectionID: connectionID)
+    let isDirectory = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
+    guard !isDirectory else { return baseURL }
+    let partialName = baseURL.lastPathComponent + ".\(Wired.transfersFileExtension)"
+    return baseURL.deletingLastPathComponent().appendingPathComponent(partialName, isDirectory: false)
 }
 
 private func isDownloadableRemoteItem(_ item: FileItem) -> Bool {
     if item.path == "/" { return false }
     return item.type == .file || item.type == .directory || item.type == .uploads || item.type == .dropbox
+}
+
+private extension View {
+    @ViewBuilder
+    func remoteDraggable(item: FileItem, connectionID: UUID, isDirectory: Bool) -> some View {
+        if isDirectory {
+            self.draggable(
+                RemoteFolderDragPayload(
+                    path: item.path,
+                    name: resolvedDragItemName(preferredName: item.name, path: item.path, fallback: "folder"),
+                    connectionID: connectionID
+                )
+            )
+        } else {
+            self.draggable(
+                RemoteFileDragPayload(
+                    path: item.path,
+                    name: resolvedDragItemName(preferredName: item.name, path: item.path, fallback: "file"),
+                    connectionID: connectionID
+                )
+            )
+        }
+    }
 }
 
 struct FilesView: View {
@@ -82,6 +196,9 @@ struct FilesView: View {
     @ObservedObject var filesViewModel: FilesViewModel
 
     @State private var selectedFileViewType: FileViewType = .columns
+    @State private var pendingDeleteItems: [FileItem] = []
+    @State private var showDeleteSelectionConfirmation: Bool = false
+    @State private var createFolderTargetOverride: FileItem? = nil
 
     private var selectedItem: FileItem? {
         switch selectedFileViewType {
@@ -93,6 +210,10 @@ struct FilesView: View {
     }
 
     private var selectedDirectoryForUpload: FileItem? {
+        if let override = createFolderTargetOverride {
+            return override
+        }
+
         guard var selected = selectedItem else { return nil }
         if selected.type == .directory || selected.type == .uploads || selected.type == .dropbox {
             return selected
@@ -119,6 +240,20 @@ struct FilesView: View {
                 FilesTreeView(
                     bookmark: bookmark,
                     filesViewModel: filesViewModel,
+                    onRequestCreateFolder: { directory in
+                        createFolderTargetOverride = directory
+                        filesViewModel.showCreateFolderSheet = true
+                    },
+                    onRequestUploadInDirectory: { directory in
+                        createFolderTargetOverride = directory
+                        filesViewModel.showFilesBrowser = true
+                    },
+                    onRequestDeleteSelection: { items in
+                        requestDelete(items)
+                    },
+                    onRequestDownloadSelection: { items in
+                        download(items)
+                    },
                     onUploadURLs: { urls, target in
                         upload(urls: urls, to: target)
                     },
@@ -134,6 +269,20 @@ struct FilesView: View {
                 FilesColumnsView(
                     bookmark: bookmark,
                     filesViewModel: filesViewModel,
+                    onRequestCreateFolder: { directory in
+                        createFolderTargetOverride = directory
+                        filesViewModel.showCreateFolderSheet = true
+                    },
+                    onRequestUploadInDirectory: { directory in
+                        createFolderTargetOverride = directory
+                        filesViewModel.showFilesBrowser = true
+                    },
+                    onRequestDeleteSelection: { items in
+                        requestDelete(items)
+                    },
+                    onRequestDownloadSelection: { items in
+                        download(items)
+                    },
                     onUploadURLs: { urls, target in
                         upload(urls: urls, to: target)
                     },
@@ -167,6 +316,11 @@ struct FilesView: View {
                     .environment(runtime)
             }
         }
+        .onChange(of: filesViewModel.showCreateFolderSheet) { _, isPresented in
+            if !isPresented {
+                createFolderTargetOverride = nil
+            }
+        }
         .alert("Delete File", isPresented: $filesViewModel.showDeleteConfirmation, actions: {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
@@ -179,6 +333,28 @@ struct FilesView: View {
         }, message: {
             Text("Are you sure you want to delete this file? This operation is not recoverable.")
         })
+        .alert(
+            pendingDeleteItems.count > 1 ? "Delete Files" : "Delete File",
+            isPresented: $showDeleteSelectionConfirmation,
+            actions: {
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteItems.removeAll()
+                }
+                Button("Delete", role: .destructive) {
+                    let items = pendingDeleteItems
+                    pendingDeleteItems.removeAll()
+
+                    Task {
+                        for item in items where item.path != "/" {
+                            await filesViewModel.deleteFile(item.path)
+                        }
+                    }
+                }
+            },
+            message: {
+                Text("Are you sure you want to delete this selection? This operation is not recoverable.")
+            }
+        )
         .errorAlert(error: $filesViewModel.error)
         .onChange(of: selectedFileViewType) { _, newValue in
             Task {
@@ -257,6 +433,7 @@ struct FilesView: View {
             .disabled(selectedDirectoryForUpload == nil)
 
             Button {
+                createFolderTargetOverride = selectedDirectoryForUpload
                 filesViewModel.showCreateFolderSheet = true
             } label: {
                 Image(systemName: "folder.badge.plus")
@@ -288,6 +465,31 @@ struct FilesView: View {
     private func moveRemoteItem(from sourcePath: String, to destinationDirectory: FileItem) async throws {
         try await filesViewModel.moveRemoteItem(from: sourcePath, to: destinationDirectory.path)
     }
+
+    private func requestDelete(_ items: [FileItem]) {
+        let unique = uniqueItems(items).filter { $0.path != "/" }
+        guard !unique.isEmpty else { return }
+        pendingDeleteItems = unique
+        showDeleteSelectionConfirmation = true
+    }
+
+    private func download(_ items: [FileItem]) {
+        let unique = uniqueItems(items)
+        for item in unique where isDownloadableRemoteItem(item) {
+            transfers.download(item, with: bookmark.id)
+        }
+    }
+
+    private func uniqueItems(_ items: [FileItem]) -> [FileItem] {
+        var seen: Set<String> = []
+        var unique: [FileItem] = []
+        for item in items {
+            guard !seen.contains(item.path) else { continue }
+            seen.insert(item.path)
+            unique.append(item)
+        }
+        return unique
+    }
 }
 
 struct FilesTreeView: View {
@@ -295,184 +497,806 @@ struct FilesTreeView: View {
     @ObservedObject var filesViewModel: FilesViewModel
     @EnvironmentObject private var transfers: TransferManager
 
+    let onRequestCreateFolder: (FileItem) -> Void
+    let onRequestUploadInDirectory: (FileItem) -> Void
+    let onRequestDeleteSelection: ([FileItem]) -> Void
+    let onRequestDownloadSelection: ([FileItem]) -> Void
     let onUploadURLs: ([URL], FileItem) -> Void
     let onMoveRemoteItem: (_ sourcePath: String, _ destinationDirectory: FileItem) async throws -> Void
     @State private var finderDropTargetPath: String?
+    @State private var selectedPaths: Set<String> = []
 
     var body: some View {
-        List(filesViewModel.visibleTreeNodes()) { node in
-            treeRow(node)
-        }
+        #if os(macOS)
+        AppKitFilesTreeView(
+            treeChildrenByPath: filesViewModel.treeChildrenByPath,
+            expandedPaths: filesViewModel.expandedTreePaths,
+            connectionID: bookmark.id,
+            transferManager: transfers,
+            onUploadURLs: onUploadURLs,
+            selectedPaths: $selectedPaths,
+            onSelectionChange: { newSelection in
+                let orderedNodes = filesViewModel.visibleTreeNodes()
+                let orderedPaths = orderedNodes.map { $0.item.path }
+                let primaryPath = orderedPaths.first(where: { newSelection.contains($0) })
+
+                if let primaryPath {
+                    DispatchQueue.main.async {
+                        filesViewModel.treeSelectionPath = primaryPath
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        filesViewModel.treeSelectionPath = nil
+                    }
+                }
+            },
+            onSetDirectoryExpanded: { path, expanded in
+                Task { await filesViewModel.setTreeExpansion(for: path, expanded: expanded) }
+            },
+            onDownloadSingleFile: { item in
+                transfers.download(item, with: bookmark.id)
+            },
+            onRequestCreateFolder: {
+                onRequestCreateFolder(contextMenuTargetDirectory())
+            },
+            onRequestUploadInDirectory: { directory in
+                onRequestUploadInDirectory(directory)
+            },
+            onRequestDeleteSelection: {
+                let selected = selectedItems(from: selectedPaths)
+                guard !selected.isEmpty else { return }
+                onRequestDeleteSelection(selected)
+            },
+            onRequestDownloadSelection: {
+                let selected = selectedItems(from: selectedPaths)
+                guard !selected.isEmpty else { return }
+                onRequestDownloadSelection(selected.filter { isDownloadableRemoteItem($0) })
+            }
+        )
+        .background(Color.white)
         .onAppear {
             Task { await filesViewModel.loadTreeRoot() }
+            selectedPaths = Set([filesViewModel.treeSelectionPath].compactMap { $0 })
         }
-        .background(Color.white)
+        .onChange(of: filesViewModel.treeSelectionPath) { _, newValue in
+            if selectedPaths.count <= 1 {
+                selectedPaths = Set([newValue].compactMap { $0 })
+            }
+        }
+        #else
+        EmptyView()
+        #endif
     }
 
-    @ViewBuilder
-    private func treeRow(_ node: RemoteTreeNode) -> some View {
-        let item = node.item
-        let isDirectory = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
-        let isExpanded = filesViewModel.expandedTreePaths.contains(item.path)
-        let isSelected = filesViewModel.treeSelectionPath == item.path
+    private func selectedItems(from paths: Set<String>) -> [FileItem] {
+        let byPath = Dictionary(uniqueKeysWithValues: filesViewModel.visibleTreeNodes().map { ($0.item.path, $0.item) })
+        return paths.compactMap { byPath[$0] }
+    }
 
-        HStack(spacing: 6) {
-            Color.clear
-                .frame(width: CGFloat(node.level) * 14, height: 1)
+    private func contextMenuTargetDirectory() -> FileItem {
+        if let selected = filesViewModel.selectedTreeItem() {
+            if selected.type == .directory || selected.type == .uploads || selected.type == .dropbox {
+                return selected
+            }
 
-            if isDirectory {
-                Button {
-                    Task { await filesViewModel.toggleTreeExpansion(for: item.path) }
-                } label: {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+            let parentPath = selected.path.stringByDeletingLastPathComponent
+            return FileItem(parentPath.lastPathComponent, path: parentPath, type: .directory)
+        }
+
+        return FileItem("/", path: "/", type: .directory)
+    }
+
+}
+
+#if os(macOS)
+private var dragPromiseDelegateAssociationKey: UInt8 = 0
+
+private final class FinderDropSecurityScopeBroker {
+    static let shared = FinderDropSecurityScopeBroker()
+
+    private let lock = NSLock()
+    private var scopedURLs: [UUID: [URL]] = [:]
+
+    private init() {}
+
+    @discardableResult
+    func retainScope(for transferID: UUID, at url: URL) -> Bool {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        guard didAccess else { return false }
+
+        lock.lock()
+        var urls = scopedURLs[transferID] ?? []
+        if !urls.contains(where: { $0.path == url.path }) {
+            urls.append(url)
+        }
+        scopedURLs[transferID] = urls
+        lock.unlock()
+        return true
+    }
+
+    func releaseScope(for transferID: UUID) {
+        lock.lock()
+        let urls = scopedURLs.removeValue(forKey: transferID) ?? []
+        lock.unlock()
+        for url in urls {
+            url.stopAccessingSecurityScopedResource()
+        }
+    }
+}
+
+private struct AppKitFilesTreeView: NSViewRepresentable {
+    let treeChildrenByPath: [String: [FileItem]]
+    let expandedPaths: Set<String>
+    let connectionID: UUID
+    let transferManager: TransferManager
+    let onUploadURLs: ([URL], FileItem) -> Void
+    @Binding var selectedPaths: Set<String>
+    let onSelectionChange: (Set<String>) -> Void
+    let onSetDirectoryExpanded: (String, Bool) -> Void
+    let onDownloadSingleFile: (FileItem) -> Void
+    let onRequestCreateFolder: () -> Void
+    let onRequestUploadInDirectory: (FileItem) -> Void
+    let onRequestDeleteSelection: () -> Void
+    let onRequestDownloadSelection: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+
+        let outlineView = NSOutlineView()
+        outlineView.usesAlternatingRowBackgroundColors = false
+        outlineView.backgroundColor = .clear
+        outlineView.headerView = nil
+        outlineView.allowsMultipleSelection = true
+        outlineView.allowsEmptySelection = true
+        outlineView.rowHeight = 22
+        outlineView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+        outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        outlineView.setDraggingSourceOperationMask(.copy, forLocal: true)
+        outlineView.usesAlternatingRowBackgroundColors = true
+        outlineView.registerForDraggedTypes([.fileURL])
+        outlineView.doubleAction = #selector(Coordinator.didDoubleClick(_:))
+        outlineView.target = context.coordinator
+
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("TreeColumn"))
+        column.title = "Name"
+        column.minWidth = 220
+        column.width = 420
+        outlineView.addTableColumn(column)
+        outlineView.outlineTableColumn = column
+
+        let sizeColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("SizeColumn"))
+        sizeColumn.title = "Size"
+        sizeColumn.minWidth = 90
+        sizeColumn.width = 120
+        outlineView.addTableColumn(sizeColumn)
+
+        outlineView.delegate = context.coordinator
+        outlineView.dataSource = context.coordinator
+        let menu = context.coordinator.makeContextMenu()
+        menu.delegate = context.coordinator
+        outlineView.menu = menu
+
+        scrollView.documentView = outlineView
+        context.coordinator.outlineView = outlineView
+        context.coordinator.syncFromModel(
+            childrenByPath: treeChildrenByPath,
+            expandedPaths: expandedPaths,
+            selectedPaths: selectedPaths
+        )
+
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.syncFromModel(
+            childrenByPath: treeChildrenByPath,
+            expandedPaths: expandedPaths,
+            selectedPaths: selectedPaths
+        )
+    }
+
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate {
+        final class OutlineNode: NSObject {
+            let item: FileItem
+            var children: [OutlineNode] = []
+
+            init(item: FileItem) {
+                self.item = item
+            }
+        }
+
+        var parent: AppKitFilesTreeView
+        weak var outlineView: NSOutlineView?
+        private let rootNode = OutlineNode(item: FileItem("/", path: "/", type: .directory))
+        private var nodesByPath: [String: OutlineNode] = [:]
+        private var isApplyingSelectionFromSwiftUI = false
+        private var isApplyingExpandedStateFromSwiftUI = false
+        private var suppressDisclosureCallbacks = false
+        private var pendingExpansionState: [String: Bool] = [:]
+        private var contextDirectoryTarget: FileItem = FileItem("/", path: "/", type: .directory)
+        private var clickedRowHadSelection = false
+
+        init(parent: AppKitFilesTreeView) {
+            self.parent = parent
+        }
+
+        private func isDirectory(_ item: FileItem) -> Bool {
+            item.type == .directory || item.type == .uploads || item.type == .dropbox
+        }
+
+        private func sortedItems(_ items: [FileItem]) -> [FileItem] {
+            items.sorted {
+                let lhsDir = isDirectory($0)
+                let rhsDir = isDirectory($1)
+                if lhsDir != rhsDir { return lhsDir }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
+
+        private func fileSizeString(_ item: FileItem) -> String {
+            guard item.type == .file else { return "-" }
+            let total = Int64(item.dataSize + item.rsrcSize)
+            return ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
+        }
+
+        private func ancestorPaths(for path: String) -> [String] {
+            var result: [String] = []
+            var current = (path as NSString).deletingLastPathComponent
+            while !current.isEmpty && current != "/" {
+                result.append(current)
+                current = (current as NSString).deletingLastPathComponent
+            }
+            result.append("/")
+            return result
+        }
+
+        private func ensureExpandedAncestors(in expanded: inout Set<String>) {
+            let snapshot = Array(expanded)
+            for path in snapshot {
+                for ancestor in ancestorPaths(for: path) {
+                    expanded.insert(ancestor)
                 }
-                .buttonStyle(.plain)
+            }
+        }
+
+        private func treeDepth(for path: String) -> Int {
+            if path == "/" { return 0 }
+            return path.split(separator: "/").count
+        }
+
+        func refreshTree(childrenByPath: [String: [FileItem]]) {
+            nodesByPath.removeAll()
+
+            func node(for item: FileItem) -> OutlineNode {
+                if let existing = nodesByPath[item.path] { return existing }
+                let created = OutlineNode(item: item)
+                nodesByPath[item.path] = created
+                return created
+            }
+
+            func buildChildren(parentPath: String, visiting: inout Set<String>) -> [OutlineNode] {
+                guard !visiting.contains(parentPath) else { return [] }
+                visiting.insert(parentPath)
+                defer { visiting.remove(parentPath) }
+
+                let children = sortedItems(childrenByPath[parentPath] ?? [])
+                return children.map { childItem in
+                    let childNode = node(for: childItem)
+                    if isDirectory(childItem), childrenByPath[childItem.path] != nil {
+                        childNode.children = buildChildren(parentPath: childItem.path, visiting: &visiting)
+                    } else {
+                        childNode.children = []
+                    }
+                    return childNode
+                }
+            }
+
+            var visiting: Set<String> = []
+            rootNode.children = buildChildren(parentPath: "/", visiting: &visiting)
+            outlineView?.reloadData()
+        }
+
+        func syncFromModel(
+            childrenByPath: [String: [FileItem]],
+            expandedPaths: Set<String>,
+            selectedPaths: Set<String>
+        ) {
+            // Drop pending entries once model caught up to user-driven disclosure changes.
+            for (path, desiredExpanded) in pendingExpansionState {
+                let modelExpanded = expandedPaths.contains(path)
+                if modelExpanded == desiredExpanded {
+                    pendingExpansionState.removeValue(forKey: path)
+                }
+            }
+
+            var effectiveExpandedPaths = expandedPaths
+            for (path, desiredExpanded) in pendingExpansionState {
+                if desiredExpanded {
+                    effectiveExpandedPaths.insert(path)
+                } else {
+                    effectiveExpandedPaths.remove(path)
+                }
+            }
+            ensureExpandedAncestors(in: &effectiveExpandedPaths)
+
+            suppressDisclosureCallbacks = true
+            defer { suppressDisclosureCallbacks = false }
+            refreshTree(childrenByPath: childrenByPath)
+            applyExpandedState(effectiveExpandedPaths)
+            updateSelection(selectedPaths)
+        }
+
+        func applyExpandedState(_ expandedPaths: Set<String>) {
+            guard let outlineView else { return }
+            isApplyingExpandedStateFromSwiftUI = true
+            defer { isApplyingExpandedStateFromSwiftUI = false }
+
+            let expandableNodes = nodesByPath.values
+                .filter { isDirectory($0.item) }
+                .sorted {
+                    let lhsDepth = treeDepth(for: $0.item.path)
+                    let rhsDepth = treeDepth(for: $1.item.path)
+                    if lhsDepth != rhsDepth { return lhsDepth < rhsDepth }
+                    return $0.item.path < $1.item.path
+                }
+
+            for node in expandableNodes {
+                let path = node.item.path
+                if expandedPaths.contains(path), !outlineView.isItemExpanded(node) {
+                    outlineView.expandItem(node, expandChildren: false)
+                }
+            }
+
+            for node in expandableNodes.reversed() {
+                let path = node.item.path
+                if !expandedPaths.contains(path), outlineView.isItemExpanded(node) {
+                    outlineView.collapseItem(node, collapseChildren: false)
+                }
+            }
+        }
+
+        func updateSelection(_ selectedPaths: Set<String>) {
+            guard let outlineView else { return }
+            var indexSet = IndexSet()
+            for path in selectedPaths {
+                guard let node = nodesByPath[path] else { continue }
+                let row = outlineView.row(forItem: node)
+                if row >= 0 {
+                    indexSet.insert(row)
+                }
+            }
+            if outlineView.selectedRowIndexes != indexSet {
+                isApplyingSelectionFromSwiftUI = true
+                outlineView.selectRowIndexes(indexSet, byExtendingSelection: false)
+                isApplyingSelectionFromSwiftUI = false
+            }
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+            let node = (item as? OutlineNode) ?? rootNode
+            return node.children.count
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+            let node = (item as? OutlineNode) ?? rootNode
+            return node.children[index]
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+            guard let node = item as? OutlineNode else { return false }
+            return isDirectory(node.item)
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+            guard let node = item as? OutlineNode else { return nil }
+            let item = node.item
+            let columnID = tableColumn?.identifier ?? NSUserInterfaceItemIdentifier("TreeColumn")
+
+            if columnID == NSUserInterfaceItemIdentifier("SizeColumn") {
+                let id = NSUserInterfaceItemIdentifier("TreeSizeCell")
+                let cell = (outlineView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView) ?? {
+                    let cell = NSTableCellView()
+                    cell.identifier = id
+                    let tf = NSTextField(labelWithString: "")
+                    tf.translatesAutoresizingMaskIntoConstraints = false
+                    tf.alignment = .right
+                    tf.textColor = .secondaryLabelColor
+                    tf.lineBreakMode = .byClipping
+                    cell.addSubview(tf)
+                    cell.textField = tf
+                    NSLayoutConstraint.activate([
+                        tf.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+                        tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                        tf.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+                    ])
+                    return cell
+                }()
+                cell.textField?.stringValue = fileSizeString(item)
+                return cell
+            }
+
+            let id = NSUserInterfaceItemIdentifier("TreeCell")
+            let cell = (outlineView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView) ?? {
+                let cell = NSTableCellView()
+                cell.identifier = id
+                let icon = NSImageView()
+                icon.translatesAutoresizingMaskIntoConstraints = false
+                icon.imageScaling = .scaleProportionallyUpOrDown
+                cell.imageView = icon
+
+                let tf = NSTextField(labelWithString: "")
+                tf.translatesAutoresizingMaskIntoConstraints = false
+                tf.lineBreakMode = .byTruncatingMiddle
+                cell.addSubview(tf)
+                cell.textField = tf
+                cell.addSubview(icon)
+                NSLayoutConstraint.activate([
+                    icon.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+                    icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                    icon.widthAnchor.constraint(equalToConstant: 16),
+                    icon.heightAnchor.constraint(equalToConstant: 16),
+                    tf.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
+                    tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                    tf.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+                ])
+                return cell
+            }()
+            cell.textField?.stringValue = item.name
+            let isDir = isDirectory(item)
+            let ext = (dragExportFileName(for: item) as NSString).pathExtension
+            let fileType = isDir ? UTType.folder.identifier : (UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier)
+            let icon = NSWorkspace.shared.icon(forFileType: fileType)
+            icon.size = NSSize(width: 16, height: 16)
+            cell.imageView?.image = icon
+            return cell
+        }
+
+        func outlineViewSelectionDidChange(_ notification: Notification) {
+            if isApplyingSelectionFromSwiftUI { return }
+            guard let outlineView else { return }
+            var paths = Set<String>()
+            for idx in outlineView.selectedRowIndexes {
+                guard idx >= 0,
+                      let node = outlineView.item(atRow: idx) as? OutlineNode else { continue }
+                paths.insert(node.item.path)
+            }
+            DispatchQueue.main.async {
+                self.parent.selectedPaths = paths
+                self.parent.onSelectionChange(paths)
+            }
+        }
+
+        func outlineViewItemDidExpand(_ notification: Notification) {
+            if isApplyingExpandedStateFromSwiftUI || suppressDisclosureCallbacks { return }
+            guard let node = notification.userInfo?["NSObject"] as? OutlineNode else { return }
+            pendingExpansionState[node.item.path] = true
+            for ancestor in ancestorPaths(for: node.item.path) {
+                pendingExpansionState[ancestor] = true
+            }
+            DispatchQueue.main.async {
+                self.parent.onSetDirectoryExpanded(node.item.path, true)
+            }
+        }
+
+        func outlineViewItemDidCollapse(_ notification: Notification) {
+            if isApplyingExpandedStateFromSwiftUI || suppressDisclosureCallbacks { return }
+            guard let node = notification.userInfo?["NSObject"] as? OutlineNode else { return }
+            pendingExpansionState[node.item.path] = false
+            let prefix = node.item.path == "/" ? "/" : node.item.path + "/"
+            for (key, _) in pendingExpansionState where key.hasPrefix(prefix) {
+                pendingExpansionState[key] = false
+            }
+            DispatchQueue.main.async {
+                self.parent.onSetDirectoryExpanded(node.item.path, false)
+            }
+        }
+
+        @objc
+        func didDoubleClick(_ sender: Any?) {
+            guard let outlineView else { return }
+            let row = outlineView.clickedRow >= 0 ? outlineView.clickedRow : outlineView.selectedRow
+            guard row >= 0, let node = outlineView.item(atRow: row) as? OutlineNode else { return }
+            let item = node.item
+            let isDir = isDirectory(item)
+            if !isDir {
+                parent.onDownloadSingleFile(item)
+            }
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem itemRef: Any) -> NSPasteboardWriting? {
+            guard let node = itemRef as? OutlineNode else { return nil }
+            let item = node.item
+            let isDir = isDirectory(item)
+            let fileType: String
+            if isDir {
+                fileType = UTType.folder.identifier
             } else {
-                Color.clear.frame(width: 12, height: 1)
+                let ext = (dragExportFileName(for: item) as NSString).pathExtension
+                fileType = UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier
             }
 
-            FinderFileIconView(item: item, size: 16)
+            let delegate = DragPlaceholderPromiseDelegate(item: item)
+            delegate.connectionID = parent.connectionID
+            delegate.transferManager = parent.transferManager
+            let provider = NSFilePromiseProvider(fileType: fileType, delegate: delegate)
+            // NSFilePromiseProvider's delegate is weak in practice for drag lifetime.
+            // Retain it through associated storage to guarantee writePromiseTo callback.
+            objc_setAssociatedObject(
+                provider,
+                &dragPromiseDelegateAssociationKey,
+                delegate,
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
+            return provider
+        }
 
-            Text(item.name)
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
-                .lineLimit(1)
+        func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+            .copy
+        }
 
-            Spacer()
-            
-            Text(sizeString(for: item))
-                .foregroundStyle(isSelected ? Color.white : Color.secondary)
-                .font(Font.caption2.monospacedDigit())
+        private func finderDroppedURLs(from info: NSDraggingInfo) -> [URL] {
+            let classes: [AnyClass] = [NSURL.self]
+            let options: [NSPasteboard.ReadingOptionKey: Any] = [
+                .urlReadingFileURLsOnly: true
+            ]
+            return info.draggingPasteboard.readObjects(forClasses: classes, options: options) as? [URL] ?? []
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 3)
-        .padding(.horizontal, 6)
-        .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.accentColor : Color.clear)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color.accentColor.opacity(finderDropTargetPath == item.path ? 0.9 : 0), lineWidth: 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.accentColor.opacity(finderDropTargetPath == item.path ? 0.12 : 0))
-                )
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .onTapGesture {
-            Task {
-                await filesViewModel.selectTreeItem(item)
+
+        private func dropDestination(for itemRef: Any?) -> FileItem? {
+            guard let node = itemRef as? OutlineNode else {
+                return FileItem("/", path: "/", type: .directory)
             }
+
+            let item = node.item
+            guard isDirectory(item) else { return nil }
+            return item
         }
-        .onTapGesture(count: 2) {
-            guard item.type == .file else { return }
-            transfers.download(item, with: bookmark.id)
-        }
-        .onDrag {
-            Task { await filesViewModel.selectTreeItem(item) }
-            return dragProvider(for: item, isDirectory: isDirectory)
-        }
-        .dropDestination(for: URL.self) { urls, _ in
-            guard isDirectory else { return false }
-            finderDropTargetPath = nil
-            onUploadURLs(urls, item)
-            return !urls.isEmpty
-        } isTargeted: { targeted in
-            guard isDirectory else { return }
-            if targeted {
-                finderDropTargetPath = item.path
-            } else if finderDropTargetPath == item.path {
-                finderDropTargetPath = nil
+
+        func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+            let urls = finderDroppedURLs(from: info)
+            guard !urls.isEmpty else { return [] }
+            guard let destination = dropDestination(for: item) else { return [] }
+
+            if destination.path == "/" {
+                outlineView.setDropItem(nil, dropChildIndex: NSOutlineViewDropOnItemIndex)
+            } else {
+                outlineView.setDropItem(item, dropChildIndex: NSOutlineViewDropOnItemIndex)
             }
+            return .copy
         }
-        .dropDestination(for: RemoteFileDragPayload.self) { payloads, _ in
-            guard isDirectory else { return false }
-            guard let payload = payloads.first else { return false }
-            if payload.path == item.path || item.path.hasPrefix(payload.path + "/") {
-                return false
-            }
-            Task {
-                do {
-                    try await onMoveRemoteItem(payload.path, item)
-                } catch {
-                    await MainActor.run { filesViewModel.error = error }
-                }
+
+        func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
+            let urls = finderDroppedURLs(from: info)
+            guard !urls.isEmpty else { return false }
+            guard let destination = dropDestination(for: item) else { return false }
+
+            DispatchQueue.main.async {
+                self.parent.onUploadURLs(urls, destination)
             }
             return true
         }
-        .contextMenu {
-            if isDownloadableRemoteItem(item) {
-                Button("Download") {
-                    transfers.download(item, with: bookmark.id)
-                }
-            }
-        }
-    }
 
-    private func dragProvider(for item: FileItem, isDirectory: Bool) -> NSItemProvider {
-        let provider = NSItemProvider()
-
-        if let payloadData = try? JSONEncoder().encode(
-            RemoteFileDragPayload(path: item.path, name: item.name, isDirectory: isDirectory)
-        ) {
-            provider.registerDataRepresentation(
-                forTypeIdentifier: UTType.wiredRemoteFile.identifier,
-                visibility: .ownProcess
-            ) { completion in
-                completion(payloadData, nil)
-                return nil
+        func makeContextMenu() -> NSMenu {
+            let menu = NSMenu()
+            menu.addItem(withTitle: "Download", action: #selector(contextDownload), keyEquivalent: "")
+            menu.addItem(withTitle: "Delete", action: #selector(contextDelete), keyEquivalent: "")
+            menu.addItem(withTitle: "Upload…", action: #selector(contextUpload), keyEquivalent: "")
+            menu.addItem(NSMenuItem.separator())
+            menu.addItem(withTitle: "New Folder", action: #selector(contextNewFolder), keyEquivalent: "")
+            for item in menu.items {
+                item.target = self
             }
+            return menu
         }
 
-        guard isDownloadableRemoteItem(item) else { return provider }
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            guard let outlineView else { return }
+            let point = outlineView.convert(outlineView.window?.mouseLocationOutsideOfEventStream ?? .zero, from: nil)
+            let row = outlineView.row(at: point)
+            let hasSelectionBefore = !outlineView.selectedRowIndexes.isEmpty
 
-        let fileName = dragExportFileName(for: item)
-        let fileType = isDirectory ? UTType.folder.identifier : dragExportTypeIdentifier(forFileName: fileName)
-        provider.suggestedName = dragExportSuggestedName(forFileName: fileName)
-
-        provider.registerFileRepresentation(
-            forTypeIdentifier: fileType,
-            fileOptions: [],
-            visibility: .all
-        ) { completion in
-            let progress = Progress(totalUnitCount: 100)
-
-            Task {
-                let destinationURL = dragExportTemporaryURL(for: item)
-                let destinationPath = destinationURL.path
-
-                if !FileManager.default.fileExists(atPath: destinationPath) {
-                    await MainActor.run {
-                        _ = self.transfers.download(item, to: destinationPath, with: self.bookmark.id)
-                    }
-
-                    let timeout = Date().addingTimeInterval(120)
-                    while !FileManager.default.fileExists(atPath: destinationPath) && Date() < timeout {
-                        try? await Task.sleep(nanoseconds: 300_000_000)
-                    }
+            if row >= 0 {
+                clickedRowHadSelection = outlineView.selectedRowIndexes.contains(row)
+                if !clickedRowHadSelection {
+                    outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
                 }
 
-                if FileManager.default.fileExists(atPath: destinationPath) {
-                    progress.completedUnitCount = 100
-                    completion(destinationURL, false, nil)
+                if let node = outlineView.item(atRow: row) as? OutlineNode {
+                    let item = node.item
+                    if isDirectory(item) {
+                        contextDirectoryTarget = item
+                    } else {
+                        let parentPath = item.path.stringByDeletingLastPathComponent
+                        contextDirectoryTarget = FileItem(parentPath.lastPathComponent, path: parentPath, type: .directory)
+                    }
                 } else {
-                    let error = NSError(
-                        domain: "Wired.DragAndDrop",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to prepare file for Finder drop."]
-                    )
-                    completion(nil, false, error)
+                    contextDirectoryTarget = FileItem("/", path: "/", type: .directory)
                 }
+            } else {
+                clickedRowHadSelection = false
+                if hasSelectionBefore {
+                    outlineView.deselectAll(nil)
+                }
+                contextDirectoryTarget = FileItem("/", path: "/", type: .directory)
             }
 
-            return progress
+            let hasSelectionNow = !outlineView.selectedRowIndexes.isEmpty
+            if let downloadItem = menu.item(withTitle: "Download") {
+                downloadItem.isEnabled = hasSelectionNow
+            }
+            if let deleteItem = menu.item(withTitle: "Delete") {
+                deleteItem.isEnabled = hasSelectionNow
+            }
+            if let uploadItem = menu.item(withTitle: "Upload…") {
+                uploadItem.isEnabled = true
+            }
+            if let newFolderItem = menu.item(withTitle: "New Folder") {
+                newFolderItem.isEnabled = true
+            }
         }
 
-        return provider
+        @objc private func contextDownload() { parent.onRequestDownloadSelection() }
+        @objc private func contextDelete() { parent.onRequestDeleteSelection() }
+        @objc private func contextUpload() { parent.onRequestUploadInDirectory(contextDirectoryTarget) }
+        @objc private func contextNewFolder() { parent.onRequestCreateFolder() }
     }
 }
+
+private final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProviderDelegate {
+    private let item: FileItem
+    private let isDirectory: Bool
+    private let fileName: String
+    private let partialName: String
+    var connectionID: UUID?
+    weak var transferManager: TransferManager?
+    private var didStartTransfer = false
+
+    private func log(_ message: String) {
+        NSLog("[WiredTreeDrag] %@", message)
+    }
+
+    init(item: FileItem) {
+        self.item = item
+        self.isDirectory = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
+        self.fileName = dragExportFileName(for: item)
+        self.partialName = fileName + ".\(Wired.transfersFileExtension)"
+        super.init()
+    }
+
+    func operationQueue(for filePromiseProvider: NSFilePromiseProvider) -> OperationQueue {
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        return queue
+    }
+
+    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
+        isDirectory ? fileName : partialName
+    }
+
+    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, writePromiseTo destinationURL: URL, completionHandler: @escaping (Error?) -> Void) {
+        if didStartTransfer {
+            completionHandler(nil)
+            return
+        }
+        didStartTransfer = true
+
+        let targetURL = destinationURL
+        let fm = FileManager.default
+        log("writePromiseTo start path=\(targetURL.path)")
+
+        do {
+            if fm.fileExists(atPath: targetURL.path) {
+                try fm.removeItem(at: targetURL)
+            }
+            if isDirectory {
+                try fm.createDirectory(at: targetURL, withIntermediateDirectories: true)
+            } else {
+                guard fm.createFile(atPath: targetURL.path, contents: nil, attributes: nil) else {
+                    throw NSError(domain: "Wired.DragAndDrop", code: 12, userInfo: [NSLocalizedDescriptionKey: "Unable to create placeholder file at destination."])
+                }
+            }
+            log("placeholder ready path=\(targetURL.path)")
+
+            let completionLock = NSLock()
+            var terminalError: Error?
+            let done = DispatchSemaphore(value: 0)
+
+            if let connectionID, let transferManager {
+                Task { @MainActor in
+                    guard let transfer = transferManager.downloadTransfer(item, to: targetURL.path, with: connectionID) else {
+                        self.log("downloadTransfer returned nil path=\(targetURL.path)")
+                        if self.isDirectory {
+                            completionHandler(NSError(
+                                domain: "Wired.DragAndDrop",
+                                code: 13,
+                                userInfo: [NSLocalizedDescriptionKey: "Unable to start folder download transfer."]
+                            ))
+                        } else {
+                            completionLock.lock()
+                            terminalError = NSError(
+                                domain: "Wired.DragAndDrop",
+                                code: 13,
+                                userInfo: [NSLocalizedDescriptionKey: "Unable to start download transfer."]
+                            )
+                            completionLock.unlock()
+                            done.signal()
+                        }
+                        return
+                    }
+
+                    let primaryScope = FinderDropSecurityScopeBroker.shared.retainScope(for: transfer.id, at: targetURL)
+                    let parentURL = targetURL.deletingLastPathComponent()
+                    let parentScope = FinderDropSecurityScopeBroker.shared.retainScope(for: transfer.id, at: parentURL)
+                    self.log("transfer started id=\(transfer.id) scopeTarget=\(targetURL.path) ok=\(primaryScope) scopeParent=\(parentURL.path) ok=\(parentScope)")
+                    transferManager.onTransferTerminal(id: transfer.id) { transfer in
+                        FinderDropSecurityScopeBroker.shared.releaseScope(for: transfer.id)
+                        if self.isDirectory {
+                            return
+                        }
+                        if transfer.state != .finished {
+                            let message = transfer.error.isEmpty
+                                ? "Transfer ended with state \(transfer.state.rawValue)."
+                                : transfer.error
+                            completionLock.lock()
+                            terminalError = NSError(
+                                domain: "Wired.DragAndDrop",
+                                code: 14,
+                                userInfo: [NSLocalizedDescriptionKey: message]
+                            )
+                            completionLock.unlock()
+                        }
+                        done.signal()
+                    }
+
+                    if self.isDirectory {
+                        completionHandler(nil)
+                    }
+                }
+            } else {
+                if isDirectory {
+                    completionHandler(NSError(
+                        domain: "Wired.DragAndDrop",
+                        code: 15,
+                        userInfo: [NSLocalizedDescriptionKey: "Missing connection context for folder transfer."]
+                    ))
+                } else {
+                    completionLock.lock()
+                    terminalError = NSError(
+                        domain: "Wired.DragAndDrop",
+                        code: 15,
+                        userInfo: [NSLocalizedDescriptionKey: "Missing connection context for transfer."]
+                    )
+                    completionLock.unlock()
+                    done.signal()
+                }
+            }
+
+            if isDirectory {
+                return
+            }
+
+            _ = done.wait(timeout: .distantFuture)
+            completionLock.lock()
+            let error = terminalError
+            completionLock.unlock()
+            completionHandler(error)
+        } catch {
+            log("writePromiseTo error path=\(targetURL.path) err=\(error.localizedDescription)")
+            completionHandler(error)
+        }
+    }
+}
+#endif
 
 struct FilesColumnsView: View {
     @State var bookmark: Bookmark
@@ -480,53 +1304,23 @@ struct FilesColumnsView: View {
     @ObservedObject var filesViewModel: FilesViewModel
     @EnvironmentObject private var transfers: TransferManager
 
+    let onRequestCreateFolder: (FileItem) -> Void
+    let onRequestUploadInDirectory: (FileItem) -> Void
+    let onRequestDeleteSelection: ([FileItem]) -> Void
+    let onRequestDownloadSelection: ([FileItem]) -> Void
     let onUploadURLs: ([URL], FileItem) -> Void
     let onMoveRemoteItem: (_ sourcePath: String, _ destinationDirectory: FileItem) async throws -> Void
 
     @State private var columnWidths: [UUID: CGFloat] = [:]
+    @State private var multiSelectionPathsByColumn: [UUID: Set<String>] = [:]
     @State private var previewWidth: CGFloat = 320
-    @State private var finderDropTargetColumnID: UUID?
-    @State private var finderDropTargetFolderPath: String?
-    @State private var finderDropTargetFolderColumnID: UUID?
 
     var body: some View {
         ScrollView(.horizontal) {
             ScrollViewReader { proxy in
                 HStack(spacing: 0) {
                     ForEach(Array(filesViewModel.columns.enumerated()), id: \.element.id) { index, column in
-                        List(
-                            column.items
-                        ) { item in
-                            row(
-                                item,
-                                in: column,
-                                columnIndex: index,
-                                onColumnAppended: { appended in
-                                    proxy.scrollTo(appended.id, anchor: .trailing)
-                                }
-                            )
-                        }
-                        .dropDestination(for: URL.self) { urls, _ in
-                            finderDropTargetColumnID = nil
-                            let destination = FileItem((column.path as NSString).lastPathComponent, path: column.path, type: .directory)
-                            onUploadURLs(urls, destination)
-                            return !urls.isEmpty
-                        } isTargeted: { targeted in
-                            if targeted {
-                                finderDropTargetColumnID = column.id
-                            } else if finderDropTargetColumnID == column.id {
-                                finderDropTargetColumnID = nil
-                            }
-                        }
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(Color.accentColor.opacity(showsColumnDropHalo(columnID: column.id) ? 0.85 : 0), lineWidth: 2)
-                                .padding(3)
-                        }
-                        .frame(width: width(for: column))
-                        .background(column.selection != nil ? Color.gray.opacity(0.12) : .clear)
-                        .id(column.id)
-
+                        columnView(column, at: index, proxy: proxy)
                         ColumnResizeHandle(width: binding(for: column.id))
                     }
 
@@ -539,6 +1333,7 @@ struct FilesColumnsView: View {
                     previewWidth = min(max(previewWidth, 240), 620)
                 }
                 .onChange(of: filesViewModel.columns.count) { _, _ in
+                    syncColumnSelections()
                     guard let last = filesViewModel.columns.last else { return }
                     Task { @MainActor in
                         await Task.yield()
@@ -552,156 +1347,44 @@ struct FilesColumnsView: View {
         .background(Color.white)
     }
 
-    @ViewBuilder
-    private func row(
-        _ item: FileItem,
-        in column: FileColumn,
-        columnIndex: Int,
-        onColumnAppended: @escaping (FileColumn) -> Void
-    ) -> some View {
-        let isDirectory = (item.type == .directory || item.type == .uploads || item.type == .dropbox)
-        let destination = isDirectory ? item : FileItem((column.path as NSString).lastPathComponent, path: column.path, type: .directory)
-
-        HStack {
-            FinderFileIconView(item: item, size: 16)
-            Text(item.name)
-                .foregroundStyle(column.selection == item.id ? Color.white : Color.primary)
-                .lineLimit(1)
-            Spacer(minLength: 6)
+    private func columnView(_ column: FileColumn, at index: Int, proxy: ScrollViewProxy) -> some View {
+        let onAppend: (FileColumn) -> Void = { appended in
+            proxy.scrollTo(appended.id, anchor: .trailing)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 3)
-        .padding(.horizontal, 6)
-        .tag(item.id)
-        .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(column.selection == item.id ? Color.accentColor : Color.clear)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
-        .listRowBackground(Color.clear)
-        .onTapGesture {
-            filesViewModel.selectColumnItem(
-                id: item.id,
-                at: columnIndex,
-                onColumnAppended: onColumnAppended
-            )
-        }
-        .onTapGesture(count: 2) {
-            guard item.type == .file else { return }
-            transfers.download(item, with: bookmark.id)
-        }
-        .onDrag {
-            return dragProvider(for: item, isDirectory: isDirectory)
-        }
-        .dropDestination(for: URL.self) { urls, _ in
-            guard isDirectory else { return false }
-            finderDropTargetFolderPath = nil
-            finderDropTargetFolderColumnID = nil
-            onUploadURLs(urls, destination)
-            return !urls.isEmpty
-        } isTargeted: { targeted in
-            guard isDirectory else { return }
-            if targeted {
-                finderDropTargetFolderPath = item.path
-                finderDropTargetFolderColumnID = column.id
-            } else if finderDropTargetFolderPath == item.path {
-                finderDropTargetFolderPath = nil
-                finderDropTargetFolderColumnID = nil
-            }
-        }
-        .dropDestination(for: RemoteFileDragPayload.self) { payloads, _ in
-            guard let payload = payloads.first else { return false }
-            if payload.path == destination.path || destination.path.hasPrefix(payload.path + "/") {
-                return false
-            }
+        return AppKitFileColumnTableView(
+            bookmarkID: bookmark.id,
+            transferManager: transfers,
+            column: column,
+            selectedPaths: selectionPaths(for: column),
+            onSelectionChange: { paths, primaryPath in
+                multiSelectionPathsByColumn[column.id] = paths
+                guard let primaryPath,
+                      let primaryItem = column.items.first(where: { $0.path == primaryPath }) else { return }
 
-            Task {
-                do {
-                    try await onMoveRemoteItem(payload.path, destination)
-                } catch {
-                    await MainActor.run { filesViewModel.error = error }
-                }
-            }
-            return true
-        }
-        .contextMenu {
-            if isDownloadableRemoteItem(item) {
-                Button("Download") {
-                    transfers.download(item, with: bookmark.id)
-                }
-            }
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color.accentColor.opacity(finderDropTargetFolderPath == item.path ? 0.9 : 0), lineWidth: 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.accentColor.opacity(finderDropTargetFolderPath == item.path ? 0.12 : 0))
-                )
-        }
-    }
-
-    private func dragProvider(for item: FileItem, isDirectory: Bool) -> NSItemProvider {
-        let provider = NSItemProvider()
-
-        if let payloadData = try? JSONEncoder().encode(
-            RemoteFileDragPayload(path: item.path, name: item.name, isDirectory: isDirectory)
-        ) {
-            provider.registerDataRepresentation(
-                forTypeIdentifier: UTType.wiredRemoteFile.identifier,
-                visibility: .ownProcess
-            ) { completion in
-                completion(payloadData, nil)
-                return nil
-            }
-        }
-
-        guard isDownloadableRemoteItem(item) else { return provider }
-
-        let fileName = dragExportFileName(for: item)
-        let fileType = isDirectory ? UTType.folder.identifier : dragExportTypeIdentifier(forFileName: fileName)
-        provider.suggestedName = dragExportSuggestedName(forFileName: fileName)
-
-        provider.registerFileRepresentation(
-            forTypeIdentifier: fileType,
-            fileOptions: [],
-            visibility: .all
-        ) { completion in
-            let progress = Progress(totalUnitCount: 100)
-
-            Task {
-                let destinationURL = dragExportTemporaryURL(for: item)
-                let destinationPath = destinationURL.path
-
-                if !FileManager.default.fileExists(atPath: destinationPath) {
-                    await MainActor.run {
-                        _ = self.transfers.download(item, to: destinationPath, with: self.bookmark.id)
-                    }
-
-                    let timeout = Date().addingTimeInterval(120)
-                    while !FileManager.default.fileExists(atPath: destinationPath) && Date() < timeout {
-                        try? await Task.sleep(nanoseconds: 300_000_000)
+                DispatchQueue.main.async {
+                    filesViewModel.preselectColumnItem(id: primaryItem.id, at: index)
+                    if paths.count == 1 {
+                        filesViewModel.selectColumnItem(
+                            id: primaryItem.id,
+                            at: index,
+                            onColumnAppended: onAppend
+                        )
                     }
                 }
-
-                if FileManager.default.fileExists(atPath: destinationPath) {
-                    progress.completedUnitCount = 100
-                    completion(destinationURL, false, nil)
-                } else {
-                    let error = NSError(
-                        domain: "Wired.DragAndDrop",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to prepare file for Finder drop."]
-                    )
-                    completion(nil, false, error)
-                }
-            }
-
-            return progress
-        }
-
-        return provider
+            },
+            onDownloadSingleFile: { item in
+                transfers.download(item, with: bookmark.id)
+            },
+            onUploadURLs: onUploadURLs,
+            onMoveRemoteItem: onMoveRemoteItem,
+            onRequestCreateFolder: onRequestCreateFolder,
+            onRequestUploadInDirectory: onRequestUploadInDirectory,
+            onRequestDeleteSelection: onRequestDeleteSelection,
+            onRequestDownloadSelection: onRequestDownloadSelection
+        )
+        .frame(width: width(for: column))
+        .background(Color.clear)
+        .id(column.id)
     }
 
     private func width(for column: FileColumn) -> CGFloat {
@@ -715,23 +1398,443 @@ struct FilesColumnsView: View {
         )
     }
 
-    private func showsColumnDropHalo(columnID: UUID) -> Bool {
-        finderDropTargetColumnID == columnID && finderDropTargetFolderColumnID != columnID
+    private func syncColumnSelections() {
+        var next: [UUID: Set<String>] = [:]
+        for column in filesViewModel.columns {
+            let existing = multiSelectionPathsByColumn[column.id] ?? []
+            let validPaths = Set(column.items.map(\.path))
+            let kept = existing.intersection(validPaths)
+            if !kept.isEmpty {
+                next[column.id] = kept
+            } else if let selection = column.selection,
+                      let selected = column.items.first(where: { $0.id == selection }) {
+                next[column.id] = [selected.path]
+            }
+        }
+        multiSelectionPathsByColumn = next
+    }
+
+    private func selectionPaths(for column: FileColumn) -> Set<String> {
+        if let stored = multiSelectionPathsByColumn[column.id], !stored.isEmpty {
+            return stored
+        }
+        guard let selection = column.selection,
+              let selected = column.items.first(where: { $0.id == selection }) else {
+            return []
+        }
+        return [selected.path]
     }
 }
+
+#if os(macOS)
+private var wiredRemotePathPasteboardType = NSPasteboard.PasteboardType("com.read-write.wired.remote-path")
+
+private struct AppKitFileColumnTableView: NSViewRepresentable {
+    let bookmarkID: UUID
+    let transferManager: TransferManager
+    let column: FileColumn
+    let selectedPaths: Set<String>
+    let onSelectionChange: (Set<String>, String?) -> Void
+    let onDownloadSingleFile: (FileItem) -> Void
+    let onUploadURLs: ([URL], FileItem) -> Void
+    let onMoveRemoteItem: (_ sourcePath: String, _ destinationDirectory: FileItem) async throws -> Void
+    let onRequestCreateFolder: (FileItem) -> Void
+    let onRequestUploadInDirectory: (FileItem) -> Void
+    let onRequestDeleteSelection: ([FileItem]) -> Void
+    let onRequestDownloadSelection: ([FileItem]) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+
+        let tableView = NSTableView()
+        tableView.usesAlternatingRowBackgroundColors = false
+        tableView.backgroundColor = .clear
+        tableView.headerView = nil
+        tableView.allowsMultipleSelection = true
+        tableView.allowsEmptySelection = true
+        tableView.rowHeight = 22
+        tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        tableView.setDraggingSourceOperationMask(.move, forLocal: true)
+        tableView.registerForDraggedTypes([.fileURL, wiredRemotePathPasteboardType])
+        tableView.target = context.coordinator
+        tableView.doubleAction = #selector(Coordinator.didDoubleClick(_:))
+
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("ColumnName"))
+        column.title = "Name"
+        column.minWidth = 160
+        column.width = 240
+        tableView.addTableColumn(column)
+
+        tableView.delegate = context.coordinator
+        tableView.dataSource = context.coordinator
+        let menu = context.coordinator.makeContextMenu()
+        menu.delegate = context.coordinator
+        tableView.menu = menu
+
+        scrollView.documentView = tableView
+        context.coordinator.tableView = tableView
+        context.coordinator.syncFromModel(items: self.column.items, selectedPaths: selectedPaths)
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.syncFromModel(items: self.column.items, selectedPaths: selectedPaths)
+    }
+
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
+        var parent: AppKitFileColumnTableView
+        weak var tableView: NSTableView?
+        private var items: [FileItem] = []
+        private var byPath: [String: Int] = [:]
+        private var isApplyingSelectionFromSwiftUI = false
+        private var contextDirectoryTarget: FileItem
+
+        init(parent: AppKitFileColumnTableView) {
+            self.parent = parent
+            self.contextDirectoryTarget = FileItem((parent.column.path as NSString).lastPathComponent, path: parent.column.path, type: .directory)
+        }
+
+        private func isDirectory(_ item: FileItem) -> Bool {
+            item.type == .directory || item.type == .uploads || item.type == .dropbox
+        }
+
+        private func columnDirectory() -> FileItem {
+            FileItem((parent.column.path as NSString).lastPathComponent, path: parent.column.path, type: .directory)
+        }
+
+        func syncFromModel(items: [FileItem], selectedPaths: Set<String>) {
+            self.items = items
+            var map: [String: Int] = [:]
+            for (idx, item) in items.enumerated() {
+                map[item.path] = idx
+            }
+            self.byPath = map
+            contextDirectoryTarget = columnDirectory()
+            tableView?.reloadData()
+            updateSelection(selectedPaths)
+        }
+
+        private func updateSelection(_ selectedPaths: Set<String>) {
+            guard let tableView else { return }
+            var indexSet = IndexSet()
+            for path in selectedPaths {
+                if let row = byPath[path] {
+                    indexSet.insert(row)
+                }
+            }
+
+            if tableView.selectedRowIndexes != indexSet {
+                isApplyingSelectionFromSwiftUI = true
+                tableView.selectRowIndexes(indexSet, byExtendingSelection: false)
+                isApplyingSelectionFromSwiftUI = false
+            }
+        }
+
+        func numberOfRows(in tableView: NSTableView) -> Int {
+            items.count
+        }
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            guard row >= 0 && row < items.count else { return nil }
+            let item = items[row]
+            let id = NSUserInterfaceItemIdentifier("ColumnCell")
+            let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView) ?? {
+                let cell = NSTableCellView()
+                cell.identifier = id
+                let icon = NSImageView()
+                icon.translatesAutoresizingMaskIntoConstraints = false
+                icon.imageScaling = .scaleProportionallyUpOrDown
+                cell.imageView = icon
+
+                let tf = NSTextField(labelWithString: "")
+                tf.translatesAutoresizingMaskIntoConstraints = false
+                tf.lineBreakMode = .byTruncatingMiddle
+                cell.addSubview(tf)
+                cell.textField = tf
+                cell.addSubview(icon)
+                NSLayoutConstraint.activate([
+                    icon.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+                    icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                    icon.widthAnchor.constraint(equalToConstant: 16),
+                    icon.heightAnchor.constraint(equalToConstant: 16),
+                    tf.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
+                    tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                    tf.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+                ])
+                return cell
+            }()
+
+            cell.textField?.stringValue = item.name
+            let isDir = isDirectory(item)
+            let ext = (dragExportFileName(for: item) as NSString).pathExtension
+            let fileType = isDir ? UTType.folder.identifier : (UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier)
+            let icon = NSWorkspace.shared.icon(forFileType: fileType)
+            icon.size = NSSize(width: 16, height: 16)
+            cell.imageView?.image = icon
+            return cell
+        }
+
+        func tableViewSelectionDidChange(_ notification: Notification) {
+            if isApplyingSelectionFromSwiftUI { return }
+            guard let tableView else { return }
+
+            let selectedRows = tableView.selectedRowIndexes
+            var paths = Set<String>()
+            for row in selectedRows where row >= 0 && row < items.count {
+                paths.insert(items[row].path)
+            }
+
+            let primary: String? = {
+                if tableView.clickedRow >= 0 && tableView.clickedRow < items.count && selectedRows.contains(tableView.clickedRow) {
+                    return items[tableView.clickedRow].path
+                }
+                if let first = selectedRows.first, first >= 0 && first < items.count {
+                    return items[first].path
+                }
+                return nil
+            }()
+
+            DispatchQueue.main.async {
+                self.parent.onSelectionChange(paths, primary)
+            }
+        }
+
+        @objc
+        func didDoubleClick(_ sender: Any?) {
+            guard let tableView else { return }
+            let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
+            guard row >= 0 && row < items.count else { return }
+            let item = items[row]
+            if !isDirectory(item) {
+                parent.onDownloadSingleFile(item)
+            }
+        }
+
+        func tableView(_ tableView: NSTableView, writeRowsWith rowIndexes: IndexSet, to pboard: NSPasteboard) -> Bool {
+            let selectedRows = rowIndexes.compactMap { ($0 >= 0 && $0 < items.count) ? $0 : nil }
+            guard !selectedRows.isEmpty else { return false }
+
+            let remotePaths = selectedRows.map { items[$0].path }
+            let pbItem = NSPasteboardItem()
+            pbItem.setString(remotePaths.joined(separator: "\n"), forType: wiredRemotePathPasteboardType)
+            pboard.clearContents()
+            pboard.writeObjects([pbItem])
+            return true
+        }
+
+        func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+            guard row >= 0 && row < items.count else { return nil }
+            let item = items[row]
+            let isDir = isDirectory(item)
+            let fileType: String
+            if isDir {
+                fileType = UTType.folder.identifier
+            } else {
+                let ext = (dragExportFileName(for: item) as NSString).pathExtension
+                fileType = UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier
+            }
+
+            let delegate = DragPlaceholderPromiseDelegate(item: item)
+            delegate.connectionID = parent.bookmarkID
+            delegate.transferManager = parent.transferManager
+            let provider = NSFilePromiseProvider(fileType: fileType, delegate: delegate)
+            objc_setAssociatedObject(
+                provider,
+                &dragPromiseDelegateAssociationKey,
+                delegate,
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
+            return provider
+        }
+
+        func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+            context == .withinApplication ? .move : .copy
+        }
+
+        private func finderDroppedURLs(from info: NSDraggingInfo) -> [URL] {
+            let classes: [AnyClass] = [NSURL.self]
+            let options: [NSPasteboard.ReadingOptionKey: Any] = [
+                .urlReadingFileURLsOnly: true
+            ]
+            return info.draggingPasteboard.readObjects(forClasses: classes, options: options) as? [URL] ?? []
+        }
+
+        private func remoteDroppedPaths(from info: NSDraggingInfo) -> [String] {
+            let raw = info.draggingPasteboard.string(forType: wiredRemotePathPasteboardType) ?? ""
+            return raw
+                .split(separator: "\n")
+                .map(String.init)
+                .filter { !$0.isEmpty }
+        }
+
+        private func destinationForDrop(proposedRow row: Int) -> FileItem? {
+            if row >= 0, row < items.count {
+                let item = items[row]
+                if isDirectory(item) {
+                    return item
+                }
+            }
+            return columnDirectory()
+        }
+
+        func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int, proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+            guard let destination = destinationForDrop(proposedRow: row) else { return [] }
+
+            if !finderDroppedURLs(from: info).isEmpty {
+                if row >= 0 {
+                    tableView.setDropRow(row, dropOperation: .on)
+                } else {
+                    tableView.setDropRow(-1, dropOperation: .above)
+                }
+                return .copy
+            }
+
+            let remotePaths = remoteDroppedPaths(from: info)
+            guard !remotePaths.isEmpty else { return [] }
+            if remotePaths.contains(where: { $0 == destination.path || destination.path.hasPrefix($0 + "/") }) {
+                return []
+            }
+            if row >= 0 {
+                tableView.setDropRow(row, dropOperation: .on)
+            } else {
+                tableView.setDropRow(-1, dropOperation: .above)
+            }
+            return .move
+        }
+
+        func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo, row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
+            guard let destination = destinationForDrop(proposedRow: row) else { return false }
+
+            let urls = finderDroppedURLs(from: info)
+            if !urls.isEmpty {
+                DispatchQueue.main.async {
+                    self.parent.onUploadURLs(urls, destination)
+                }
+                return true
+            }
+
+            let remotePaths = remoteDroppedPaths(from: info)
+            guard !remotePaths.isEmpty else { return false }
+            for source in remotePaths {
+                Task {
+                    do {
+                        try await parent.onMoveRemoteItem(source, destination)
+                    } catch { }
+                }
+            }
+            return true
+        }
+
+        func makeContextMenu() -> NSMenu {
+            let menu = NSMenu()
+            menu.addItem(withTitle: "Download", action: #selector(contextDownload), keyEquivalent: "")
+            menu.addItem(withTitle: "Delete", action: #selector(contextDelete), keyEquivalent: "")
+            menu.addItem(withTitle: "Upload…", action: #selector(contextUpload), keyEquivalent: "")
+            menu.addItem(NSMenuItem.separator())
+            menu.addItem(withTitle: "New Folder", action: #selector(contextNewFolder), keyEquivalent: "")
+            for item in menu.items {
+                item.target = self
+            }
+            return menu
+        }
+
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            guard let tableView else { return }
+            let row = tableView.clickedRow
+
+            if row >= 0 && row < items.count {
+                if !tableView.selectedRowIndexes.contains(row) {
+                    tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                }
+
+                let item = items[row]
+                if isDirectory(item) {
+                    contextDirectoryTarget = item
+                } else {
+                    contextDirectoryTarget = columnDirectory()
+                }
+            } else {
+                if !tableView.selectedRowIndexes.isEmpty {
+                    tableView.deselectAll(nil)
+                }
+                contextDirectoryTarget = columnDirectory()
+            }
+
+            let selected = selectedItems()
+            menu.item(withTitle: "Download")?.isEnabled = selected.contains(where: { isDownloadableRemoteItem($0) })
+            menu.item(withTitle: "Delete")?.isEnabled = selected.contains(where: { $0.path != "/" })
+            menu.item(withTitle: "Upload…")?.isEnabled = true
+            menu.item(withTitle: "New Folder")?.isEnabled = true
+        }
+
+        private func selectedItems() -> [FileItem] {
+            guard let tableView else { return [] }
+            return tableView.selectedRowIndexes.compactMap { row in
+                guard row >= 0 && row < items.count else { return nil }
+                return items[row]
+            }
+        }
+
+        @objc private func contextDownload() {
+            let selected = selectedItems().filter { isDownloadableRemoteItem($0) }
+            guard !selected.isEmpty else { return }
+            parent.onRequestDownloadSelection(selected)
+        }
+
+        @objc private func contextDelete() {
+            let selected = selectedItems().filter { $0.path != "/" }
+            guard !selected.isEmpty else { return }
+            parent.onRequestDeleteSelection(selected)
+        }
+
+        @objc private func contextUpload() {
+            parent.onRequestUploadInDirectory(contextDirectoryTarget)
+        }
+
+        @objc private func contextNewFolder() {
+            parent.onRequestCreateFolder(contextDirectoryTarget)
+        }
+    }
+}
+#endif
 
 private struct ColumnResizeHandle: View {
     @Binding var width: CGFloat
     @State private var dragStartWidth: CGFloat = 0
+    @State private var isHovering: Bool = false
+    @State private var isDragging: Bool = false
 
     var body: some View {
         Rectangle()
-            .fill(Color.secondary.opacity(0.22))
-            .frame(width: 4)
-            .contentShape(Rectangle())
+            .fill(Color.secondary.opacity(isDragging ? 0.55 : (isHovering ? 0.38 : 0.18)))
+            .frame(width: 1)
+        .contentShape(Rectangle())
+#if os(macOS)
+        .onHover { hovering in
+            isHovering = hovering
+            if hovering {
+                NSCursor.resizeLeftRight.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+#endif
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        if !isDragging {
+                            isDragging = true
+                        }
                         if dragStartWidth == 0 {
                             dragStartWidth = width
                         }
@@ -739,6 +1842,7 @@ private struct ColumnResizeHandle: View {
                     }
                     .onEnded { _ in
                         dragStartWidth = 0
+                        isDragging = false
                     }
             )
     }
