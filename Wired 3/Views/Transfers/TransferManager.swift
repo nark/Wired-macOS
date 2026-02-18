@@ -71,6 +71,13 @@ final class TransferManager: ObservableObject {
         persist()
     }
 
+    /// True when at least one transfer is running, queued locally, or terminating.
+    func hasActiveTransfers() -> Bool {
+        transfers.contains { transfer in
+            transfer.isWorking() || transfer.state == .locallyQueued || transfer.isTerminating()
+        }
+    }
+
     private func restorePersistedTransfers() {
         guard let modelContext else { return }
 

@@ -20,12 +20,46 @@ let iconData = Bundle.main.url(forResource: "AppIcon", withExtension: "icns")!.d
 
 let byteCountFormatter = ByteCountFormatter()
 
+#if os(macOS)
+final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
+    weak var transferManager: TransferManager?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let transferManager else {
+            return .terminateNow
+        }
+
+        guard transferManager.hasActiveTransfers() else {
+            transferManager.prepareForTermination()
+            return .terminateNow
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Active transfers are in progress."
+        alert.informativeText = "Quitting now will stop active transfers."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Quit Anyway")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            transferManager.prepareForTermination()
+            return .terminateNow
+        }
+
+        return .terminateCancel
+    }
+}
+#endif
+
 
 @main
 struct Wired_3App: App {
     @State private var socketClient = SocketClient()
     @State private var controller: ConnectionController
     @State private var transfers: TransferManager
+#if os(macOS)
+    @NSApplicationDelegateAdaptor(AppTerminationDelegate.self) private var appTerminationDelegate
+#endif
     
     init() {
         let socket = SocketClient()
@@ -56,9 +90,15 @@ struct Wired_3App: App {
 
     var body: some Scene {
         WindowGroup {
+#if os(macOS)
+            AppRootView(appTerminationDelegate: appTerminationDelegate)
+                .environment(controller)
+                .environmentObject(transfers)
+#else
             AppRootView()
                 .environment(controller)
                 .environmentObject(transfers)
+#endif
         }
         .modelContainer(sharedModelContainer)
         
@@ -75,6 +115,9 @@ struct Wired_3App: App {
 private struct AppRootView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var transfers: TransferManager
+#if os(macOS)
+    let appTerminationDelegate: AppTerminationDelegate
+#endif
 
     var body: some View {
         MainView()
@@ -82,16 +125,15 @@ private struct AppRootView: View {
                 // Attach SwiftData once, and restore persisted transfers.
                 transfers.attach(modelContext: modelContext)
 
+#if os(macOS)
+                appTerminationDelegate.transferManager = transfers
+#endif
+
                 UNUserNotificationCenter.current().requestAuthorization(
                     options: [.badge, .alert, .sound]
                 ) { granted, _ in
                     print("Notifications permission:", granted)
                 }
             }
-#if os(macOS)
-            .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-                transfers.prepareForTermination()
-            }
-#endif
     }
 }
