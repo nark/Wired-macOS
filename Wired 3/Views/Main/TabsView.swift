@@ -46,7 +46,9 @@ struct TabsView: View {
                                     .environmentObject(transfers)
                                     .environment(runtime)
                             case .settings:
-                                Text("Settings")
+                                ServerSettingsView(bookmark: bookmark)
+                                    .environment(connectionController)
+                                    .environment(runtime)
                             case .infos:
                                 ServerInfoView(bookmark: bookmark)
                                     .environment(connectionController)

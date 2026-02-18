@@ -171,9 +171,10 @@ struct TransfersView: View {
                 ProgressView(value: transfer.percent, total: 100)
                 
                 HStack {
-                    Text(transfer.transferStatus())
+                    Text(transferStatusText(for: transfer))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(transferStatusColor(for: transfer))
+                        .lineLimit(2)
                     
                     Spacer()
                 }
@@ -273,6 +274,22 @@ struct TransfersView: View {
 
     private func canShowRemote(_ items: [Transfer]) -> Bool {
         items.contains { ($0.remotePath?.isEmpty == false) && $0.connectionID != nil }
+    }
+
+    private func transferStatusText(for transfer: Transfer) -> String {
+        let error = transfer.error.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !error.isEmpty && (transfer.state == .stopped || transfer.state == .disconnected) {
+            return error
+        }
+        return transfer.transferStatus()
+    }
+
+    private func transferStatusColor(for transfer: Transfer) -> Color {
+        let error = transfer.error.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !error.isEmpty && (transfer.state == .stopped || transfer.state == .disconnected) {
+            return .red
+        }
+        return .secondary
     }
 
     private func serverName(for transfer: Transfer) -> String {

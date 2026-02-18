@@ -385,6 +385,16 @@ final class FilesViewModel: ObservableObject {
     }
 
     @MainActor
+    func setFileType(path: String, type: FileType) async throws {
+        guard type != .file else { return }
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return }
+
+        try await fileService.setFileType(path: path, type: type, connection: connection)
+        await reloadAll()
+    }
+
+    @MainActor
     func revealRemotePath(_ path: String) async -> Bool {
         let normalizedPath = normalizedRemotePath(path)
         if normalizedPath.isEmpty { return false }

@@ -96,6 +96,11 @@
 		4C374DA923FE9E7E006D3E7C /* TransferCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C374DA823FE9E7E006D3E7C /* TransferCell.swift */; };
 		4C374DAB23FED0D8006D3E7C /* TransferConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C374DAA23FED0D8006D3E7C /* TransferConnection.swift */; };
 		4C39DEBB2F1AB4BC009D54B1 /* FileFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C39DEBA2F1AB4B3009D54B1 /* FileFormView.swift */; };
+		4CF01A922F20000100213277 /* FileInfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF01A912F20000100213277 /* FileInfoSheet.swift */; };
+		4CF01A942F200A1100213277 /* UploadsBadge.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4CF01A962F200A1100213277 /* UploadsBadge.icns */; };
+		4CF01A952F200A1100213277 /* DropBoxBadge.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4CF01A972F200A1100213277 /* DropBoxBadge.icns */; };
+		4C7E10042F21000100213277 /* ServerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7E10012F21000100213277 /* ServerSettingsView.swift */; };
+		4C7E10052F21000100213277 /* AccountsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7E10022F21000100213277 /* AccountsSettingsView.swift */; };
 		4C4EF4BB242B602100E38B44 /* ServerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4EF4BA242B602100E38B44 /* ServerConnection.swift */; };
 		4C4EF4BF242B782000E38B44 /* BookmarkViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4EF4BE242B782000E38B44 /* BookmarkViewController.swift */; };
 		4C52DADB242682920085C7D7 /* ConversationsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C52DADA242682920085C7D7 /* ConversationsController.swift */; };
@@ -221,6 +226,10 @@
 		4C0C2DC32EF4370000213277 /* Wired 3Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Wired 3Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C0C2DCD2EF4370000213277 /* Wired 3UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Wired 3UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C0C2DE02EF437DE00213277 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4CF01A962F200A1100213277 /* UploadsBadge.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = UploadsBadge.icns; sourceTree = "<group>"; };
+		4CF01A972F200A1100213277 /* DropBoxBadge.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = DropBoxBadge.icns; sourceTree = "<group>"; };
+		4C7E10012F21000100213277 /* ServerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSettingsView.swift; sourceTree = "<group>"; };
+		4C7E10022F21000100213277 /* AccountsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsView.swift; sourceTree = "<group>"; };
 		4C0C2DE12EF437DE00213277 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		4C0C2DE22EF437DE00213277 /* Bookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bookmark.swift; sourceTree = "<group>"; };
 		4C0C2DE32EF437DE00213277 /* Wired_3.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Wired_3.entitlements; sourceTree = "<group>"; };
@@ -290,6 +299,7 @@
 		4C374DA823FE9E7E006D3E7C /* TransferCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferCell.swift; sourceTree = "<group>"; };
 		4C374DAA23FED0D8006D3E7C /* TransferConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferConnection.swift; sourceTree = "<group>"; };
 		4C39DEBA2F1AB4B3009D54B1 /* FileFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileFormView.swift; sourceTree = "<group>"; };
+		4CF01A912F20000100213277 /* FileInfoSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileInfoSheet.swift; sourceTree = "<group>"; };
 		4C4C3EDE22E10B2000BC2DD9 /* Cartfile */ = {isa = PBXFileReference; lastKnownFileType = text; name = Cartfile; path = ../Cartfile; sourceTree = "<group>"; };
 		4C4EF4BA242B602100E38B44 /* ServerConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnection.swift; sourceTree = "<group>"; };
 		4C4EF4BE242B782000E38B44 /* BookmarkViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkViewController.swift; sourceTree = "<group>"; };
@@ -427,6 +437,8 @@
 			isa = PBXGroup;
 			children = (
 				4C0C2DE02EF437DE00213277 /* Assets.xcassets */,
+				4CF01A962F200A1100213277 /* UploadsBadge.icns */,
+				4CF01A972F200A1100213277 /* DropBoxBadge.icns */,
 				4C0C2E242EFDB8CB00213277 /* App */,
 				4C0C2E022EF5658500213277 /* Views */,
 				4C0C2E042EF5659700213277 /* SwiftData */,
@@ -461,6 +473,7 @@
 				4C0C2E522F110DB600213277 /* Files */,
 				4C0C2E652F17AC0E00213277 /* Transfers */,
 				4C0C2E4E2F0EDB5900213277 /* ServerInfo */,
+				4C7E10032F21000100213277 /* Settings */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -563,6 +576,7 @@
 				4C0C2E5D2F14029B00213277 /* FilesViewModel.swift */,
 				4C0C2E602F1583CB00213277 /* FileItem.swift */,
 				4C39DEBA2F1AB4B3009D54B1 /* FileFormView.swift */,
+				4CF01A912F20000100213277 /* FileInfoSheet.swift */,
 			);
 			path = Files;
 			sourceTree = "<group>";
@@ -576,6 +590,15 @@
 				4C0C2E622F1583FF00213277 /* TransferConnection.swift */,
 			);
 			path = Transfers;
+			sourceTree = "<group>";
+		};
+		4C7E10032F21000100213277 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				4C7E10012F21000100213277 /* ServerSettingsView.swift */,
+				4C7E10022F21000100213277 /* AccountsSettingsView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		4C2870622449C37100E792AC /* Sources */ = {
@@ -1041,6 +1064,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C0C2DE62EF437DE00213277 /* Assets.xcassets in Resources */,
+				4CF01A942F200A1100213277 /* UploadsBadge.icns in Resources */,
+				4CF01A952F200A1100213277 /* DropBoxBadge.icns in Resources */,
 				4C0C2DFA2EF5456D00213277 /* wired.xml in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1086,10 +1111,13 @@
 			files = (
 				4C0C2E092EF7F68F00213277 /* ChatsView.swift in Sources */,
 				4C0C2DF52EF485A300213277 /* DelegateProxy.swift in Sources */,
+				4C7E10042F21000100213277 /* ServerSettingsView.swift in Sources */,
+				4C7E10052F21000100213277 /* AccountsSettingsView.swift in Sources */,
 				4C0C2E002EF5649C00213277 /* ConnectionRowView.swift in Sources */,
 				4C0C2E312EFDB97300213277 /* ChatEvent.swift in Sources */,
 				4C0C2E3C2F0042FA00213277 /* ChatMessagesView.swift in Sources */,
 				4C39DEBB2F1AB4BC009D54B1 /* FileFormView.swift in Sources */,
+				4CF01A922F20000100213277 /* FileInfoSheet.swift in Sources */,
 				4C0C2E5C2F14026B00213277 /* FileServiceProtocol.swift in Sources */,
 				4C0C2E182EFD455300213277 /* MessageBubble.swift in Sources */,
 				4C0C2DF72EF4872600213277 /* ConnectionController.swift in Sources */,

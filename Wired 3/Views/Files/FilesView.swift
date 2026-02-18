@@ -163,6 +163,96 @@ private func isDownloadableRemoteItem(_ item: FileItem) -> Bool {
     return item.type == .file || item.type == .directory || item.type == .uploads || item.type == .dropbox
 }
 
+#if os(macOS)
+private enum RemoteFolderIconKind: String {
+    case directory
+    case uploads
+    case dropbox
+}
+
+private final class RemoteFolderIconCache {
+    static let shared = RemoteFolderIconCache()
+    private var cache: [String: NSImage] = [:]
+
+    private init() {}
+
+    func icon(for kind: RemoteFolderIconKind, size: CGFloat) -> NSImage {
+        let normalizedSize = max(1, Int(round(size)))
+        let key = "\(kind.rawValue)-\(normalizedSize)"
+        if let cached = cache[key] {
+            return cached
+        }
+
+        let icon = makeIcon(for: kind, size: CGFloat(normalizedSize))
+        cache[key] = icon
+        return icon
+    }
+
+    private func makeIcon(for kind: RemoteFolderIconKind, size: CGFloat) -> NSImage {
+        let frame = NSSize(width: size, height: size)
+        let base = (NSWorkspace.shared.icon(forFileType: UTType.folder.identifier).copy() as? NSImage)
+            ?? NSWorkspace.shared.icon(forFileType: UTType.folder.identifier)
+        base.size = frame
+
+        guard kind != .directory else {
+            return base
+        }
+
+        let badgeName = (kind == .uploads) ? "UploadsBadge" : "DropBoxBadge"
+        guard let badgeImage = loadBadgeImage(named: badgeName)?.copy() as? NSImage else {
+            return base
+        }
+        let badgeScale: CGFloat = 1.60
+        let badgeSize = NSSize(width: frame.width * badgeScale, height: frame.height * badgeScale)
+        let badgeRect = NSRect(
+            x: frame.width - badgeSize.width,
+            y: 0,
+            width: badgeSize.width,
+            height: badgeSize.height
+        )
+        badgeImage.size = badgeRect.size
+
+        let composed = NSImage(size: frame)
+        composed.lockFocus()
+        base.draw(in: NSRect(origin: .zero, size: frame))
+        badgeImage.draw(in: badgeRect)
+        composed.unlockFocus()
+        return composed
+    }
+
+    private func loadBadgeImage(named name: String) -> NSImage? {
+        if let image = NSImage(named: name) {
+            return image
+        }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "icns") else {
+            return nil
+        }
+        return NSImage(contentsOf: url)
+    }
+}
+
+private func remoteItemIconImage(for item: FileItem, size: CGFloat) -> NSImage {
+    let icon: NSImage
+
+    switch item.type {
+    case .file:
+        let ext = (item.name as NSString).pathExtension
+        let fileType = ext.isEmpty ? UTType.data.identifier : (UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier)
+        icon = NSWorkspace.shared.icon(forFileType: fileType)
+    case .directory:
+        icon = RemoteFolderIconCache.shared.icon(for: .directory, size: size)
+    case .uploads:
+        icon = RemoteFolderIconCache.shared.icon(for: .uploads, size: size)
+    case .dropbox:
+        icon = RemoteFolderIconCache.shared.icon(for: .dropbox, size: size)
+    }
+
+    let copy = (icon.copy() as? NSImage) ?? icon
+    copy.size = NSSize(width: size, height: size)
+    return copy
+}
+#endif
+
 private extension View {
     @ViewBuilder
     func remoteDraggable(item: FileItem, connectionID: UUID, isDirectory: Bool) -> some View {
@@ -208,6 +298,7 @@ struct FilesView: View {
     @State private var pendingDownloadItems: [FileItem] = []
     @State private var pendingUploadConflicts: [UploadConflict] = []
     @State private var activeUploadConflict: UploadConflict? = nil
+    @State private var infoSheetItem: FileItem? = nil
 
     private var selectedItem: FileItem? {
         switch selectedFileViewType {
@@ -238,6 +329,10 @@ struct FilesView: View {
         return selectedItem
     }
 
+    private var canSetFileType: Bool {
+        runtime.hasPrivilege("wired.account.file.set_type")
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             toolbar
@@ -263,6 +358,10 @@ struct FilesView: View {
                     onRequestDownloadSelection: { items in
                         download(items)
                     },
+                    onRequestGetInfo: { item in
+                        presentInfo(for: item)
+                    },
+                    canSetFileType: canSetFileType,
                     onUploadURLs: { urls, target in
                         upload(urls: urls, to: target)
                     },
@@ -292,6 +391,10 @@ struct FilesView: View {
                     onRequestDownloadSelection: { items in
                         download(items)
                     },
+                    onRequestGetInfo: { item in
+                        presentInfo(for: item)
+                    },
+                    canSetFileType: canSetFileType,
                     onUploadURLs: { urls, target in
                         upload(urls: urls, to: target)
                     },
@@ -329,6 +432,10 @@ struct FilesView: View {
             if !isPresented {
                 createFolderTargetOverride = nil
             }
+        }
+        .sheet(item: $infoSheetItem) { item in
+            FileInfoSheet(filesViewModel: filesViewModel, file: item)
+                .environment(runtime)
         }
         .alert("Delete File", isPresented: $filesViewModel.showDeleteConfirmation, actions: {
             Button("Cancel", role: .cancel) { }
@@ -531,15 +638,38 @@ struct FilesView: View {
         while !pendingDownloadItems.isEmpty {
             let item = pendingDownloadItems.removeFirst()
             switch transfers.queueDownload(item, with: bookmark.id, overwriteExistingFile: false) {
-            case .started, .resumed:
+            case let .started(transfer), let .resumed(transfer):
+                registerDownloadTerminalErrorHook(for: transfer, item: item)
                 continue
             case let .needsOverwrite(destination):
                 if askOverwrite(path: destination) {
-                    _ = transfers.queueDownload(item, with: bookmark.id, overwriteExistingFile: true)
+                    switch transfers.queueDownload(item, with: bookmark.id, overwriteExistingFile: true) {
+                    case let .started(transfer), let .resumed(transfer):
+                        registerDownloadTerminalErrorHook(for: transfer, item: item)
+                    default:
+                        break
+                    }
                 }
                 continue
             case .failed:
                 continue
+            }
+        }
+    }
+
+    private func registerDownloadTerminalErrorHook(for transfer: Transfer, item: FileItem) {
+        transfers.onTransferTerminal(id: transfer.id) { terminal in
+            guard terminal.type == .download else { return }
+            guard terminal.state == .stopped || terminal.state == .disconnected else { return }
+
+            let message = terminal.error.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !message.isEmpty else { return }
+
+            DispatchQueue.main.async {
+                filesViewModel.error = WiredError(
+                    withTitle: "Download Error",
+                    message: "Impossible de télécharger \"\(item.name)\":\n\(message)"
+                )
             }
         }
     }
@@ -573,6 +703,13 @@ struct FilesView: View {
         }
         return unique
     }
+
+    private func presentInfo(for item: FileItem) {
+        guard item.type == .directory || item.type == .uploads || item.type == .dropbox else {
+            return
+        }
+        infoSheetItem = item
+    }
 }
 
 struct FilesTreeView: View {
@@ -584,6 +721,8 @@ struct FilesTreeView: View {
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: ([FileItem]) -> Void
     let onRequestDownloadSelection: ([FileItem]) -> Void
+    let onRequestGetInfo: (FileItem) -> Void
+    let canSetFileType: Bool
     let onUploadURLs: ([URL], FileItem) -> Void
     let onMoveRemoteItem: (_ sourcePath: String, _ destinationDirectory: FileItem) async throws -> Void
     @State private var finderDropTargetPath: String?
@@ -596,6 +735,12 @@ struct FilesTreeView: View {
             expandedPaths: filesViewModel.expandedTreePaths,
             connectionID: bookmark.id,
             transferManager: transfers,
+            onDownloadTransferError: { item, message in
+                filesViewModel.error = WiredError(
+                    withTitle: "Download Error",
+                    message: "Impossible de télécharger \"\(item.name)\":\n\(message)"
+                )
+            },
             onUploadURLs: onUploadURLs,
             selectedPaths: $selectedPaths,
             onSelectionChange: { newSelection in
@@ -634,7 +779,13 @@ struct FilesTreeView: View {
                 let selected = selectedItems(from: selectedPaths)
                 guard !selected.isEmpty else { return }
                 onRequestDownloadSelection(selected.filter { isDownloadableRemoteItem($0) })
-            }
+            },
+            onRequestGetInfo: {
+                let selected = selectedItems(from: selectedPaths)
+                guard selected.count == 1, let item = selected.first else { return }
+                onRequestGetInfo(item)
+            },
+            canSetFileType: canSetFileType
         )
         .background(Color.white)
         .onAppear {
@@ -712,6 +863,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
     let expandedPaths: Set<String>
     let connectionID: UUID
     let transferManager: TransferManager
+    let onDownloadTransferError: (FileItem, String) -> Void
     let onUploadURLs: ([URL], FileItem) -> Void
     @Binding var selectedPaths: Set<String>
     let onSelectionChange: (Set<String>) -> Void
@@ -721,6 +873,8 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: () -> Void
     let onRequestDownloadSelection: () -> Void
+    let onRequestGetInfo: () -> Void
+    let canSetFileType: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -1035,12 +1189,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
                 return cell
             }()
             cell.textField?.stringValue = item.name
-            let isDir = isDirectory(item)
-            let ext = (dragExportFileName(for: item) as NSString).pathExtension
-            let fileType = isDir ? UTType.folder.identifier : (UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier)
-            let icon = NSWorkspace.shared.icon(forFileType: fileType)
-            icon.size = NSSize(width: 16, height: 16)
-            cell.imageView?.image = icon
+            cell.imageView?.image = remoteItemIconImage(for: item, size: 16)
             return cell
         }
 
@@ -1111,6 +1260,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             let delegate = DragPlaceholderPromiseDelegate(item: item)
             delegate.connectionID = parent.connectionID
             delegate.transferManager = parent.transferManager
+            delegate.onDownloadTransferError = parent.onDownloadTransferError
             let provider = NSFilePromiseProvider(fileType: fileType, delegate: delegate)
             // NSFilePromiseProvider's delegate is weak in practice for drag lifetime.
             // Retain it through associated storage to guarantee writePromiseTo callback.
@@ -1174,6 +1324,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             menu.addItem(withTitle: "Download", action: #selector(contextDownload), keyEquivalent: "")
             menu.addItem(withTitle: "Delete", action: #selector(contextDelete), keyEquivalent: "")
             menu.addItem(withTitle: "Upload…", action: #selector(contextUpload), keyEquivalent: "")
+            menu.addItem(withTitle: "Get Info", action: #selector(contextGetInfo), keyEquivalent: "")
             menu.addItem(NSMenuItem.separator())
             menu.addItem(withTitle: "New Folder", action: #selector(contextNewFolder), keyEquivalent: "")
             for item in menu.items {
@@ -1214,6 +1365,12 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             }
 
             let hasSelectionNow = !outlineView.selectedRowIndexes.isEmpty
+            let selectedRows = outlineView.selectedRowIndexes.compactMap { row -> Int? in
+                row >= 0 ? row : nil
+            }
+            let selectedItems = selectedRows.compactMap { row -> FileItem? in
+                (outlineView.item(atRow: row) as? OutlineNode)?.item
+            }
             if let downloadItem = menu.item(withTitle: "Download") {
                 downloadItem.isEnabled = hasSelectionNow
             }
@@ -1223,6 +1380,9 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             if let uploadItem = menu.item(withTitle: "Upload…") {
                 uploadItem.isEnabled = true
             }
+            if let infoItem = menu.item(withTitle: "Get Info") {
+                infoItem.isEnabled = parent.canSetFileType && selectedItems.count == 1 && isDirectory(selectedItems[0])
+            }
             if let newFolderItem = menu.item(withTitle: "New Folder") {
                 newFolderItem.isEnabled = true
             }
@@ -1231,6 +1391,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
         @objc private func contextDownload() { parent.onRequestDownloadSelection() }
         @objc private func contextDelete() { parent.onRequestDeleteSelection() }
         @objc private func contextUpload() { parent.onRequestUploadInDirectory(contextDirectoryTarget) }
+        @objc private func contextGetInfo() { parent.onRequestGetInfo() }
         @objc private func contextNewFolder() { parent.onRequestCreateFolder() }
     }
 }
@@ -1242,6 +1403,7 @@ private final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProvi
     private let partialName: String
     var connectionID: UUID?
     weak var transferManager: TransferManager?
+    var onDownloadTransferError: ((FileItem, String) -> Void)?
     private var didStartTransfer = false
 
     @MainActor
@@ -1377,6 +1539,9 @@ private final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProvi
                             let message = transfer.error.isEmpty
                                 ? "Transfer ended with state \(transfer.state.rawValue)."
                                 : transfer.error
+                            if !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                self.onDownloadTransferError?(self.item, message)
+                            }
                             completionLock.lock()
                             terminalError = NSError(
                                 domain: "Wired.DragAndDrop",
@@ -1438,6 +1603,8 @@ struct FilesColumnsView: View {
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: ([FileItem]) -> Void
     let onRequestDownloadSelection: ([FileItem]) -> Void
+    let onRequestGetInfo: (FileItem) -> Void
+    let canSetFileType: Bool
     let onUploadURLs: ([URL], FileItem) -> Void
     let onMoveRemoteItem: (_ sourcePath: String, _ destinationDirectory: FileItem) async throws -> Void
 
@@ -1484,6 +1651,12 @@ struct FilesColumnsView: View {
         return AppKitFileColumnTableView(
             bookmarkID: bookmark.id,
             transferManager: transfers,
+            onDownloadTransferError: { item, message in
+                filesViewModel.error = WiredError(
+                    withTitle: "Download Error",
+                    message: "Impossible de télécharger \"\(item.name)\":\n\(message)"
+                )
+            },
             column: column,
             selectedPaths: selectionPaths(for: column),
             onSelectionChange: { paths, primaryPath in
@@ -1510,7 +1683,9 @@ struct FilesColumnsView: View {
             onRequestCreateFolder: onRequestCreateFolder,
             onRequestUploadInDirectory: onRequestUploadInDirectory,
             onRequestDeleteSelection: onRequestDeleteSelection,
-            onRequestDownloadSelection: onRequestDownloadSelection
+            onRequestDownloadSelection: onRequestDownloadSelection,
+            onRequestGetInfo: onRequestGetInfo,
+            canSetFileType: canSetFileType
         )
         .frame(width: width(for: column))
         .background(Color.clear)
@@ -1562,6 +1737,7 @@ private var wiredRemotePathPasteboardType = NSPasteboard.PasteboardType("com.rea
 private struct AppKitFileColumnTableView: NSViewRepresentable {
     let bookmarkID: UUID
     let transferManager: TransferManager
+    let onDownloadTransferError: (FileItem, String) -> Void
     let column: FileColumn
     let selectedPaths: Set<String>
     let onSelectionChange: (Set<String>, String?) -> Void
@@ -1572,6 +1748,8 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: ([FileItem]) -> Void
     let onRequestDownloadSelection: ([FileItem]) -> Void
+    let onRequestGetInfo: (FileItem) -> Void
+    let canSetFileType: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -1705,12 +1883,7 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
             }()
 
             cell.textField?.stringValue = item.name
-            let isDir = isDirectory(item)
-            let ext = (dragExportFileName(for: item) as NSString).pathExtension
-            let fileType = isDir ? UTType.folder.identifier : (UTType(filenameExtension: ext)?.identifier ?? UTType.data.identifier)
-            let icon = NSWorkspace.shared.icon(forFileType: fileType)
-            icon.size = NSSize(width: 16, height: 16)
-            cell.imageView?.image = icon
+            cell.imageView?.image = remoteItemIconImage(for: item, size: 16)
             return cell
         }
 
@@ -1777,6 +1950,7 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
             let delegate = DragPlaceholderPromiseDelegate(item: item)
             delegate.connectionID = parent.bookmarkID
             delegate.transferManager = parent.transferManager
+            delegate.onDownloadTransferError = parent.onDownloadTransferError
             let provider = NSFilePromiseProvider(fileType: fileType, delegate: delegate)
             objc_setAssociatedObject(
                 provider,
@@ -1870,6 +2044,7 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
             menu.addItem(withTitle: "Download", action: #selector(contextDownload), keyEquivalent: "")
             menu.addItem(withTitle: "Delete", action: #selector(contextDelete), keyEquivalent: "")
             menu.addItem(withTitle: "Upload…", action: #selector(contextUpload), keyEquivalent: "")
+            menu.addItem(withTitle: "Get Info", action: #selector(contextGetInfo), keyEquivalent: "")
             menu.addItem(NSMenuItem.separator())
             menu.addItem(withTitle: "New Folder", action: #selector(contextNewFolder), keyEquivalent: "")
             for item in menu.items {
@@ -1904,6 +2079,7 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
             menu.item(withTitle: "Download")?.isEnabled = selected.contains(where: { isDownloadableRemoteItem($0) })
             menu.item(withTitle: "Delete")?.isEnabled = selected.contains(where: { $0.path != "/" })
             menu.item(withTitle: "Upload…")?.isEnabled = true
+            menu.item(withTitle: "Get Info")?.isEnabled = parent.canSetFileType && selected.count == 1 && selected.contains(where: { isDirectory($0) })
             menu.item(withTitle: "New Folder")?.isEnabled = true
         }
 
@@ -1929,6 +2105,11 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
 
         @objc private func contextUpload() {
             parent.onRequestUploadInDirectory(contextDirectoryTarget)
+        }
+
+        @objc private func contextGetInfo() {
+            guard let item = selectedItems().first else { return }
+            parent.onRequestGetInfo(item)
         }
 
         @objc private func contextNewFolder() {
@@ -2080,22 +2261,7 @@ private struct FinderFileIconView: View {
 
     #if os(macOS)
     private func iconImage() -> NSImage {
-        let icon = NSWorkspace.shared.icon(forFileType: fileTypeIdentifier())
-        icon.size = NSSize(width: size, height: size)
-        return icon
-    }
-
-    private func fileTypeIdentifier() -> String {
-        switch item.type {
-        case .directory, .uploads, .dropbox:
-            return UTType.folder.identifier
-        case .file:
-            let ext = (item.name as NSString).pathExtension
-            if ext.isEmpty {
-                return UTType.data.identifier
-            }
-            return ext
-        }
+        remoteItemIconImage(for: item, size: size)
     }
     #endif
 }

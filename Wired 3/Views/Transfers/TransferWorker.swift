@@ -379,6 +379,10 @@ actor TransferWorker {
 
         guard let runMessage = await waitForMessage(on: tconn, untilReceivingMessageName: "wired.transfer.download") else {
             if let term = await terminationReason() { throw term }
+            let transferError = await MainActor.run { self.transfer.error }
+            if !transferError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw WiredError(withTitle: "Download Error", message: transferError)
+            }
             throw WiredError(withTitle: "Download Error", message: "Transfer did not start (connection closed)")
         }
 
@@ -597,6 +601,10 @@ actor TransferWorker {
 
         guard let ready = await waitForMessage(on: tconn, untilReceivingMessageName: "wired.transfer.upload_ready") else {
             if let term = await terminationReason() { throw term }
+            let transferError = await MainActor.run { self.transfer.error }
+            if !transferError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw WiredError(withTitle: "Upload Error", message: transferError)
+            }
             if await isRemoteFileExistsError() {
                 throw WiredError(withTitle: "Upload Error", message: "Remote file already exists: \(remotePath)")
             }
@@ -760,10 +768,13 @@ actor TransferWorker {
             }
 
             if message.name == "wired.error" {
-                if let error = connection.spec.error(forMessage: message) {
-                    await mutate { $0.error = error.name ?? "wired.error" }
+                let wiredError = WiredError(message: message)
+                let errorName = connection.spec.error(forMessage: message)?.name ?? "wired.error"
+                let errorMessage = wiredError.message.trimmingCharacters(in: .whitespacesAndNewlines)
+                if errorMessage.isEmpty {
+                    await mutate { $0.error = errorName }
                 } else {
-                    await mutate { $0.error = "wired.error" }
+                    await mutate { $0.error = "\(errorMessage) (\(errorName))" }
                 }
                 return nil
             }

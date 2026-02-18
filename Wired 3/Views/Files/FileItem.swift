@@ -64,7 +64,6 @@ public struct FileItem: Identifiable, Hashable {
         }
         if let t = message.uint32(forField: "wired.file.type") {
             self.type = FileType(rawValue: t) ?? .file
-            print("self.type \(self.type)")
         }
         if let s = message.uint64(forField: "wired.file.data_size") {
             self.dataSize = s
