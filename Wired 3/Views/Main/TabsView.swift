@@ -78,13 +78,18 @@ struct TabsView: View {
                     }
                 }
                 .errorAlert(error: $runtime.lastError)
-                .task {
+                .task(id: "\(runtime.status)-\(runtime.joined)-\(bookmark.id.uuidString)") {
+                    guard runtime.status == .connected, runtime.joined else { return }
                     filesViewModel.configure(
                         fileService: FileService(),
                         runtime: runtime
                     )
-                    
-                    await filesViewModel.loadRoot()
+
+                    if filesViewModel.columns.isEmpty {
+                        await filesViewModel.loadRoot()
+                    } else {
+                        await filesViewModel.reloadAll()
+                    }
                 }
             }
         }
@@ -106,8 +111,11 @@ struct TabsView: View {
                         runtime.selectedTab = .chats
                     } label: {
                         VStack {
-                            Image(systemName: "text.bubble.fill")
+                            Image(systemName: "text.bubble")
+                                .frame(minHeight: 18)
+                            
                             Text("Chats")
+                                .font(.subheadline)
                         }
                     }
                     .buttonStyle(.plain)
@@ -117,8 +125,10 @@ struct TabsView: View {
                         runtime.selectedTab = .messages
                     } label: {
                         VStack {
-                            Image(systemName: "ellipsis.message.fill")
-                            Text("Messages")
+                            Image(systemName: "ellipsis.message")
+                                .frame(minHeight: 18)
+                            
+                            Text("Messages").font(.subheadline)
                         }
                     }
                     .buttonStyle(.plain)
@@ -128,8 +138,10 @@ struct TabsView: View {
                         runtime.selectedTab = .boards
                     } label: {
                         VStack {
-                            Image(systemName: "newspaper.fill")
-                            Text("Boards")
+                            Image(systemName: "newspaper")
+                                .frame(minHeight: 18)
+                            
+                            Text("Boards").font(.subheadline)
                         }
                     }
                     .buttonStyle(.plain)
@@ -139,8 +151,10 @@ struct TabsView: View {
                         runtime.selectedTab = .files
                     } label: {
                         VStack {
-                            Image(systemName: "folder.fill")
-                            Text("Files")
+                            Image(systemName: "folder")
+                                .frame(minHeight: 18)
+                            
+                            Text("Files").font(.subheadline)
                         }
                     }
                     .buttonStyle(.plain)
@@ -150,8 +164,10 @@ struct TabsView: View {
                         runtime.selectedTab = .settings
                     } label: {
                         VStack {
-                            Image(systemName: "folder.fill")
-                            Text("Settings")
+                            Image(systemName: "gear")
+                                .frame(minHeight: 18)
+                            
+                            Text("Settings").font(.subheadline)
                         }
                     }
                     .buttonStyle(.plain)
@@ -161,8 +177,10 @@ struct TabsView: View {
                         runtime.selectedTab = .infos
                     } label: {
                         VStack {
-                            Image(systemName: "info.circle.fill")
-                            Text("Info")
+                            Image(systemName: "info.circle")
+                                .frame(minHeight: 18)
+                            
+                            Text("Info").font(.subheadline)
                         }
                     }
                     .buttonStyle(.plain)
@@ -175,8 +193,10 @@ struct TabsView: View {
                             askDisconnect = true
                         } label: {
                             VStack {
-                                Image(systemName: "xmark.circle.fill")
-                                Text("Disconnect")
+                                Image(systemName: "xmark.circle")
+                                    .frame(minHeight: 18)
+                                
+                                Text("Disconnect").font(.subheadline)
                             }
                         }
                         .buttonStyle(.plain)
@@ -327,4 +347,3 @@ struct DisconnectAlert: ViewModifier {
             }
     }
 }
-
