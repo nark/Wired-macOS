@@ -121,6 +121,9 @@ private struct AppRootView: View {
 
     var body: some View {
         MainView()
+#if os(macOS)
+            .background(MainWindowFramePersistenceView(frameKey: "Wired3MainWindowFrame"))
+#endif
             .onAppear {
                 // Attach SwiftData once, and restore persisted transfers.
                 transfers.attach(modelContext: modelContext)
@@ -137,3 +140,88 @@ private struct AppRootView: View {
             }
     }
 }
+
+#if os(macOS)
+private struct MainWindowFramePersistenceView: NSViewRepresentable {
+    let frameKey: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(frameKey: frameKey)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.attach(to: nsView)
+    }
+
+    final class Coordinator {
+        private let frameKey: String
+        private weak var observedWindow: NSWindow?
+        private var observers: [NSObjectProtocol] = []
+        private var restoredWindowNumber: Int?
+
+        init(frameKey: String) {
+            self.frameKey = frameKey
+        }
+
+        deinit {
+            removeObservers()
+        }
+
+        func attach(to view: NSView) {
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self, let window = view?.window else { return }
+                guard self.observedWindow !== window else { return }
+                self.observe(window: window)
+            }
+        }
+
+        private func observe(window: NSWindow) {
+            removeObservers()
+            observedWindow = window
+            restoreFrameIfNeeded(for: window)
+
+            let center = NotificationCenter.default
+            let names: [Notification.Name] = [
+                NSWindow.didMoveNotification,
+                NSWindow.didResizeNotification,
+                NSWindow.willCloseNotification
+            ]
+
+            observers = names.map { name in
+                center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                    self?.saveFrame()
+                }
+            }
+        }
+
+        private func restoreFrameIfNeeded(for window: NSWindow) {
+            guard restoredWindowNumber != window.windowNumber else { return }
+            restoredWindowNumber = window.windowNumber
+
+            guard let frameString = UserDefaults.standard.string(forKey: frameKey) else { return }
+            let frame = NSRectFromString(frameString)
+            guard frame.width > 0, frame.height > 0 else { return }
+            window.setFrame(frame, display: true)
+        }
+
+        private func saveFrame() {
+            guard let window = observedWindow else { return }
+            UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: frameKey)
+        }
+
+        private func removeObservers() {
+            let center = NotificationCenter.default
+            for observer in observers {
+                center.removeObserver(observer)
+            }
+            observers.removeAll()
+        }
+    }
+}
+#endif
