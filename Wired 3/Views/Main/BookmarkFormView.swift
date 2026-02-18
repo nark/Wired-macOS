@@ -24,7 +24,7 @@ struct BookmarkFormView: View {
     
     @State var cipher: UInt32 = P7Socket.CipherType.ECDH_CHACHA20_POLY1305.rawValue
     @State var checksum: UInt32 = P7Socket.Checksum.HMAC_256.rawValue
-    @State var compression: UInt32 = P7Socket.Compression.LZFSE.rawValue
+    @State var compression: UInt32 = P7Socket.Compression.LZ4.rawValue
     
     var bookmark: Bookmark? = nil
 
