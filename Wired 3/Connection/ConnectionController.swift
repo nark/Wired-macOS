@@ -73,7 +73,7 @@ final class ConnectionController {
             for r in runtimeStores {
                 if let message = r.setStatusMessage(status) {
                     Task {
-                        try? await r.send(message)
+                        _ = try? await r.send(message)
                     }
                 }
             }
@@ -373,17 +373,23 @@ final class ConnectionController {
                 }
             }
         case "wired.chat.user_status":
-            if  let chatID = message.uint32(forField: "wired.chat.id"),
-                let userID = message.uint32(forField: "wired.user.id")
-            {
-                if let chat = await runtime.chats.first(where: { $0.id == chatID }) {
-                    if let user = await chat.users.first(where: { $0.id == userID }) {
-                        await MainActor.run {
-                            user.nick = message.string(forField: "wired.user.nick") ?? user.nick
-                            user.status = message.string(forField: "wired.user.status") ?? user.status
-                            user.icon = message.data(forField: "wired.user.icon") ?? user.icon
-                            user.idle = message.bool(forField: "wired.user.idle") ?? user.idle
-                        }
+            if let userID = message.uint32(forField: "wired.user.id") {
+                let targetChatID = message.uint32(forField: "wired.chat.id")
+
+                await MainActor.run {
+                    let targetChats: [Chat]
+                    if let targetChatID {
+                        targetChats = runtime.chats.filter { $0.id == targetChatID }
+                    } else {
+                        targetChats = runtime.chats
+                    }
+
+                    for chat in targetChats {
+                        guard let user = chat.users.first(where: { $0.id == userID }) else { continue }
+                        user.nick = message.string(forField: "wired.user.nick") ?? user.nick
+                        user.status = message.string(forField: "wired.user.status")
+                        user.icon = message.data(forField: "wired.user.icon") ?? user.icon
+                        user.idle = message.bool(forField: "wired.user.idle") ?? user.idle
                     }
                 }
             }
@@ -472,7 +478,6 @@ final class ConnectionController {
             let id = message.uint32(forField: "wired.user.id"),
             let nick = message.string(forField: "wired.user.nick"),
             let icon = message.data(forField: "wired.user.icon"),
-            let status = message.string(forField: "wired.user.status"),
             let idle = message.bool(forField: "wired.user.idle")
         else {
             return nil
@@ -481,7 +486,7 @@ final class ConnectionController {
         return .init(
             id: id,
             nick: nick,
-            status: status,
+            status: message.string(forField: "wired.user.status"),
             icon: icon,
             idle: idle,
         )

@@ -33,7 +33,7 @@ struct SettingsView: View {
 
 
 extension Notification.Name {
-    static let wiredUserNickDidChange       = Notification.Name("wiredUserIconDidChange")
+    static let wiredUserNickDidChange       = Notification.Name("wiredUserNickDidChange")
     static let wiredUserStatusDidChange     = Notification.Name("wiredUserStatusDidChange")
     static let wiredUserIconDidChange       = Notification.Name("wiredUserIconDidChange")
 }
@@ -45,6 +45,10 @@ struct GeneralSettingsView: View {
 
     @State private var debouncer = Debouncer()
     @State private var showIconImporter = false
+
+    private func notifyUserStatusChange() {
+        NotificationCenter.default.post(name: .wiredUserStatusDidChange, object: userStatus)
+    }
     
     var userIconImage: Image {
         if let base64 = userIcon,
@@ -120,11 +124,11 @@ struct GeneralSettingsView: View {
                 TextField("Status", text: $userStatus)
                     .labelsHidden()
                     .onChange(of: userStatus, debounceTime: .milliseconds(800), debouncer: $debouncer) {
-                        NotificationCenter.default.post(name: .wiredUserStatusDidChange, object: userStatus)
+                        notifyUserStatusChange()
                     }
                     .onKeyPress(.return) {
                         debouncer.cancel()
-                        NotificationCenter.default.post(name: .wiredUserStatusDidChange, object: userStatus)
+                        notifyUserStatusChange()
                         return .handled
                     }
             }
@@ -137,6 +141,11 @@ struct GeneralSettingsView: View {
                     .bold()
             }
 #endif
+        }
+        .onDisappear {
+            // Ensure an empty status is propagated even if the debounce has not fired yet.
+            debouncer.cancel()
+            notifyUserStatusChange()
         }
         .onChange(of: userIcon) { oldValue, newValue in
             NotificationCenter.default.post(name: .wiredUserIconDidChange, object: userIcon)

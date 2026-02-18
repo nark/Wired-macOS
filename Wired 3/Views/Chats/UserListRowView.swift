@@ -16,6 +16,13 @@ struct UserListRowView: View {
     @State private var showBanSheet: Bool = false
     @State private var showKickSheet: Bool = false
     @State private var showDisconnectSheet: Bool = false
+
+    private var hasStatus: Bool {
+        guard let status = user.status?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return false
+        }
+        return !status.isEmpty
+    }
     
     var body: some View {
         HStack {
@@ -23,10 +30,14 @@ struct UserListRowView: View {
             
             VStack(alignment: .leading) {
                 Text(user.nick)
-                Text(user.status)
-                    .foregroundStyle(.gray)
-                    .font(.caption2)
+
+                if hasStatus {
+                    Text(user.status ?? "")
+                        .foregroundStyle(.gray)
+                        .font(.caption2)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .opacity(user.idle ? 0.6 : 1.0)
         .listRowSeparator(.hidden)
@@ -92,7 +103,7 @@ struct UserInfosView: View {
                 }
                 
                 LabeledContent {
-                    Text(user.status)
+                    Text(user.status ?? "")
                 } label: {
                     Text("Status")
                 }
@@ -171,4 +182,3 @@ struct UserInfosView: View {
         .formStyle(.grouped)
     }
 }
-

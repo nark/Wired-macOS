@@ -14,7 +14,7 @@ import SwiftUI
 final class User: Identifiable {
     let id: UInt32
     var nick: String
-    var status: String = ""
+    var status: String?
     var icon: Data
     var idle: Bool = false
     var color: UInt32 = 0
@@ -34,7 +34,7 @@ final class User: Identifiable {
     var loginTime: Date?
     var idleTime: Date?
     
-    init(id: UInt32, nick: String, status: String = "", icon: Data, idle: Bool) {
+    init(id: UInt32, nick: String, status: String? = nil, icon: Data, idle: Bool) {
         self.id = id
         self.nick = nick
         self.icon = icon
