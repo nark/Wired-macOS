@@ -125,26 +125,43 @@ final class ConnectionController {
         }
 
         let task = Task {
-            do {
-                let stream = await socketClient.connect(bookmark: bookmark)
+            let maxConnectAttempts = 2
 
-                await MainActor.run {
-                    self.startIdleTimers()
-                }
+            for attempt in 1...maxConnectAttempts {
+                do {
+                    let stream = await socketClient.connect(bookmark: bookmark)
 
-                // ⬇️ L’erreur du stream arrive ICI
-                for try await event in stream {
-                    await handle(event)
-                }
-
-            } catch {
-                await MainActor.run {
-                    if let runtime = runtimeStores.first(where: { $0.id == id }) {
-                        runtime.lastError = error
+                    await MainActor.run {
+                        self.startIdleTimers()
                     }
+
+                    for try await event in stream {
+                        await handle(event)
+                    }
+
+                    break
+
+                } catch {
+                    let shouldRetry =
+                        attempt < maxConnectAttempts &&
+                        isTransientConnectError(error) &&
+                        !Task.isCancelled
+
+                    if shouldRetry {
+                        await socketClient.disconnect(id: id)
+                        try? await Task.sleep(for: .milliseconds(500))
+                        continue
+                    }
+
+                    await MainActor.run {
+                        if let runtime = runtimeStores.first(where: { $0.id == id }) {
+                            runtime.lastError = error
+                        }
+                    }
+
+                    await socketClient.emit(.disconnected(id, nil, error))
+                    break
                 }
-                
-                await socketClient.emit(.disconnected(id, nil, error))
             }
 
             // cleanup commun (success OU error)
@@ -208,6 +225,21 @@ final class ConnectionController {
         case .received(let id, let connection, let message):
             await handleMessage(message, connection: connection, from: id)
         }
+    }
+
+    private func isTransientConnectError(_ error: Error) -> Bool {
+        let description = error.localizedDescription.lowercased()
+        let transientMarkers = [
+            "is unreachable",
+            "network is unreachable",
+            "host is down",
+            "no route to host",
+            "timed out",
+            "operation timed out",
+            "connection refused"
+        ]
+
+        return transientMarkers.contains { description.contains($0) }
     }
 
     private func handleMessage(_ message: P7Message, connection: Connection, from id: UUID) async {
