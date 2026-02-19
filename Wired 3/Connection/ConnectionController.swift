@@ -10,6 +10,10 @@ import SwiftUI
 import WiredSwift
 import UserNotifications
 
+extension Notification.Name {
+    static let wiredAccountAccountsChanged = Notification.Name("wiredAccountAccountsChanged")
+}
+
 enum SocketEvent {
     case connected(UUID, Connection)
     case received(UUID, Connection, P7Message)
@@ -280,6 +284,14 @@ final class ConnectionController {
 
             await MainActor.run {
                 runtime.privileges = parsedPrivileges
+            }
+        case "wired.account.accounts_changed":
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .wiredAccountAccountsChanged,
+                    object: nil,
+                    userInfo: ["runtimeID": id]
+                )
             }
 
 //        case "wired.user.info":

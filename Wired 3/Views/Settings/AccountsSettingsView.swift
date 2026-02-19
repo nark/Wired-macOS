@@ -98,9 +98,57 @@ final class AccountsSettingsViewModel: ObservableObject {
     @Published var error: Error?
 
     private weak var runtime: ConnectionRuntime?
+    private var isSubscribedToAccountChanges = false
 
     func configure(runtime: ConnectionRuntime) {
         self.runtime = runtime
+    }
+
+    func subscribeToAccountChangesIfNeeded() async {
+        guard !isSubscribedToAccountChanges else { return }
+        guard canListAccounts else { return }
+        guard let connection = runtime?.connection as? AsyncConnection else { return }
+
+        let message = P7Message(withName: "wired.account.subscribe_accounts", spec: spec!)
+
+        do {
+            let response = try await connection.sendAsync(message)
+            if let response, response.name == "wired.error" {
+                let errorName = response.string(forField: "wired.error.string") ?? ""
+                if errorName == "wired.error.already_subscribed" {
+                    isSubscribedToAccountChanges = true
+                    return
+                }
+                throw WiredError(message: response)
+            }
+
+            isSubscribedToAccountChanges = true
+        } catch {
+            self.error = error
+        }
+    }
+
+    func unsubscribeFromAccountChangesIfNeeded() async {
+        guard isSubscribedToAccountChanges else { return }
+        guard let connection = runtime?.connection as? AsyncConnection else { return }
+
+        let message = P7Message(withName: "wired.account.unsubscribe_accounts", spec: spec!)
+
+        do {
+            let response = try await connection.sendAsync(message)
+            if let response, response.name == "wired.error" {
+                let errorName = response.string(forField: "wired.error.string") ?? ""
+                if errorName == "wired.error.not_subscribed" {
+                    isSubscribedToAccountChanges = false
+                    return
+                }
+                throw WiredError(message: response)
+            }
+
+            isSubscribedToAccountChanges = false
+        } catch {
+            self.error = error
+        }
     }
 
     var canListAccounts: Bool {
@@ -549,6 +597,20 @@ struct AccountsSettingsView: View {
         .task {
             viewModel.configure(runtime: runtime)
             await viewModel.loadAccountsIfNeeded()
+            await viewModel.subscribeToAccountChangesIfNeeded()
+        }
+        .onDisappear {
+            Task {
+                await viewModel.unsubscribeFromAccountChangesIfNeeded()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .wiredAccountAccountsChanged)) { notification in
+            guard let runtimeID = notification.userInfo?["runtimeID"] as? UUID else { return }
+            guard runtimeID == runtime.id else { return }
+
+            Task {
+                await viewModel.reloadAccounts()
+            }
         }
         .onChange(of: viewModel.selectedID) { _, _ in
             Task { await viewModel.readSelectedAccountIfNeeded() }
