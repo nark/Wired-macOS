@@ -45,12 +45,19 @@ final class FilesViewModel: ObservableObject {
     @Published var showCreateFolderSheet: Bool = false
     @Published var showDeleteConfirmation: Bool = false
     
-    @Published var error: Error? = nil
+    @Published var error: Error? = nil {
+        didSet {
+            if let error, isPermissionDeniedError(error) {
+                self.error = nil
+            }
+        }
+    }
     
     var fileService: FileServiceProtocol?
     private var runtime: ConnectionRuntime?
     private var root = FileItem("/", path: "/")
     private var subscribedDirectoryPaths: Set<String> = []
+    private var deniedDirectoryPaths: Set<String> = []
     private var pendingDirectoryReloadTasks: [String: Task<Void, Never>] = [:]
 
     // MARK: -
@@ -152,6 +159,7 @@ final class FilesViewModel: ObservableObject {
             ) {
                 files.append(file)
             }
+            deniedDirectoryPaths.remove(normalizedRemotePath(item.path))
 
             let column = FileColumn(
                 path: item.path,
@@ -163,6 +171,11 @@ final class FilesViewModel: ObservableObject {
             return column
 
         } catch {
+            if isPermissionDeniedError(error) {
+                deniedDirectoryPaths.insert(normalizedRemotePath(item.path))
+                return nil
+            }
+
             print("loadColumn error:", error)
             self.error = error
             return nil
@@ -190,6 +203,7 @@ final class FilesViewModel: ObservableObject {
             ) {
                 files.append(file)
             }
+            deniedDirectoryPaths.remove(normalizedRemotePath(path))
 
             columns[index].items = files
 
@@ -206,6 +220,12 @@ final class FilesViewModel: ObservableObject {
         } catch {
             if isFileNotFoundError(error) {
                 await remoteDirectoryDeleted(path)
+                return
+            }
+            if isPermissionDeniedError(error) {
+                deniedDirectoryPaths.insert(normalizedRemotePath(path))
+                columns[index].items = []
+                columns[index].selection = nil
                 return
             }
 
@@ -240,8 +260,23 @@ final class FilesViewModel: ObservableObject {
             try await fileService.deleteFile(path: path, connection: connection)
             await remoteDirectoryDeleted(path)
         } catch {
+            if isPermissionDeniedError(error) {
+                treeChildrenByPath["/"] = []
+                treeViewRevision &+= 1
+                return
+            }
             self.error = error
         }
+    }
+
+    @MainActor
+    func getFileInfo(path: String) async throws -> FileItem {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else {
+            throw WiredError(withTitle: "File Info Error", message: "Not connected")
+        }
+
+        return try await fileService.getFileInfo(path: path, connection: connection)
     }
 
     @MainActor
@@ -258,6 +293,11 @@ final class FilesViewModel: ObservableObject {
             treeViewRevision &+= 1
             await syncDirectorySubscriptions()
         } catch {
+            if isPermissionDeniedError(error) {
+                treeChildrenByPath["/"] = []
+                treeViewRevision &+= 1
+                return
+            }
             self.error = error
         }
     }
@@ -273,10 +313,17 @@ final class FilesViewModel: ObservableObject {
             for try await file in fileService.listDirectory(path: directoryPath, recursive: false, connection: connection) {
                 items.append(file)
             }
+            deniedDirectoryPaths.remove(normalizedRemotePath(directoryPath))
             treeChildrenByPath[directoryPath] = items
             treeViewRevision &+= 1
             await syncDirectorySubscriptions()
         } catch {
+            if isPermissionDeniedError(error) {
+                deniedDirectoryPaths.insert(normalizedRemotePath(directoryPath))
+                treeChildrenByPath[directoryPath] = []
+                treeViewRevision &+= 1
+                return
+            }
             self.error = error
         }
     }
@@ -392,6 +439,31 @@ final class FilesViewModel: ObservableObject {
 
         try await fileService.setFileType(path: path, type: type, connection: connection)
         await reloadAll()
+    }
+
+    @MainActor
+    func setFilePermissions(path: String, permissions: DropboxPermissions) async throws {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return }
+
+        try await fileService.setFilePermissions(path: path, permissions: permissions, connection: connection)
+        await reloadAll()
+    }
+
+    @MainActor
+    func listUserNames() async throws -> [String] {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return [] }
+
+        return try await fileService.listUserNames(connection: connection)
+    }
+
+    @MainActor
+    func listGroupNames() async throws -> [String] {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return [] }
+
+        return try await fileService.listGroupNames(connection: connection)
     }
 
     @MainActor
@@ -531,6 +603,9 @@ private extension FilesViewModel {
                 try await fileService.subscribeDirectory(path: path, connection: connection)
                 subscribedDirectoryPaths.insert(path)
             } catch {
+                if isPermissionDeniedError(error) {
+                    continue
+                }
                 self.error = error
             }
         }
@@ -544,6 +619,9 @@ private extension FilesViewModel {
                     // Directory already removed (or no longer subscribed) server-side:
                     // treat as successful unsubscribe.
                     subscribedDirectoryPaths.remove(path)
+                    continue
+                }
+                if isPermissionDeniedError(error) {
                     continue
                 }
 
@@ -586,6 +664,11 @@ private extension FilesViewModel {
                 }
                 treeViewRevision &+= 1
                 await syncDirectorySubscriptions()
+                return
+            }
+            if isPermissionDeniedError(error) {
+                treeChildrenByPath[path] = []
+                treeViewRevision &+= 1
                 return
             }
 
@@ -663,6 +746,33 @@ private extension FilesViewModel {
         return false
     }
 
+    func isPermissionDeniedError(_ error: Error) -> Bool {
+        if let errorName = wiredErrorName(error), errorName.contains("permission_denied") {
+            return true
+        }
+
+        if let errorCode = wiredErrorCode(error), errorCode == 57 {
+            return true
+        }
+
+        if let asyncError = error as? AsyncConnectionError,
+           case let .serverError(message) = asyncError {
+            let messageText = (message.string(forField: "wired.error.string") ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return messageText.contains("permission_denied") || messageText.contains("permission denied")
+        }
+
+        if let wiredError = error as? WiredError {
+            let messageText = wiredError.message
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return messageText.contains("permission_denied") || messageText.contains("permission denied")
+        }
+
+        return false
+    }
+
     func wiredErrorName(_ error: Error) -> String? {
         if let asyncError = error as? AsyncConnectionError,
            case let .serverError(message) = asyncError {
@@ -690,6 +800,10 @@ private extension FilesViewModel {
         let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         if trimmed.isEmpty { return "/" }
         return "/" + trimmed
+    }
+
+    func isDeniedPath(_ path: String) -> Bool {
+        deniedDirectoryPaths.contains(normalizedRemotePath(path))
     }
 
     func handleSelection(

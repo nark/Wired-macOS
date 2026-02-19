@@ -42,6 +42,17 @@ public struct FileItem: Identifiable, Hashable {
     var rsrcSize:UInt64 = 0
     var creationDate: Date? = nil
     var modificationDate: Date? = nil
+    var comment: String = ""
+    var owner: String = ""
+    var group: String = ""
+    var ownerRead = false
+    var ownerWrite = false
+    var groupRead = false
+    var groupWrite = false
+    var everyoneRead = false
+    var everyoneWrite = false
+    var readable = false
+    var writable = false
     var uploadDataSize:UInt64 = 0
     var uploadRsrcSize:UInt64 = 0
     var dataTransferred:UInt64 = 0
@@ -79,6 +90,39 @@ public struct FileItem: Identifiable, Hashable {
         }
         if let date = message.date(forField: "wired.file.modification_time") {
             self.modificationDate = date
+        }
+        if let value = message.string(forField: "wired.file.comment") {
+            self.comment = value
+        }
+        if let value = message.string(forField: "wired.file.owner") {
+            self.owner = value
+        }
+        if let value = message.string(forField: "wired.file.group") {
+            self.group = value
+        }
+        if let value = message.bool(forField: "wired.file.owner.read") {
+            self.ownerRead = value
+        }
+        if let value = message.bool(forField: "wired.file.owner.write") {
+            self.ownerWrite = value
+        }
+        if let value = message.bool(forField: "wired.file.group.read") {
+            self.groupRead = value
+        }
+        if let value = message.bool(forField: "wired.file.group.write") {
+            self.groupWrite = value
+        }
+        if let value = message.bool(forField: "wired.file.everyone.read") {
+            self.everyoneRead = value
+        }
+        if let value = message.bool(forField: "wired.file.everyone.write") {
+            self.everyoneWrite = value
+        }
+        if let value = message.bool(forField: "wired.file.readable") {
+            self.readable = value
+        }
+        if let value = message.bool(forField: "wired.file.writable") {
+            self.writable = value
         }
     }
 }

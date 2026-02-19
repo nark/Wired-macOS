@@ -71,6 +71,8 @@ final class ConnectionRuntime: Identifiable {
 
     func connect() {
         lastError = nil
+        privileges = [:]
+        userID = 0
         status = .connecting
     }
 
@@ -82,6 +84,8 @@ final class ConnectionRuntime: Identifiable {
 
     func disconnect(error: Error? = nil) {
         joined = false
+        privileges = [:]
+        userID = 0
         status = .disconnected
         
         if let error {

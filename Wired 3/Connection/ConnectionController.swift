@@ -262,26 +262,24 @@ final class ConnectionController {
             )
             try? await runtime.send(request)
         case "wired.account.privileges":
-            await MainActor.run {
-                runtime.privileges = [:]
-            }
-            
+            var parsedPrivileges: [String: Any] = [:]
+
             for fieldName in spec?.accountPrivileges ?? [] {
                 if let field = spec?.fieldsByName[fieldName] {
                     if field.type == .bool {
                         if let val = message.bool(forField: fieldName) {
-                            await MainActor.run {
-                                runtime.privileges[fieldName] = val
-                            }
+                            parsedPrivileges[fieldName] = val
                         }
                     } else if field.type == .uint32 {
                         if let val = message.uint32(forField: fieldName) {
-                            await MainActor.run {
-                                runtime.privileges[fieldName] = val
-                            }
+                            parsedPrivileges[fieldName] = val
                         }
                     }
                 }
+            }
+
+            await MainActor.run {
+                runtime.privileges = parsedPrivileges
             }
 
 //        case "wired.user.info":

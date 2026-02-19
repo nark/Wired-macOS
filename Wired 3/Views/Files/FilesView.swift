@@ -163,6 +163,13 @@ private func isDownloadableRemoteItem(_ item: FileItem) -> Bool {
     return item.type == .file || item.type == .directory || item.type == .uploads || item.type == .dropbox
 }
 
+private func canGetInfoForRemoteItem(_ item: FileItem) -> Bool {
+    if item.type == .dropbox {
+        return item.readable
+    }
+    return true
+}
+
 #if os(macOS)
 private enum RemoteFolderIconKind: String {
     case directory
@@ -299,14 +306,40 @@ struct FilesView: View {
     @State private var pendingUploadConflicts: [UploadConflict] = []
     @State private var activeUploadConflict: UploadConflict? = nil
     @State private var infoSheetItem: FileItem? = nil
+    @State private var primarySelectionPath: String? = nil
 
     private var selectedItem: FileItem? {
         switch selectedFileViewType {
         case .columns:
-            return filesViewModel.selectedItem
+            guard let primarySelectionPath else { return nil }
+            return itemForPath(primarySelectionPath)
         case .tree:
+            if let primarySelectionPath,
+               let item = itemForPath(primarySelectionPath) {
+                return item
+            }
             return filesViewModel.selectedTreeItem()
         }
+    }
+
+    private func itemForPath(_ path: String) -> FileItem? {
+        if let item = filesViewModel.columns
+            .flatMap(\.items)
+            .first(where: { $0.path == path }) {
+            return item
+        }
+
+        if let item = filesViewModel.visibleTreeNodes()
+            .map(\.item)
+            .first(where: { $0.path == path }) {
+            return item
+        }
+
+        if path == "/" {
+            return FileItem("/", path: "/", type: .directory)
+        }
+
+        return nil
     }
 
     private var selectedDirectoryForUpload: FileItem? {
@@ -314,7 +347,20 @@ struct FilesView: View {
             return override
         }
 
-        guard var selected = selectedItem else { return nil }
+        var selected: FileItem
+        switch selectedFileViewType {
+        case .columns:
+            guard let lastColumn = filesViewModel.columns.last,
+                  let selectedID = lastColumn.selection,
+                  let selectedItem = lastColumn.items.first(where: { $0.id == selectedID }) else {
+                return nil
+            }
+            selected = selectedItem
+        case .tree:
+            guard let selectedItem else { return nil }
+            selected = selectedItem
+        }
+
         if selected.type == .directory || selected.type == .uploads || selected.type == .dropbox {
             return selected
         }
@@ -325,12 +371,179 @@ struct FilesView: View {
     }
 
     private var selectedDownloadableItem: FileItem? {
-        guard let selectedItem, isDownloadableRemoteItem(selectedItem) else { return nil }
+        guard let selectedItem, canDownload(item: selectedItem) else { return nil }
+        return selectedItem
+    }
+
+    private var selectedDeletableItem: FileItem? {
+        guard let selectedItem, canDelete(item: selectedItem) else { return nil }
         return selectedItem
     }
 
     private var canSetFileType: Bool {
         runtime.hasPrivilege("wired.account.file.set_type")
+    }
+
+    private func canWriteDropbox(_ item: FileItem) -> Bool {
+        item.type != .dropbox || item.writable
+    }
+
+    private func canReadDropbox(_ item: FileItem) -> Bool {
+        item.type != .dropbox || item.readable
+    }
+
+    private func canDownload(item: FileItem) -> Bool {
+        runtime.hasPrivilege("wired.account.transfer.download_files")
+        && isDownloadableRemoteItem(item)
+        && canReadDropbox(item)
+    }
+
+    private func canDelete(item: FileItem) -> Bool {
+        guard item.path != "/" else { return false }
+        if item.type == .dropbox {
+            return item.readable && item.writable
+        }
+        return runtime.hasPrivilege("wired.account.file.delete_files")
+    }
+
+    private func canUpload(to directory: FileItem) -> Bool {
+        guard directory.type == .directory || directory.type == .uploads || directory.type == .dropbox else { return false }
+
+        let canUploadFiles = runtime.hasPrivilege("wired.account.transfer.upload_files")
+        let canUploadDirectories = runtime.hasPrivilege("wired.account.transfer.upload_directories")
+        guard canUploadFiles || canUploadDirectories else { return false }
+
+        if directory.type == .dropbox {
+            return directory.writable
+        }
+
+        if directory.type == .directory {
+            return runtime.hasPrivilege("wired.account.transfer.upload_anywhere")
+        }
+
+        return true
+    }
+
+    private func canCreateFolder(in directory: FileItem) -> Bool {
+        guard directory.type == .directory || directory.type == .uploads || directory.type == .dropbox else { return false }
+        if directory.type == .dropbox {
+            return directory.writable
+        }
+        return runtime.hasPrivilege("wired.account.file.create_directories")
+    }
+
+    private func canGetInfo(for item: FileItem) -> Bool {
+        runtime.hasPrivilege("wired.account.file.get_info") && canGetInfoForRemoteItem(item)
+    }
+
+    @ViewBuilder
+    private var treeContent: some View {
+        FilesTreeView(
+            bookmark: bookmark,
+            filesViewModel: filesViewModel,
+            onRequestCreateFolder: { directory in
+                guard canCreateFolder(in: directory) else { return }
+                createFolderTargetOverride = directory
+                filesViewModel.showCreateFolderSheet = true
+            },
+            onPrimarySelectionChange: { path in
+                primarySelectionPath = path
+            },
+            onRequestUploadInDirectory: { directory in
+                guard canUpload(to: directory) else { return }
+                createFolderTargetOverride = directory
+                filesViewModel.showFilesBrowser = true
+            },
+            onRequestDeleteSelection: { items in
+                requestDelete(items)
+            },
+            onRequestDownloadSelection: { items in
+                download(items)
+            },
+            onRequestGetInfo: { item in
+                presentInfo(for: item)
+            },
+            canSetFileType: canSetFileType,
+            canGetInfoForItem: { item in
+                canGetInfo(for: item)
+            },
+            canDownloadForItem: { item in
+                canDownload(item: item)
+            },
+            canDeleteForItem: { item in
+                canDelete(item: item)
+            },
+            canUploadToDirectory: { directory in
+                canUpload(to: directory)
+            },
+            canCreateFolderInDirectory: { directory in
+                canCreateFolder(in: directory)
+            },
+            onUploadURLs: { urls, target in
+                upload(urls: urls, to: target)
+            },
+            onMoveRemoteItem: { sourcePath, destinationDirectory in
+                try await moveRemoteItem(from: sourcePath, to: destinationDirectory)
+            }
+        )
+        .environment(connectionController)
+        .environment(runtime)
+        .environmentObject(transfers)
+    }
+
+    @ViewBuilder
+    private var columnsContent: some View {
+        FilesColumnsView(
+            bookmark: bookmark,
+            filesViewModel: filesViewModel,
+            onRequestCreateFolder: { directory in
+                guard canCreateFolder(in: directory) else { return }
+                createFolderTargetOverride = directory
+                filesViewModel.showCreateFolderSheet = true
+            },
+            onPrimarySelectionChange: { path in
+                primarySelectionPath = path
+            },
+            onRequestUploadInDirectory: { directory in
+                guard canUpload(to: directory) else { return }
+                createFolderTargetOverride = directory
+                filesViewModel.showFilesBrowser = true
+            },
+            onRequestDeleteSelection: { items in
+                requestDelete(items)
+            },
+            onRequestDownloadSelection: { items in
+                download(items)
+            },
+            onRequestGetInfo: { item in
+                presentInfo(for: item)
+            },
+            canSetFileType: canSetFileType,
+            canGetInfoForItem: { item in
+                canGetInfo(for: item)
+            },
+            canDownloadForItem: { item in
+                canDownload(item: item)
+            },
+            canDeleteForItem: { item in
+                canDelete(item: item)
+            },
+            canUploadToDirectory: { directory in
+                canUpload(to: directory)
+            },
+            canCreateFolderInDirectory: { directory in
+                canCreateFolder(in: directory)
+            },
+            onUploadURLs: { urls, target in
+                upload(urls: urls, to: target)
+            },
+            onMoveRemoteItem: { sourcePath, destinationDirectory in
+                try await moveRemoteItem(from: sourcePath, to: destinationDirectory)
+            }
+        )
+        .environment(connectionController)
+        .environment(runtime)
+        .environmentObject(transfers)
     }
 
     var body: some View {
@@ -341,70 +554,10 @@ struct FilesView: View {
 
             switch selectedFileViewType {
             case .tree:
-                FilesTreeView(
-                    bookmark: bookmark,
-                    filesViewModel: filesViewModel,
-                    onRequestCreateFolder: { directory in
-                        createFolderTargetOverride = directory
-                        filesViewModel.showCreateFolderSheet = true
-                    },
-                    onRequestUploadInDirectory: { directory in
-                        createFolderTargetOverride = directory
-                        filesViewModel.showFilesBrowser = true
-                    },
-                    onRequestDeleteSelection: { items in
-                        requestDelete(items)
-                    },
-                    onRequestDownloadSelection: { items in
-                        download(items)
-                    },
-                    onRequestGetInfo: { item in
-                        presentInfo(for: item)
-                    },
-                    canSetFileType: canSetFileType,
-                    onUploadURLs: { urls, target in
-                        upload(urls: urls, to: target)
-                    },
-                    onMoveRemoteItem: { sourcePath, destinationDirectory in
-                        try await moveRemoteItem(from: sourcePath, to: destinationDirectory)
-                    }
-                )
-                .environment(connectionController)
-                .environment(runtime)
-                .environmentObject(transfers)
+                treeContent
 
             case .columns:
-                FilesColumnsView(
-                    bookmark: bookmark,
-                    filesViewModel: filesViewModel,
-                    onRequestCreateFolder: { directory in
-                        createFolderTargetOverride = directory
-                        filesViewModel.showCreateFolderSheet = true
-                    },
-                    onRequestUploadInDirectory: { directory in
-                        createFolderTargetOverride = directory
-                        filesViewModel.showFilesBrowser = true
-                    },
-                    onRequestDeleteSelection: { items in
-                        requestDelete(items)
-                    },
-                    onRequestDownloadSelection: { items in
-                        download(items)
-                    },
-                    onRequestGetInfo: { item in
-                        presentInfo(for: item)
-                    },
-                    canSetFileType: canSetFileType,
-                    onUploadURLs: { urls, target in
-                        upload(urls: urls, to: target)
-                    },
-                    onMoveRemoteItem: { sourcePath, destinationDirectory in
-                        try await moveRemoteItem(from: sourcePath, to: destinationDirectory)
-                    }
-                )
-                .environment(connectionController)
-                .environment(runtime)
-                .environmentObject(transfers)
+                columnsContent
             }
         }
         .fileImporter(
@@ -482,6 +635,7 @@ struct FilesView: View {
         }
         .errorAlert(error: $filesViewModel.error)
         .onChange(of: selectedFileViewType) { _, newValue in
+            primarySelectionPath = nil
             Task {
                 if newValue == .tree {
                     await filesViewModel.loadTreeRoot()
@@ -555,22 +709,23 @@ struct FilesView: View {
             } label: {
                 Image(systemName: "arrow.up")
             }
-            .disabled(selectedDirectoryForUpload == nil)
+            .disabled(selectedDirectoryForUpload == nil || !(selectedDirectoryForUpload.map(canUpload(to:)) ?? false))
 
             Button {
+                guard let target = selectedDirectoryForUpload, canCreateFolder(in: target) else { return }
                 createFolderTargetOverride = selectedDirectoryForUpload
                 filesViewModel.showCreateFolderSheet = true
             } label: {
                 Image(systemName: "folder.badge.plus")
             }
-            .disabled(selectedDirectoryForUpload == nil)
+            .disabled(selectedDirectoryForUpload == nil || !(selectedDirectoryForUpload.map(canCreateFolder(in:)) ?? false))
 
             Button {
                 filesViewModel.showDeleteConfirmation = true
             } label: {
                 Image(systemName: "trash")
             }
-            .disabled(selectedItem == nil || selectedItem?.path == "/")
+            .disabled(selectedDeletableItem == nil)
 
             Spacer()
         }
@@ -578,6 +733,7 @@ struct FilesView: View {
     }
 
     private func upload(urls: [URL], to targetDirectory: FileItem) {
+        guard canUpload(to: targetDirectory) else { return }
         for url in urls {
             let accessStarted = url.startAccessingSecurityScopedResource()
             let localPath = url.path
@@ -607,7 +763,7 @@ struct FilesView: View {
     }
 
     private func requestDelete(_ items: [FileItem]) {
-        let unique = uniqueItems(items).filter { $0.path != "/" }
+        let unique = uniqueItems(items).filter { canDelete(item: $0) }
         guard !unique.isEmpty else { return }
         pendingDeleteItems = unique
         showDeleteSelectionConfirmation = true
@@ -615,7 +771,7 @@ struct FilesView: View {
 
     private func download(_ items: [FileItem]) {
         let unique = uniqueItems(items)
-        pendingDownloadItems = unique.filter { isDownloadableRemoteItem($0) }
+        pendingDownloadItems = unique.filter { canDownload(item: $0) }
         processPendingDownloads()
     }
 
@@ -705,9 +861,7 @@ struct FilesView: View {
     }
 
     private func presentInfo(for item: FileItem) {
-        guard item.type == .directory || item.type == .uploads || item.type == .dropbox else {
-            return
-        }
+        guard canGetInfo(for: item) else { return }
         infoSheetItem = item
     }
 }
@@ -718,11 +872,17 @@ struct FilesTreeView: View {
     @EnvironmentObject private var transfers: TransferManager
 
     let onRequestCreateFolder: (FileItem) -> Void
+    let onPrimarySelectionChange: (String?) -> Void
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: ([FileItem]) -> Void
     let onRequestDownloadSelection: ([FileItem]) -> Void
     let onRequestGetInfo: (FileItem) -> Void
     let canSetFileType: Bool
+    let canGetInfoForItem: (FileItem) -> Bool
+    let canDownloadForItem: (FileItem) -> Bool
+    let canDeleteForItem: (FileItem) -> Bool
+    let canUploadToDirectory: (FileItem) -> Bool
+    let canCreateFolderInDirectory: (FileItem) -> Bool
     let onUploadURLs: ([URL], FileItem) -> Void
     let onMoveRemoteItem: (_ sourcePath: String, _ destinationDirectory: FileItem) async throws -> Void
     @State private var finderDropTargetPath: String?
@@ -747,45 +907,56 @@ struct FilesTreeView: View {
                 let orderedNodes = filesViewModel.visibleTreeNodes()
                 let orderedPaths = orderedNodes.map { $0.item.path }
                 let primaryPath = orderedPaths.first(where: { newSelection.contains($0) })
+                onPrimarySelectionChange(primaryPath)
 
                 if let primaryPath {
-                    DispatchQueue.main.async {
-                        filesViewModel.treeSelectionPath = primaryPath
-                    }
+                    filesViewModel.treeSelectionPath = primaryPath
                 } else {
-                    DispatchQueue.main.async {
-                        filesViewModel.treeSelectionPath = nil
-                    }
+                    filesViewModel.treeSelectionPath = nil
                 }
             },
             onSetDirectoryExpanded: { path, expanded in
                 Task { await filesViewModel.setTreeExpansion(for: path, expanded: expanded) }
             },
             onDownloadSingleFile: { item in
+                guard canDownloadForItem(item) else { return }
                 onRequestDownloadSelection([item])
             },
             onRequestCreateFolder: {
-                onRequestCreateFolder(contextMenuTargetDirectory())
+                let target = contextMenuTargetDirectory()
+                guard canCreateFolderInDirectory(target) else { return }
+                onRequestCreateFolder(target)
             },
             onRequestUploadInDirectory: { directory in
+                guard canUploadToDirectory(directory) else { return }
                 onRequestUploadInDirectory(directory)
             },
             onRequestDeleteSelection: {
                 let selected = selectedItems(from: selectedPaths)
                 guard !selected.isEmpty else { return }
-                onRequestDeleteSelection(selected)
+                let deletable = selected.filter { canDeleteForItem($0) }
+                guard !deletable.isEmpty else { return }
+                onRequestDeleteSelection(deletable)
             },
             onRequestDownloadSelection: {
                 let selected = selectedItems(from: selectedPaths)
                 guard !selected.isEmpty else { return }
-                onRequestDownloadSelection(selected.filter { isDownloadableRemoteItem($0) })
+                let downloadable = selected.filter { canDownloadForItem($0) }
+                guard !downloadable.isEmpty else { return }
+                onRequestDownloadSelection(downloadable)
             },
             onRequestGetInfo: {
                 let selected = selectedItems(from: selectedPaths)
                 guard selected.count == 1, let item = selected.first else { return }
+                guard canGetInfoForItem(item) else { return }
                 onRequestGetInfo(item)
             },
-            canSetFileType: canSetFileType
+            canSetFileType: canSetFileType,
+            canGetInfoForItem: canGetInfoForItem,
+            canDownloadForItem: canDownloadForItem,
+            canDeleteForItem: canDeleteForItem,
+            canUploadToDirectory: canUploadToDirectory,
+            canCreateFolderInDirectory: canCreateFolderInDirectory
         )
         .background(Color.white)
         .onAppear {
@@ -875,6 +1046,11 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
     let onRequestDownloadSelection: () -> Void
     let onRequestGetInfo: () -> Void
     let canSetFileType: Bool
+    let canGetInfoForItem: (FileItem) -> Bool
+    let canDownloadForItem: (FileItem) -> Bool
+    let canDeleteForItem: (FileItem) -> Bool
+    let canUploadToDirectory: (FileItem) -> Bool
+    let canCreateFolderInDirectory: (FileItem) -> Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -1202,10 +1378,8 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
                       let node = outlineView.item(atRow: idx) as? OutlineNode else { continue }
                 paths.insert(node.item.path)
             }
-            DispatchQueue.main.async {
-                self.parent.selectedPaths = paths
-                self.parent.onSelectionChange(paths)
-            }
+            parent.selectedPaths = paths
+            parent.onSelectionChange(paths)
         }
 
         func outlineViewItemDidExpand(_ notification: Notification) {
@@ -1240,7 +1414,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             guard row >= 0, let node = outlineView.item(atRow: row) as? OutlineNode else { return }
             let item = node.item
             let isDir = isDirectory(item)
-            if !isDir {
+            if !isDir, parent.canDownloadForItem(item) {
                 parent.onDownloadSingleFile(item)
             }
         }
@@ -1321,6 +1495,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
 
         func makeContextMenu() -> NSMenu {
             let menu = NSMenu()
+            menu.autoenablesItems = false
             menu.addItem(withTitle: "Download", action: #selector(contextDownload), keyEquivalent: "")
             menu.addItem(withTitle: "Delete", action: #selector(contextDelete), keyEquivalent: "")
             menu.addItem(withTitle: "Upload…", action: #selector(contextUpload), keyEquivalent: "")
@@ -1364,7 +1539,6 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
                 contextDirectoryTarget = FileItem("/", path: "/", type: .directory)
             }
 
-            let hasSelectionNow = !outlineView.selectedRowIndexes.isEmpty
             let selectedRows = outlineView.selectedRowIndexes.compactMap { row -> Int? in
                 row >= 0 ? row : nil
             }
@@ -1372,27 +1546,46 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
                 (outlineView.item(atRow: row) as? OutlineNode)?.item
             }
             if let downloadItem = menu.item(withTitle: "Download") {
-                downloadItem.isEnabled = hasSelectionNow
+                downloadItem.isEnabled = selectedItems.contains(where: { parent.canDownloadForItem($0) })
             }
             if let deleteItem = menu.item(withTitle: "Delete") {
-                deleteItem.isEnabled = hasSelectionNow
+                deleteItem.isEnabled = selectedItems.contains(where: { parent.canDeleteForItem($0) })
             }
             if let uploadItem = menu.item(withTitle: "Upload…") {
-                uploadItem.isEnabled = true
+                uploadItem.isEnabled = parent.canUploadToDirectory(contextDirectoryTarget)
             }
             if let infoItem = menu.item(withTitle: "Get Info") {
-                infoItem.isEnabled = parent.canSetFileType && selectedItems.count == 1 && isDirectory(selectedItems[0])
+                let canGetSelectedInfo: Bool = {
+                    guard selectedItems.count == 1, let item = selectedItems.first else { return false }
+                    return parent.canGetInfoForItem(item)
+                }()
+                infoItem.isEnabled = canGetSelectedInfo
             }
             if let newFolderItem = menu.item(withTitle: "New Folder") {
-                newFolderItem.isEnabled = true
+                newFolderItem.isEnabled = parent.canCreateFolderInDirectory(contextDirectoryTarget)
             }
         }
 
         @objc private func contextDownload() { parent.onRequestDownloadSelection() }
         @objc private func contextDelete() { parent.onRequestDeleteSelection() }
-        @objc private func contextUpload() { parent.onRequestUploadInDirectory(contextDirectoryTarget) }
-        @objc private func contextGetInfo() { parent.onRequestGetInfo() }
-        @objc private func contextNewFolder() { parent.onRequestCreateFolder() }
+        @objc private func contextUpload() {
+            guard parent.canUploadToDirectory(contextDirectoryTarget) else { return }
+            parent.onRequestUploadInDirectory(contextDirectoryTarget)
+        }
+        @objc private func contextGetInfo() {
+            guard let outlineView else { return }
+            let selectedRows = outlineView.selectedRowIndexes.compactMap { row -> Int? in row >= 0 ? row : nil }
+            let selectedItems = selectedRows.compactMap { row -> FileItem? in
+                (outlineView.item(atRow: row) as? OutlineNode)?.item
+            }
+            guard selectedItems.count == 1, let item = selectedItems.first else { return }
+            guard parent.canGetInfoForItem(item) else { return }
+            parent.onRequestGetInfo()
+        }
+        @objc private func contextNewFolder() {
+            guard parent.canCreateFolderInDirectory(contextDirectoryTarget) else { return }
+            parent.onRequestCreateFolder()
+        }
     }
 }
 
@@ -1600,11 +1793,17 @@ struct FilesColumnsView: View {
     @EnvironmentObject private var transfers: TransferManager
 
     let onRequestCreateFolder: (FileItem) -> Void
+    let onPrimarySelectionChange: (String?) -> Void
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: ([FileItem]) -> Void
     let onRequestDownloadSelection: ([FileItem]) -> Void
     let onRequestGetInfo: (FileItem) -> Void
     let canSetFileType: Bool
+    let canGetInfoForItem: (FileItem) -> Bool
+    let canDownloadForItem: (FileItem) -> Bool
+    let canDeleteForItem: (FileItem) -> Bool
+    let canUploadToDirectory: (FileItem) -> Bool
+    let canCreateFolderInDirectory: (FileItem) -> Bool
     let onUploadURLs: ([URL], FileItem) -> Void
     let onMoveRemoteItem: (_ sourcePath: String, _ destinationDirectory: FileItem) async throws -> Void
 
@@ -1661,21 +1860,20 @@ struct FilesColumnsView: View {
             selectedPaths: selectionPaths(for: column),
             onSelectionChange: { paths, primaryPath in
                 multiSelectionPathsByColumn[column.id] = paths
+                onPrimarySelectionChange(primaryPath)
                 guard let primaryPath,
                       let primaryItem = column.items.first(where: { $0.path == primaryPath }) else { return }
 
-                DispatchQueue.main.async {
-                    filesViewModel.preselectColumnItem(id: primaryItem.id, at: index)
-                    if paths.count == 1 {
-                        filesViewModel.selectColumnItem(
-                            id: primaryItem.id,
-                            at: index,
-                            onColumnAppended: onAppend
-                        )
-                    }
+                if paths.count == 1 {
+                    filesViewModel.selectColumnItem(
+                        id: primaryItem.id,
+                        at: index,
+                        onColumnAppended: onAppend
+                    )
                 }
             },
             onDownloadSingleFile: { item in
+                guard canDownloadForItem(item) else { return }
                 onRequestDownloadSelection([item])
             },
             onUploadURLs: onUploadURLs,
@@ -1685,7 +1883,12 @@ struct FilesColumnsView: View {
             onRequestDeleteSelection: onRequestDeleteSelection,
             onRequestDownloadSelection: onRequestDownloadSelection,
             onRequestGetInfo: onRequestGetInfo,
-            canSetFileType: canSetFileType
+            canSetFileType: canSetFileType,
+            canGetInfoForItem: canGetInfoForItem,
+            canDownloadForItem: canDownloadForItem,
+            canDeleteForItem: canDeleteForItem,
+            canUploadToDirectory: canUploadToDirectory,
+            canCreateFolderInDirectory: canCreateFolderInDirectory
         )
         .frame(width: width(for: column))
         .background(Color.clear)
@@ -1750,6 +1953,11 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
     let onRequestDownloadSelection: ([FileItem]) -> Void
     let onRequestGetInfo: (FileItem) -> Void
     let canSetFileType: Bool
+    let canGetInfoForItem: (FileItem) -> Bool
+    let canDownloadForItem: (FileItem) -> Bool
+    let canDeleteForItem: (FileItem) -> Bool
+    let canUploadToDirectory: (FileItem) -> Bool
+    let canCreateFolderInDirectory: (FileItem) -> Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -1907,9 +2115,7 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
                 return nil
             }()
 
-            DispatchQueue.main.async {
-                self.parent.onSelectionChange(paths, primary)
-            }
+            parent.onSelectionChange(paths, primary)
         }
 
         @objc
@@ -1918,7 +2124,7 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
             let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
             guard row >= 0 && row < items.count else { return }
             let item = items[row]
-            if !isDirectory(item) {
+            if !isDirectory(item), parent.canDownloadForItem(item) {
                 parent.onDownloadSingleFile(item)
             }
         }
@@ -2041,6 +2247,7 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
 
         func makeContextMenu() -> NSMenu {
             let menu = NSMenu()
+            menu.autoenablesItems = false
             menu.addItem(withTitle: "Download", action: #selector(contextDownload), keyEquivalent: "")
             menu.addItem(withTitle: "Delete", action: #selector(contextDelete), keyEquivalent: "")
             menu.addItem(withTitle: "Upload…", action: #selector(contextUpload), keyEquivalent: "")
@@ -2076,11 +2283,15 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
             }
 
             let selected = selectedItems()
-            menu.item(withTitle: "Download")?.isEnabled = selected.contains(where: { isDownloadableRemoteItem($0) })
-            menu.item(withTitle: "Delete")?.isEnabled = selected.contains(where: { $0.path != "/" })
-            menu.item(withTitle: "Upload…")?.isEnabled = true
-            menu.item(withTitle: "Get Info")?.isEnabled = parent.canSetFileType && selected.count == 1 && selected.contains(where: { isDirectory($0) })
-            menu.item(withTitle: "New Folder")?.isEnabled = true
+            menu.item(withTitle: "Download")?.isEnabled = selected.contains(where: { parent.canDownloadForItem($0) })
+            menu.item(withTitle: "Delete")?.isEnabled = selected.contains(where: { parent.canDeleteForItem($0) })
+            menu.item(withTitle: "Upload…")?.isEnabled = parent.canUploadToDirectory(contextDirectoryTarget)
+            let canGetSelectedInfo: Bool = {
+                guard selected.count == 1, let item = selected.first else { return false }
+                return parent.canGetInfoForItem(item)
+            }()
+            menu.item(withTitle: "Get Info")?.isEnabled = canGetSelectedInfo
+            menu.item(withTitle: "New Folder")?.isEnabled = parent.canCreateFolderInDirectory(contextDirectoryTarget)
         }
 
         private func selectedItems() -> [FileItem] {
@@ -2092,27 +2303,30 @@ private struct AppKitFileColumnTableView: NSViewRepresentable {
         }
 
         @objc private func contextDownload() {
-            let selected = selectedItems().filter { isDownloadableRemoteItem($0) }
+            let selected = selectedItems().filter { parent.canDownloadForItem($0) }
             guard !selected.isEmpty else { return }
             parent.onRequestDownloadSelection(selected)
         }
 
         @objc private func contextDelete() {
-            let selected = selectedItems().filter { $0.path != "/" }
+            let selected = selectedItems().filter { parent.canDeleteForItem($0) }
             guard !selected.isEmpty else { return }
             parent.onRequestDeleteSelection(selected)
         }
 
         @objc private func contextUpload() {
+            guard parent.canUploadToDirectory(contextDirectoryTarget) else { return }
             parent.onRequestUploadInDirectory(contextDirectoryTarget)
         }
 
         @objc private func contextGetInfo() {
             guard let item = selectedItems().first else { return }
+            guard parent.canGetInfoForItem(item) else { return }
             parent.onRequestGetInfo(item)
         }
 
         @objc private func contextNewFolder() {
+            guard parent.canCreateFolderInDirectory(contextDirectoryTarget) else { return }
             parent.onRequestCreateFolder(contextDirectoryTarget)
         }
     }

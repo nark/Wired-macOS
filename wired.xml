@@ -3954,7 +3954,8 @@
 
         <p7:transaction message="wired.file.get_info" originator="client" version="2.0">
             <p7:documentation>
-                [message:wired.error] should be replied with [enum:wired.error.permission_denied]
+                [message:wired.error] should be replied with [enum
+                :wired.error.permission_denied]
                 if [field:wired.account.file.get_info] is not set for the user's account, or if the user
                 does not have applicable permissions for the directory.
                 
