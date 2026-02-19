@@ -383,7 +383,7 @@ final class AccountsSettingsViewModel: ObservableObject {
             switch field.type {
             case .bool:
                 message.addParameter(field: privilege, value: editor.privilegesBool[privilege] ?? false)
-            case .uint32:
+            case .enum32, .uint32:
                 message.addParameter(field: privilege, value: editor.privilegesUInt32[privilege] ?? 0)
             default:
                 break
@@ -412,7 +412,7 @@ final class AccountsSettingsViewModel: ObservableObject {
             switch field.type {
             case .bool:
                 message.addParameter(field: privilege, value: editor.privilegesBool[privilege] ?? false)
-            case .uint32:
+            case .enum32, .uint32:
                 message.addParameter(field: privilege, value: editor.privilegesUInt32[privilege] ?? 0)
             default:
                 break
@@ -469,7 +469,7 @@ final class AccountsSettingsViewModel: ObservableObject {
             switch field.type {
             case .bool:
                 privilegesBool[privilege] = message.bool(forField: privilege) ?? false
-            case .uint32:
+            case .enum32, .uint32:
                 privilegesUInt32[privilege] = message.uint32(forField: privilege) ?? 0
             default:
                 break
@@ -507,7 +507,7 @@ final class AccountsSettingsViewModel: ObservableObject {
             switch field.type {
             case .bool:
                 privilegesBool[privilege] = message.bool(forField: privilege) ?? false
-            case .uint32:
+            case .enum32, .uint32:
                 privilegesUInt32[privilege] = message.uint32(forField: privilege) ?? 0
             default:
                 break
@@ -825,7 +825,8 @@ private struct AccountPermissionsForm: View {
 
     var uint32Privileges: [String] {
         (spec?.accountPrivileges ?? []).filter {
-            spec?.fieldsByName[$0]?.type == .uint32
+            let type = spec?.fieldsByName[$0]?.type
+            return type == .enum32 || type == .uint32
         }
     }
 

@@ -123,7 +123,7 @@ struct MainView: View {
 
                     Spacer()
                 }
-                .padding(8)
+                .padding(9)
             }
 #if os(macOS)
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)

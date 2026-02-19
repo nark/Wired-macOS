@@ -506,7 +506,7 @@ final class ConnectionController {
                         if let val = message.bool(forField: fieldName) {
                             parsedPrivileges[fieldName] = val
                         }
-                    } else if field.type == .uint32 {
+                    } else if field.type == .enum32 || field.type == .uint32 {
                         if let val = message.uint32(forField: fieldName) {
                             parsedPrivileges[fieldName] = val
                         }
@@ -694,6 +694,9 @@ final class ConnectionController {
                         user.status = message.string(forField: "wired.user.status")
                         user.icon = message.data(forField: "wired.user.icon") ?? user.icon
                         user.idle = message.bool(forField: "wired.user.idle") ?? user.idle
+                        user.color = message.enumeration(forField: "wired.account.color")
+                            ?? message.uint32(forField: "wired.account.color")
+                            ?? user.color
                         runtime.refreshPrivateChatName(chat)
                     }
                 }
@@ -788,13 +791,19 @@ final class ConnectionController {
             return nil
         }
         
-        return .init(
+        let user = User(
             id: id,
             nick: nick,
             status: message.string(forField: "wired.user.status"),
             icon: icon,
             idle: idle,
         )
+
+        user.color = message.enumeration(forField: "wired.account.color")
+            ?? message.uint32(forField: "wired.account.color")
+            ?? 0
+
+        return user
     }
 
     @MainActor public func updateUserInfo(from message: P7Message, in runtime: ConnectionRuntime) async {
