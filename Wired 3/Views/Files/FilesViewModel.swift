@@ -271,6 +271,37 @@ final class FilesViewModel: ObservableObject {
     }
 
     @MainActor
+    func createDirectory(
+        name: String,
+        in parentDirectory: FileItem,
+        type: FileType
+    ) async -> Bool {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return false }
+
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else {
+            return false
+        }
+
+        let parentPath = normalizedRemotePath(parentDirectory.path)
+        let fullPath = (parentPath as NSString).appendingPathComponent(trimmedName)
+
+        do {
+            try await fileService.createDirectory(path: fullPath, type: type, connection: connection)
+            await reloadVisibleDirectory(parentPath)
+            await syncDirectorySubscriptions()
+            return true
+        } catch {
+            if isPermissionDeniedError(error) {
+                deniedDirectoryPaths.insert(parentPath)
+            }
+            self.error = error
+            return false
+        }
+    }
+
+    @MainActor
     func getFileInfo(path: String) async throws -> FileItem {
         guard let connection = runtime?.connection as? AsyncConnection,
               let fileService else {

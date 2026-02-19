@@ -32,6 +32,12 @@ protocol FileServiceProtocol {
         connection: AsyncConnection
     ) async throws
 
+    func createDirectory(
+        path: String,
+        type: FileType,
+        connection: AsyncConnection
+    ) async throws
+
     func moveFile(
         from sourcePath: String,
         to destinationPath: String,
@@ -114,6 +120,26 @@ final class FileService: FileServiceProtocol {
         
         let response = try await connection.sendAsync(message)
            
+        if response?.name == "wired.error" {
+            throw WiredError(message: response!)
+        }
+    }
+
+    func createDirectory(
+        path: String,
+        type: FileType,
+        connection: AsyncConnection
+    ) async throws {
+        let message = P7Message(
+            withName: "wired.file.create_directory",
+            spec: spec!
+        )
+
+        message.addParameter(field: "wired.file.path", value: path)
+        message.addParameter(field: "wired.file.type", value: type.rawValue)
+
+        let response = try await connection.sendAsync(message)
+
         if response?.name == "wired.error" {
             throw WiredError(message: response!)
         }

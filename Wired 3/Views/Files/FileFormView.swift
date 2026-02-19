@@ -12,12 +12,12 @@ import WiredSwift
 struct FileFormView: View {
     @Environment(\.dismiss) var dismiss
     
-    @Environment(ConnectionController.self) private var connectionController
     @Environment(ConnectionRuntime.self) private var runtime
     @ObservedObject var filesViewModel: FilesViewModel
     
     @State private var fileName = ""
     @State private var fileType: UInt32 = FileType.directory.rawValue
+    @State private var isSaving = false
     
     var parentDirectory: FileItem
     var file: FileItem?
@@ -25,16 +25,19 @@ struct FileFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Type", selection: $fileType) {
-                    ForEach([
-                        FileType.directory,
-                        FileType.uploads,
-                        FileType.dropbox
-                    ], id: \.rawValue) { c in
-                        Text(c.description).tag(c.rawValue)
+                TextField("Name", text: $fileName)
+                
+                if runtime.hasPrivilege("wired.account.file.set_type") {
+                    Picker("Type", selection: $fileType) {
+                        ForEach([
+                            FileType.directory,
+                            FileType.uploads,
+                            FileType.dropbox
+                        ], id: \.rawValue) { c in
+                            Text(c.description).tag(c.rawValue)
+                        }
                     }
                 }
-                TextField("Name", text: $fileName)
             }
             .navigationTitle("Create Directory")
             .formStyle(.grouped)
@@ -51,6 +54,7 @@ struct FileFormView: View {
                             await save()
                         }
                     }
+                    .disabled(fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
                 }
             }
         }
@@ -62,22 +66,21 @@ struct FileFormView: View {
     }
     
     func save() async {
-        let message = P7Message(withName: "wired.file.create_directory", spec: spec!)
-        let path = parentDirectory.path + "/" + fileName
-        
-        message.addParameter(field: "wired.file.path", value: path)
-        message.addParameter(field: "wired.file.type", value: fileType)
-        
-        do {
-            let response = try await runtime.send(message)
-            
+        isSaving = true
+        defer { isSaving = false }
+
+        let selectedType = FileType(rawValue: fileType) ?? .directory
+        let effectiveType: FileType = runtime.hasPrivilege("wired.account.file.set_type")
+            ? selectedType
+            : .directory
+
+        let created = await filesViewModel.createDirectory(
+            name: fileName,
+            in: parentDirectory,
+            type: effectiveType
+        )
+        if created {
             dismiss()
-            
-            if response?.name == "wired.error" {
-                //throw WiredError(message: response!)
-            }
-        } catch {
-            
         }
     }
 }
