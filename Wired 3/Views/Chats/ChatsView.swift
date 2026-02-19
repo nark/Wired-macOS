@@ -53,6 +53,12 @@ struct ChatsView: View {
                             }
                         }
                     }
+                    .onAppear {
+                        ensureDefaultSelectedChat()
+                    }
+                    .onChange(of: runtime.chats.count) { _, _ in
+                        ensureDefaultSelectedChat()
+                    }
                     .listStyle(.plain)
                     
                     Divider()
@@ -133,7 +139,31 @@ struct ChatsView: View {
                 }
             }
             .listStyle(.plain)
+            .onAppear {
+                ensureDefaultSelectedChat()
+            }
+            .onChange(of: runtime.chats.count) { _, _ in
+                ensureDefaultSelectedChat()
+            }
         }
 #endif
+    }
+
+    private func ensureDefaultSelectedChat() {
+        if let selected = runtime.selectedChatID,
+           runtime.chats.contains(where: { $0.id == selected }) {
+            return
+        }
+
+        if let publicMain = runtime.chats.first(where: { $0.id == 1 }) {
+            runtime.selectedChatID = publicMain.id
+            runtime.resetUnreads(publicMain)
+            return
+        }
+
+        if let firstPublic = runtime.chats.first {
+            runtime.selectedChatID = firstPublic.id
+            runtime.resetUnreads(firstPublic)
+        }
     }
 }
