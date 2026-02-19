@@ -307,6 +307,7 @@ struct FilesView: View {
     @State private var activeUploadConflict: UploadConflict? = nil
     @State private var infoSheetItem: FileItem? = nil
     @State private var primarySelectionPath: String? = nil
+    @State private var selectedItemsForToolbar: [FileItem] = []
     @State private var backDirectoryHistory: [String] = []
     @State private var forwardDirectoryHistory: [String] = []
     @State private var currentDirectoryPath: String = "/"
@@ -393,6 +394,11 @@ struct FilesView: View {
         return selectedItem
     }
 
+    private var selectedDeletableItems: [FileItem] {
+        let source = selectedItemsForToolbar.isEmpty ? [selectedItem].compactMap { $0 } : selectedItemsForToolbar
+        return uniqueItems(source).filter { canDelete(item: $0) }
+    }
+
     private var canSetFileType: Bool {
         runtime.hasPrivilege("wired.account.file.set_type")
     }
@@ -463,6 +469,9 @@ struct FilesView: View {
                 primarySelectionPath = path
                 registerNavigation(fromPrimarySelectionPath: path)
             },
+            onSelectionItemsChange: { items in
+                selectedItemsForToolbar = items
+            },
             onOpenDirectory: { directory in
                 Task { @MainActor in
                     guard await filesViewModel.setTreeRoot(directory.path) else { return }
@@ -525,6 +534,9 @@ struct FilesView: View {
             onPrimarySelectionChange: { path in
                 primarySelectionPath = path
                 registerNavigation(fromPrimarySelectionPath: path)
+            },
+            onSelectionItemsChange: { items in
+                selectedItemsForToolbar = items
             },
             onRequestUploadInDirectory: { directory in
                 guard canUpload(to: directory) else { return }
@@ -658,6 +670,7 @@ struct FilesView: View {
         .errorAlert(error: $filesViewModel.error)
         .onChange(of: selectedFileViewType) { _, newValue in
             primarySelectionPath = nil
+            selectedItemsForToolbar.removeAll()
             Task {
                 if newValue == .tree {
                     await filesViewModel.loadTreeRoot()
@@ -704,6 +717,7 @@ struct FilesView: View {
                 Image(systemName: "list.bullet.indent").tag(FileViewType.tree)
                 Image(systemName: "rectangle.split.3x1").tag(FileViewType.columns)
             }
+            .help("Display Mode")
             .pickerStyle(.segmented)
             .frame(width: 80)
 
@@ -712,6 +726,7 @@ struct FilesView: View {
             } label: {
                 Image(systemName: "chevron.left")
             }
+            .help("Navigate Backwark")
             .disabled(!canGoBack)
 
             Button {
@@ -719,6 +734,7 @@ struct FilesView: View {
             } label: {
                 Image(systemName: "chevron.right")
             }
+            .help("Navigate Forward")
             .disabled(!canGoForward)
 
             Button {
@@ -733,7 +749,8 @@ struct FilesView: View {
             } label: {
                 Image(systemName: "arrow.counterclockwise")
             }
-
+            .help("Reload Files")
+            
             Button {
                 if let selectedFile = selectedDownloadableItem {
                     download([selectedFile])
@@ -741,6 +758,7 @@ struct FilesView: View {
             } label: {
                 Image(systemName: "arrow.down")
             }
+            .help("Download File(s)")
             .disabled(selectedDownloadableItem == nil)
 
             Button {
@@ -748,6 +766,7 @@ struct FilesView: View {
             } label: {
                 Image(systemName: "arrow.up")
             }
+            .help("Upload File(s)")
             .disabled(selectedDirectoryForUpload == nil || !(selectedDirectoryForUpload.map(canUpload(to:)) ?? false))
 
             Button {
@@ -757,14 +776,16 @@ struct FilesView: View {
             } label: {
                 Image(systemName: "folder.badge.plus")
             }
+            .help("Create Folder")
             .disabled(selectedDirectoryForUpload == nil || !(selectedDirectoryForUpload.map(canCreateFolder(in:)) ?? false))
 
             Button {
-                filesViewModel.showDeleteConfirmation = true
+                requestDelete(selectedDeletableItems)
             } label: {
                 Image(systemName: "trash")
             }
-            .disabled(selectedDeletableItem == nil)
+            .help("Delete File(s)")
+            .disabled(selectedDeletableItems.isEmpty)
 
             Spacer()
         }
@@ -990,6 +1011,7 @@ struct FilesTreeView: View {
 
     let onRequestCreateFolder: (FileItem) -> Void
     let onPrimarySelectionChange: (String?) -> Void
+    let onSelectionItemsChange: ([FileItem]) -> Void
     let onOpenDirectory: (FileItem) -> Void
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: ([FileItem]) -> Void
@@ -1027,6 +1049,7 @@ struct FilesTreeView: View {
                 let orderedPaths = orderedNodes.map { $0.item.path }
                 let primaryPath = orderedPaths.first(where: { newSelection.contains($0) })
                 onPrimarySelectionChange(primaryPath)
+                onSelectionItemsChange(selectedItems(from: newSelection))
 
                 if let primaryPath {
                     filesViewModel.treeSelectionPath = primaryPath
@@ -1948,6 +1971,7 @@ struct FilesColumnsView: View {
 
     let onRequestCreateFolder: (FileItem) -> Void
     let onPrimarySelectionChange: (String?) -> Void
+    let onSelectionItemsChange: ([FileItem]) -> Void
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: ([FileItem]) -> Void
     let onRequestDownloadSelection: ([FileItem]) -> Void
@@ -1984,6 +2008,7 @@ struct FilesColumnsView: View {
                 }
                 .onChange(of: filesViewModel.columns.count) { _, _ in
                     syncColumnSelections()
+                    notifySelectionItemsChanged()
                     guard let last = filesViewModel.columns.last else { return }
                     Task { @MainActor in
                         await Task.yield()
@@ -1995,6 +2020,9 @@ struct FilesColumnsView: View {
             }
         }
         .background(Color.white)
+        .onAppear {
+            notifySelectionItemsChanged()
+        }
     }
 
     private func columnView(_ column: FileColumn, at index: Int, proxy: ScrollViewProxy) -> some View {
@@ -2015,6 +2043,7 @@ struct FilesColumnsView: View {
             onSelectionChange: { paths, primaryPath in
                 multiSelectionPathsByColumn[column.id] = paths
                 onPrimarySelectionChange(primaryPath)
+                notifySelectionItemsChanged()
                 guard let primaryPath,
                       let primaryItem = column.items.first(where: { $0.path == primaryPath }) else { return }
 
@@ -2074,6 +2103,19 @@ struct FilesColumnsView: View {
             }
         }
         multiSelectionPathsByColumn = next
+    }
+
+    private func notifySelectionItemsChanged() {
+        var selected: [FileItem] = []
+        for column in filesViewModel.columns {
+            let selectedPaths = selectionPaths(for: column)
+            for item in column.items where selectedPaths.contains(item.path) {
+                selected.append(item)
+            }
+        }
+        var seen: Set<String> = []
+        let unique = selected.filter { seen.insert($0.path).inserted }
+        onSelectionItemsChange(unique)
     }
 
     private func selectionPaths(for column: FileColumn) -> Set<String> {
