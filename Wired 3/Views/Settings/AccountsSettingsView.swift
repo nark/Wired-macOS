@@ -867,21 +867,78 @@ private struct AccountPermissionsForm: View {
                         Text(key)
                             .font(.system(size: 12))
                         Spacer()
-                        TextField(
-                            "",
-                            value: Binding(
-                                get: { editor.privilegesUInt32[key] ?? 0 },
-                                set: { onSetUInt32(key, $0) }
-                            ),
-                            format: .number
-                        )
-                        .frame(width: 90)
-                        .multilineTextAlignment(.trailing)
-                        .textFieldStyle(.roundedBorder)
+
+                        if key == "wired.account.color" {
+                            Picker(
+                                "",
+                                selection: Binding(
+                                    get: { editor.privilegesUInt32[key] ?? 0 },
+                                    set: { onSetUInt32(key, $0) }
+                                )
+                            ) {
+                                ForEach(WiredAccountColor.allCases) { option in
+                                    HStack(spacing: 8) {
+                                        Circle()
+                                            .fill(option.color)
+                                            .frame(width: 10, height: 10)
+                                        Text(option.title)
+                                    }
+                                    .tag(option.rawValue)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 150, alignment: .trailing)
+                        } else {
+                            TextField(
+                                "",
+                                value: Binding(
+                                    get: { editor.privilegesUInt32[key] ?? 0 },
+                                    set: { onSetUInt32(key, $0) }
+                                ),
+                                format: .number
+                            )
+                            .frame(width: 90)
+                            .multilineTextAlignment(.trailing)
+                            .textFieldStyle(.roundedBorder)
+                        }
                     }
                 }
             }
             .listStyle(.inset)
+        }
+    }
+}
+
+private enum WiredAccountColor: UInt32, CaseIterable, Identifiable {
+    case black = 0
+    case red = 1
+    case orange = 2
+    case green = 3
+    case blue = 4
+    case purple = 5
+
+    var id: UInt32 { rawValue }
+
+    var title: String {
+        switch self {
+        case .black: return "Black"
+        case .red: return "Red"
+        case .orange: return "Orange"
+        case .green: return "Green"
+        case .blue: return "Blue"
+        case .purple: return "Purple"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .black: return .black
+        case .red: return .red
+        case .orange: return .orange
+        case .green: return .green
+        case .blue: return .blue
+        case .purple: return .purple
         }
     }
 }

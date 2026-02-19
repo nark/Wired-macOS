@@ -30,6 +30,18 @@ struct UserListRowView: View {
         runtime.hasPrivilege("wired.account.chat.create_chats")
         && user.id != runtime.userID
     }
+
+    private var nickColor: Color {
+        switch user.color {
+        case 0: return .black
+        case 1: return .red
+        case 2: return .orange
+        case 3: return .green
+        case 4: return .blue
+        case 5: return .purple
+        default: return .primary
+        }
+    }
     
     var body: some View {
         HStack {
@@ -37,6 +49,7 @@ struct UserListRowView: View {
             
             VStack(alignment: .leading) {
                 Text(user.nick)
+                    .foregroundStyle(nickColor)
 
                 if hasStatus {
                     Text(user.status ?? "")
