@@ -11,17 +11,18 @@ import SwiftUI
 struct ConnectionRowView: View {
     @Environment(ConnectionController.self) private var connectionController
     
-    var bookmark: Bookmark
+    var connectionID: UUID
+    var name: String
 
     var body: some View {
         HStack {
             Image(systemName: "network")
-                .foregroundStyle(connectionController.runtime(for: bookmark.id)?.status == .connected ? Color.green : Color.blue)
+                .foregroundStyle(connectionController.runtime(for: connectionID)?.status == .connected ? Color.green : Color.blue)
 
-            Text(bookmark.name)
+            Text(name)
             
             Spacer()
         }
-        .badge(connectionController.runtime(for: bookmark.id)?.totalUnreadMessages ?? 0)
+        .badge(connectionController.runtime(for: connectionID)?.totalUnreadMessages ?? 0)
     }
 }

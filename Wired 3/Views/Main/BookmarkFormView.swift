@@ -165,3 +165,70 @@ struct BookmarkFormView: View {
         dismiss()
     }
 }
+
+struct NewConnectionFormView: View {
+    @Environment(ConnectionController.self) private var connectionController
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var hostname: String = ""
+    @State private var login: String = ""
+    @State private var password: String = ""
+
+    let draft: NewConnectionDraft
+    let onConnected: (UUID) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Hostname:Port", text: $hostname)
+#if os(iOS)
+                        .textInputAutocapitalization(.never)
+#endif
+
+                    TextField("Login", text: $login)
+#if os(iOS)
+                        .textInputAutocapitalization(.never)
+#endif
+
+                    SecureField("Password", text: $password)
+                } header: {
+                    Text("Connection")
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Connect") {
+                        connect()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(hostname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || login.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle("New Connection")
+        }
+        .onAppear {
+            hostname = draft.hostname
+            login = draft.login
+            password = draft.password
+        }
+    }
+
+    private func connect() {
+        let normalized = NewConnectionDraft(
+            hostname: hostname.trimmingCharacters(in: .whitespacesAndNewlines),
+            login: login.trimmingCharacters(in: .whitespacesAndNewlines),
+            password: password
+        )
+        guard let id = connectionController.connectTemporary(normalized) else { return }
+        onConnected(id)
+        dismiss()
+    }
+}

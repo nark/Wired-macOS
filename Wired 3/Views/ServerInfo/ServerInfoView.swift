@@ -9,9 +9,7 @@
 import SwiftUI
 
 struct ServerInfoView: View {
-    @Environment(ConnectionController.self) private var connectionController
     @Environment(ConnectionRuntime.self) private var runtime
-    @State var bookmark: Bookmark
     
     var body: some View {
         if let serverInfo = runtime.connection?.serverInfo {

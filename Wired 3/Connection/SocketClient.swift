@@ -21,15 +21,14 @@ actor SocketClient {
     private var continuations: [UUID: AsyncThrowingStream<SocketEvent, Error>.Continuation] = [:]
     private var delegates: [UUID: DelegateProxy] = [:] // 🔑 rétention
         
-    // MARK: - Connect (Bookmark)
+    // MARK: - Connect
 
     func connect(
-        bookmark: Bookmark
+        configuration: ConnectionConfiguration
     ) -> AsyncThrowingStream<SocketEvent, Error> {
 
-        // 🔑 extraire les valeurs Sendable
-        let id = bookmark.id
-        let baseURL = bookmark.url
+        let id = configuration.id
+        let baseURL = configuration.url
 
         return AsyncThrowingStream { continuation in
             continuations[id] = continuation
@@ -62,14 +61,18 @@ actor SocketClient {
                 Task { await self.disconnect(id: id) }
             }
             
-            let cipher      = bookmark.cipher
-            let compression = bookmark.compression
-            let checksum    = bookmark.checksum
+            let cipher      = configuration.cipher
+            let compression = configuration.compression
+            let checksum    = configuration.checksum
+            let password    = configuration.password
 
             DispatchQueue.global().async {
                 let url = baseURL
-                let password = KeychainSwift().get("\(url.login)@\(url.hostname)")
-                url.password = password ?? ""
+                if let password, !password.isEmpty {
+                    url.password = password
+                } else {
+                    url.password = KeychainSwift().get("\(url.login)@\(url.hostname)") ?? ""
+                }
                
                 do {
                     try connection.connect(

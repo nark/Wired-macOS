@@ -28,6 +28,66 @@ enum SocketEvent {
     }
 }
 
+struct NewConnectionDraft: Identifiable, Equatable {
+    var id = UUID()
+    var hostname: String = ""
+    var login: String = ""
+    var password: String = ""
+}
+
+struct TemporaryConnection: Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var hostname: String
+    var login: String
+}
+
+struct ConnectionConfiguration: Identifiable, @unchecked Sendable {
+    let id: UUID
+    let name: String
+    let hostname: String
+    let login: String
+    let password: String?
+    let cipher: P7Socket.CipherType
+    let compression: P7Socket.Compression
+    let checksum: P7Socket.Checksum
+
+    var url: Url {
+        Url(withString: "wired://\(login)@\(hostname)")
+    }
+
+    init(bookmark: Bookmark, password: String? = nil) {
+        self.id = bookmark.id
+        self.name = bookmark.name
+        self.hostname = bookmark.hostname
+        self.login = bookmark.login
+        self.password = password
+        self.cipher = bookmark.cipher
+        self.compression = bookmark.compression
+        self.checksum = bookmark.checksum
+    }
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        hostname: String,
+        login: String,
+        password: String?,
+        cipher: P7Socket.CipherType = .ECDH_CHACHA20_POLY1305,
+        compression: P7Socket.Compression = .LZ4,
+        checksum: P7Socket.Checksum = .HMAC_256
+    ) {
+        self.id = id
+        self.name = name
+        self.hostname = hostname
+        self.login = login
+        self.password = password
+        self.cipher = cipher
+        self.compression = compression
+        self.checksum = checksum
+    }
+}
+
 @Observable
 final class ConnectionController {
 
@@ -36,10 +96,14 @@ final class ConnectionController {
     let socketClient: SocketClient
     var runtimeStores: [ConnectionRuntime] = []
     var connectionEvents: [SocketEvent] = []
+    var temporaryConnections: [TemporaryConnection] = []
+    var presentedNewConnection: NewConnectionDraft? = nil
+    var requestedSelectionID: UUID? = nil
     
     // MARK: - Runtime
 
     private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var configurationsByID: [UUID: ConnectionConfiguration] = [:]
 
     // MARK: - Init
 
@@ -55,6 +119,77 @@ final class ConnectionController {
     
     func runtime(for id: UUID) -> ConnectionRuntime? {
         runtimeStores.first { $0.id == id }
+    }
+
+    func configuration(for id: UUID) -> ConnectionConfiguration? {
+        configurationsByID[id]
+    }
+
+    func temporaryConnection(for id: UUID) -> TemporaryConnection? {
+        temporaryConnections.first(where: { $0.id == id })
+    }
+
+    func presentNewConnection(prefill: NewConnectionDraft = NewConnectionDraft()) {
+        presentedNewConnection = prefill
+    }
+
+    func connectTemporary(_ draft: NewConnectionDraft) -> UUID? {
+        let hostname = draft.hostname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let login = draft.login.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !hostname.isEmpty, !login.isEmpty else { return nil }
+
+        let id = UUID()
+        let displayName = hostname
+        let configuration = ConnectionConfiguration(
+            id: id,
+            name: displayName,
+            hostname: hostname,
+            login: login,
+            password: draft.password
+        )
+
+        let temporary = TemporaryConnection(
+            id: id,
+            name: displayName,
+            hostname: hostname,
+            login: login
+        )
+        temporaryConnections.append(temporary)
+        connect(configuration)
+        requestedSelectionID = id
+        return id
+    }
+
+    func markConnectionAsBookmarked(_ id: UUID) {
+        temporaryConnections.removeAll { $0.id == id }
+    }
+
+    func disconnect(connectionID: UUID, runtime: ConnectionRuntime) {
+        tasks[connectionID]?.cancel()
+        tasks[connectionID] = nil
+
+        Task {
+            await socketClient.disconnect(id: connectionID)
+
+            await MainActor.run {
+                runtime.disconnect(error: nil)
+            }
+        }
+    }
+
+    func securityOptions(for connectionID: UUID?) -> (
+        cipher: P7Socket.CipherType,
+        compression: P7Socket.Compression,
+        checksum: P7Socket.Checksum
+    )? {
+        guard let connectionID, let configuration = configurationsByID[connectionID] else {
+            return nil
+        }
+        return (
+            cipher: configuration.cipher,
+            compression: configuration.compression,
+            checksum: configuration.checksum
+        )
     }
 
     
@@ -115,16 +250,22 @@ final class ConnectionController {
     // MARK: - Public API
 
     func connect(_ bookmark: Bookmark) {
-        guard tasks[bookmark.id] == nil else { return }
+        connect(ConnectionConfiguration(bookmark: bookmark))
+    }
 
-        let id = bookmark.id
+    func connect(_ configuration: ConnectionConfiguration) {
+        let id = configuration.id
+        guard tasks[id] == nil else { return }
+        configurationsByID[id] = configuration
 
         Task { @MainActor in
             let runtime =
                 runtimeStores.first(where: { $0.id == id })
                 ?? ConnectionRuntime(id: id, connectionController: self)
 
-            runtimeStores.append(runtime)
+            if !runtimeStores.contains(where: { $0.id == id }) {
+                runtimeStores.append(runtime)
+            }
             runtime.connect()
         }
 
@@ -133,7 +274,7 @@ final class ConnectionController {
 
             for attempt in 1...maxConnectAttempts {
                 do {
-                    let stream = await socketClient.connect(bookmark: bookmark)
+                    let stream = await socketClient.connect(configuration: configuration)
 
                     await MainActor.run {
                         self.startIdleTimers()
@@ -181,19 +322,6 @@ final class ConnectionController {
         tasks[id] = task
     }
 
-    func disconnect(_ bookmark: Bookmark, runtime: ConnectionRuntime) {
-        tasks[bookmark.id]?.cancel()
-        tasks[bookmark.id] = nil
-
-        Task {
-            await socketClient.disconnect(id: bookmark.id)
-            
-            await MainActor.run {
-                runtime.disconnect(error: nil)
-            }
-        }
-    }
-
     func disconnectAll() {
         for (id, task) in tasks {
             task.cancel()
@@ -204,6 +332,64 @@ final class ConnectionController {
     
     func isConnected(_ bookmark: Bookmark) -> Bool {
         tasks[bookmark.id] != nil
+    }
+
+    func isConnected(_ id: UUID) -> Bool {
+        tasks[id] != nil
+    }
+
+    func disconnect(_ bookmark: Bookmark, runtime: ConnectionRuntime) {
+        disconnect(connectionID: bookmark.id, runtime: runtime)
+    }
+
+    @MainActor
+    func handleIncomingURL(_ url: URL) {
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "wired3" || scheme == "wired" else {
+            return
+        }
+
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return
+        }
+
+        let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hostWithPort: String = {
+            guard !host.isEmpty else { return "" }
+            if let port = components.port {
+                return "\(host):\(port)"
+            }
+            return host
+        }()
+
+        let loginFromQuery = components.queryItems?.first(where: {
+            $0.name.lowercased() == "login" || $0.name.lowercased() == "user"
+        })?.value
+
+        let passwordFromQuery = components.queryItems?.first(where: {
+            $0.name.lowercased() == "password" || $0.name.lowercased() == "pass"
+        })?.value
+
+        let login = (components.user ?? loginFromQuery ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let password = components.password ?? passwordFromQuery ?? ""
+
+        guard !hostWithPort.isEmpty else {
+            presentNewConnection()
+            return
+        }
+
+        if login.isEmpty {
+            presentNewConnection(prefill: NewConnectionDraft(hostname: hostWithPort))
+            return
+        }
+
+        let draft = NewConnectionDraft(
+            hostname: hostWithPort,
+            login: login,
+            password: password
+        )
+        _ = connectTemporary(draft)
     }
 
     // MARK: - Event handling

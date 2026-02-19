@@ -46,8 +46,8 @@ final class Bookmark {
         case error
     }
     
-    init(name: String, hostname: String, login: String) {
-        self.id         = UUID()
+    init(id: UUID = UUID(), name: String, hostname: String, login: String) {
+        self.id         = id
         self.hostname   = hostname
         self.login      = login
         self.status     = .disconnected

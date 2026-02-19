@@ -578,9 +578,15 @@ final class TransferManager: ObservableObject {
             checksum: .HMAC_256
         )
 
-        guard let modelContext, let connectionID else {
-            return defaults
+        if let options = connectionController.securityOptions(for: connectionID) {
+            return TransferSecurityOptions(
+                cipher: options.cipher,
+                compression: options.compression,
+                checksum: options.checksum
+            )
         }
+
+        guard let modelContext, let connectionID else { return defaults }
 
         do {
             var descriptor = FetchDescriptor<Bookmark>(

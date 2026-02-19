@@ -14,11 +14,10 @@ struct MainView: View {
     @Query private var bookmarks: [Bookmark]
     @Environment(ConnectionController.self) private var connectionController
     @EnvironmentObject private var transfers: TransferManager
-    
-    @State  private var selectedBookmarkID: UUID? = nil
-    @State var showBookmarkSheet: Bool = false
-    @State var editedBookmark: Bookmark? = nil
-    
+
+    @State private var selectedConnectionID: UUID? = nil
+    @State private var editedBookmark: Bookmark? = nil
+
     @AppStorage("transfersHeight") private var transfersHeight: Double = 0
     @State private var lastTransfersHeight: CGFloat = 200
     @State private var isTransfersVisible = false
@@ -26,12 +25,23 @@ struct MainView: View {
     private var activeTransfersCount: Int {
         transfers.transfers.filter { !$0.isStopped() }.count
     }
-    
+
+    private var selectedBookmark: Bookmark? {
+        guard let id = selectedConnectionID else { return nil }
+        return bookmarks.first(where: { $0.id == id })
+    }
+
+    private var selectedTemporaryConnection: TemporaryConnection? {
+        guard let id = selectedConnectionID else { return nil }
+        return connectionController.temporaryConnection(for: id)
+    }
+
     var body: some View {
+        @Bindable var connectionController = connectionController
+
         VSplitView {
             mainContent
 
-            // Panneau transferts
             transfersPanel
                 .frame(
                     minHeight: isTransfersVisible ? 200 : 0,
@@ -39,33 +49,55 @@ struct MainView: View {
                 )
                 .animation(.smooth, value: isTransfersVisible)
         }
+        .sheet(item: $connectionController.presentedNewConnection) { draft in
+            NewConnectionFormView(draft: draft) { id in
+                selectedConnectionID = id
+            }
+        }
     }
-    
+
     private var mainContent: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
-                List(selection: $selectedBookmarkID) {
+                List(selection: $selectedConnectionID) {
                     Section {
                         ForEach(bookmarks, id: \.id) { bookmark in
-                            ConnectionRowView(bookmark: bookmark)
-                                .environment(connectionController)
-                                .contextMenu {
-                                    Button("Edit") {
-                                        editedBookmark = bookmark
-                                    }
+                            ConnectionRowView(
+                                connectionID: bookmark.id,
+                                name: bookmark.name
+                            )
+                            .environment(connectionController)
+                            .contextMenu {
+                                Button("Edit") {
+                                    editedBookmark = bookmark
                                 }
+                            }
                         }
                     } header: {
                         Text("Favorites")
                     }
+
+                    if !connectionController.temporaryConnections.isEmpty {
+                        Section {
+                            ForEach(connectionController.temporaryConnections, id: \.id) { temporary in
+                                ConnectionRowView(
+                                    connectionID: temporary.id,
+                                    name: temporary.name
+                                )
+                                .environment(connectionController)
+                            }
+                        } header: {
+                            Text("Connections")
+                        }
+                    }
                 }
-                
+
                 Divider()
-                
+
                 HStack(spacing: 0) {
                     Button {
                         toggleTransfers()
-                        
+
                     } label: {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: isTransfersVisible ? "menubar.arrow.down.rectangle" : "menubar.arrow.up.rectangle")
@@ -88,7 +120,7 @@ struct MainView: View {
                     .foregroundStyle(isTransfersVisible ? .blue : .black)
                     .buttonStyle(.plain)
                     .help("Show Transfers")
-                    
+
                     Spacer()
                 }
                 .padding(8)
@@ -111,36 +143,41 @@ struct MainView: View {
 #endif
                 ToolbarItem {
                     Button {
-                        showBookmarkSheet.toggle()
+                        connectionController.presentNewConnection()
                     } label: {
                         Label("New Connection", systemImage: "plus")
                     }
                 }
             }
-            .sheet(isPresented: $showBookmarkSheet) {
-                BookmarkFormView()
-            }
             .sheet(item: $editedBookmark) { bookmark in
                 BookmarkFormView(bookmark: bookmark)
             }
         } detail: {
-            if let id = selectedBookmarkID,
-               let bookmark = bookmarks.first(where: { $0.id == id }) {
-                TabsView(bookmark: bookmark)
-                    .environment(connectionController)
-                    .environmentObject(transfers)
-                    .id(bookmark.id)
+            if let bookmark = selectedBookmark {
+                TabsView(
+                    connectionID: bookmark.id,
+                    connectionName: bookmark.name,
+                    bookmark: bookmark
+                )
+                .environment(connectionController)
+                .environmentObject(transfers)
+                .id(bookmark.id)
+            } else if let temporary = selectedTemporaryConnection {
+                TabsView(
+                    connectionID: temporary.id,
+                    connectionName: temporary.name,
+                    bookmark: nil
+                )
+                .environment(connectionController)
+                .environmentObject(transfers)
+                .id(temporary.id)
             } else {
                 Text("Select an item")
             }
         }
         .onAppear {
-            print("on appear")
-            for b in bookmarks {
-                print("b \(b.name) \(b.connectAtStartup)")
-                if b.connectAtStartup {
-                    connectionController.connect(b)
-                }
+            for bookmark in bookmarks where bookmark.connectAtStartup {
+                connectionController.connect(bookmark)
             }
         }
         .onChange(of: activeTransfersCount) { oldValue, newValue in
@@ -152,43 +189,33 @@ struct MainView: View {
                 transfersHeight = max(lastTransfersHeight, 200)
             }
         }
+        .onChange(of: connectionController.requestedSelectionID) { _, newValue in
+            guard let newValue else { return }
+            selectedConnectionID = newValue
+            connectionController.requestedSelectionID = nil
+        }
     }
-    
+
     private var transfersPanel: some View {
-            Color.gray.opacity(0.15)
-                .overlay(
-                    TransfersView()
-                        .environmentObject(transfers)
-                )
-                .background(
-                    GeometryReader { geo in
-                        Color.clear
-                            .onChange(of: geo.size.height) { old, newHeight in
-                                guard isTransfersVisible else { return }
-                                guard newHeight > 30 else { return }
+        Color.gray.opacity(0.15)
+            .overlay(
+                TransfersView()
+                    .environmentObject(transfers)
+            )
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onChange(of: geo.size.height) { _, newHeight in
+                            guard isTransfersVisible else { return }
+                            guard newHeight > 30 else { return }
 
-                                transfersHeight = newHeight
-                                lastTransfersHeight = newHeight
-                            }
-                    }
-                )
-        }
-
-    private func addItem() {
-//        withAnimation {
-//            let newItem = Bookmark(timestamp: Date())
-//            modelContext.insert(newItem)
-//        }
+                            transfersHeight = newHeight
+                            lastTransfersHeight = newHeight
+                        }
+                }
+            )
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(bookmarks[index])
-            }
-        }
-    }
-    
     private func toggleTransfers() {
         if isTransfersVisible {
             lastTransfersHeight = transfersHeight

@@ -12,7 +12,6 @@ import WiredSwift
 struct ChatsView: View {
     @Environment(ConnectionController.self) private var connectionController
     @Environment(ConnectionRuntime.self) private var runtime
-    @State var bookmark: Bookmark
     
     @State private var visibility: NavigationSplitViewVisibility = .all
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
@@ -138,4 +137,3 @@ struct ChatsView: View {
 #endif
     }
 }
-

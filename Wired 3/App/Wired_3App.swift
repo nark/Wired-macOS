@@ -101,6 +101,16 @@ struct Wired_3App: App {
 #endif
         }
         .modelContainer(sharedModelContainer)
+#if os(macOS)
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("New Connection") {
+                    controller.presentNewConnection()
+                }
+                .keyboardShortcut("k", modifiers: [.command])
+            }
+        }
+#endif
         
 #if os(macOS)
         Settings {
@@ -114,6 +124,7 @@ struct Wired_3App: App {
 /// This avoids threading ModelContext manually through your whole view tree.
 private struct AppRootView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(ConnectionController.self) private var connectionController
     @EnvironmentObject private var transfers: TransferManager
 #if os(macOS)
     let appTerminationDelegate: AppTerminationDelegate
@@ -137,6 +148,9 @@ private struct AppRootView: View {
                 ) { granted, _ in
                     print("Notifications permission:", granted)
                 }
+            }
+            .onOpenURL { url in
+                connectionController.handleIncomingURL(url)
             }
     }
 }

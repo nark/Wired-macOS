@@ -36,12 +36,12 @@ private enum ServerSettingsCategory: String, CaseIterable, Identifiable {
 struct ServerSettingsView: View {
     @Environment(ConnectionController.self) private var connectionController
 
-    let bookmark: Bookmark
+    let connectionID: UUID
 
     @State private var selectedCategory: ServerSettingsCategory? = .accounts
 
     private var runtime: ConnectionRuntime? {
-        connectionController.runtime(for: bookmark.id)
+        connectionController.runtime(for: connectionID)
     }
 
     var body: some View {

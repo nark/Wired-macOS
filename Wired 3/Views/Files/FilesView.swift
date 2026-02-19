@@ -294,7 +294,7 @@ struct FilesView: View {
     @Environment(ConnectionRuntime.self) private var runtime
     @EnvironmentObject private var transfers: TransferManager
 
-    var bookmark: Bookmark
+    let connectionID: UUID
 
     @ObservedObject var filesViewModel: FilesViewModel
 
@@ -458,7 +458,7 @@ struct FilesView: View {
     @ViewBuilder
     private var treeContent: some View {
         FilesTreeView(
-            bookmark: bookmark,
+            connectionID: connectionID,
             filesViewModel: filesViewModel,
             onRequestCreateFolder: { directory in
                 guard canCreateFolder(in: directory) else { return }
@@ -524,7 +524,7 @@ struct FilesView: View {
     @ViewBuilder
     private var columnsContent: some View {
         FilesColumnsView(
-            bookmark: bookmark,
+            connectionID: connectionID,
             filesViewModel: filesViewModel,
             onRequestCreateFolder: { directory in
                 guard canCreateFolder(in: directory) else { return }
@@ -679,7 +679,7 @@ struct FilesView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .revealRemoteTransferPath)) { notification in
             guard let request = notification.object as? RemoteTransferPathRequest else { return }
-            guard request.connectionID == bookmark.id else { return }
+            guard request.connectionID == connectionID else { return }
 
             Task { @MainActor in
                 let didReveal = await filesViewModel.revealRemotePath(request.path)
@@ -690,7 +690,7 @@ struct FilesView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .wiredFileDirectoryChanged)) { notification in
             guard let event = notification.object as? RemoteDirectoryEvent else { return }
-            guard event.connectionID == bookmark.id else { return }
+            guard event.connectionID == connectionID else { return }
 
             Task { @MainActor in
                 filesViewModel.remoteDirectoryChanged(event.path)
@@ -698,7 +698,7 @@ struct FilesView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .wiredFileDirectoryDeleted)) { notification in
             guard let event = notification.object as? RemoteDirectoryEvent else { return }
-            guard event.connectionID == bookmark.id else { return }
+            guard event.connectionID == connectionID else { return }
 
             Task { @MainActor in
                 await filesViewModel.remoteDirectoryDeleted(event.path)
@@ -714,12 +714,15 @@ struct FilesView: View {
     private var toolbar: some View {
         HStack {
             Picker("", selection: $selectedFileViewType) {
-                Image(systemName: "list.bullet.indent").tag(FileViewType.tree)
                 Image(systemName: "rectangle.split.3x1").tag(FileViewType.columns)
+                Image(systemName: "list.bullet.indent").tag(FileViewType.tree)
             }
             .help("Display Mode")
             .pickerStyle(.segmented)
             .frame(width: 80)
+            
+            Divider()
+                .frame(height: 16)
 
             Button {
                 Task { await navigateHistory(backward: true) }
@@ -736,6 +739,9 @@ struct FilesView: View {
             }
             .help("Navigate Forward")
             .disabled(!canGoForward)
+            
+            Divider()
+                .frame(height: 16)
 
             Button {
                 Task {
@@ -750,6 +756,9 @@ struct FilesView: View {
                 Image(systemName: "arrow.counterclockwise")
             }
             .help("Reload Files")
+            
+            Divider()
+                .frame(height: 16)
             
             Button {
                 if let selectedFile = selectedDownloadableItem {
@@ -769,6 +778,9 @@ struct FilesView: View {
             .help("Upload File(s)")
             .disabled(selectedDirectoryForUpload == nil || !(selectedDirectoryForUpload.map(canUpload(to:)) ?? false))
 
+            Divider()
+                .frame(height: 16)
+            
             Button {
                 guard let target = selectedDirectoryForUpload, canCreateFolder(in: target) else { return }
                 createFolderTargetOverride = selectedDirectoryForUpload
@@ -797,7 +809,7 @@ struct FilesView: View {
         for url in urls {
             let accessStarted = url.startAccessingSecurityScopedResource()
             let localPath = url.path
-            if let transfer = transfers.uploadTransfer(localPath, toDirectory: targetDirectory, with: bookmark.id, filesViewModel: filesViewModel) {
+            if let transfer = transfers.uploadTransfer(localPath, toDirectory: targetDirectory, with: connectionID, filesViewModel: filesViewModel) {
                 transfers.onTransferTerminal(id: transfer.id) { terminal in
                     guard terminal.type == .upload else { return }
                     guard terminal.state == .stopped || terminal.state == .disconnected else { return }
@@ -853,13 +865,13 @@ struct FilesView: View {
     private func processPendingDownloads() {
         while !pendingDownloadItems.isEmpty {
             let item = pendingDownloadItems.removeFirst()
-            switch transfers.queueDownload(item, with: bookmark.id, overwriteExistingFile: false) {
+            switch transfers.queueDownload(item, with: connectionID, overwriteExistingFile: false) {
             case let .started(transfer), let .resumed(transfer):
                 registerDownloadTerminalErrorHook(for: transfer, item: item)
                 continue
             case let .needsOverwrite(destination):
                 if askOverwrite(path: destination) {
-                    switch transfers.queueDownload(item, with: bookmark.id, overwriteExistingFile: true) {
+                    switch transfers.queueDownload(item, with: connectionID, overwriteExistingFile: true) {
                     case let .started(transfer), let .resumed(transfer):
                         registerDownloadTerminalErrorHook(for: transfer, item: item)
                     default:
@@ -1005,7 +1017,7 @@ struct FilesView: View {
 }
 
 struct FilesTreeView: View {
-    @State var bookmark: Bookmark
+    let connectionID: UUID
     @ObservedObject var filesViewModel: FilesViewModel
     @EnvironmentObject private var transfers: TransferManager
 
@@ -1034,7 +1046,7 @@ struct FilesTreeView: View {
             rootPath: filesViewModel.treeRootPath,
             treeChildrenByPath: filesViewModel.treeChildrenByPath,
             expandedPaths: filesViewModel.expandedTreePaths,
-            connectionID: bookmark.id,
+            connectionID: connectionID,
             transferManager: transfers,
             onDownloadTransferError: { item, message in
                 filesViewModel.error = WiredError(
@@ -1964,7 +1976,7 @@ private final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProvi
 #endif
 
 struct FilesColumnsView: View {
-    @State var bookmark: Bookmark
+    let connectionID: UUID
 
     @ObservedObject var filesViewModel: FilesViewModel
     @EnvironmentObject private var transfers: TransferManager
@@ -2030,7 +2042,7 @@ struct FilesColumnsView: View {
             proxy.scrollTo(appended.id, anchor: .trailing)
         }
         return AppKitFileColumnTableView(
-            bookmarkID: bookmark.id,
+            bookmarkID: connectionID,
             transferManager: transfers,
             onDownloadTransferError: { item, message in
                 filesViewModel.error = WiredError(
