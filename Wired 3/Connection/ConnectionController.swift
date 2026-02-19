@@ -542,6 +542,40 @@ final class ConnectionController {
                     try? await runtime.joinChat(chat.id)
                 }
             }
+        case "wired.chat.chat_created":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                await MainActor.run {
+                    if runtime.chat(withID: chatID) == nil {
+                        runtime.appendPrivateChat(
+                            Chat(id: chatID, name: "Private Chat", isPrivate: true)
+                        )
+                    }
+                    runtime.selectedChatID = chatID
+                }
+            }
+        case "wired.chat.invitation":
+            if let chatID = message.uint32(forField: "wired.chat.id"),
+               let inviterUserID = message.uint32(forField: "wired.user.id") {
+                await MainActor.run {
+                    if runtime.chat(withID: chatID) == nil {
+                        runtime.appendPrivateChat(
+                            Chat(id: chatID, name: "Private Chat", isPrivate: true)
+                        )
+                    }
+
+                    let inviterNick =
+                        runtime.chats
+                        .flatMap(\.users)
+                        .first(where: { $0.id == inviterUserID })?
+                        .nick
+
+                    runtime.pendingChatInvitation = ChatInvitation(
+                        chatID: chatID,
+                        inviterUserID: inviterUserID,
+                        inviterNick: inviterNick
+                    )
+                }
+            }
             
         case "wired.chat.public_chat_created":
             if let chat = await parseChat(from: message) {
@@ -557,10 +591,11 @@ final class ConnectionController {
             
         case "wired.chat.user_list":
             if let chatID = message.uint32(forField: "wired.chat.id") {
-                if let chat = await runtime.chats.first(where: { $0.id == chatID }) {
+                if let chat = await runtime.chat(withID: chatID) {
                     if let user = await parseUser(from: message) {
                         await MainActor.run {
                             chat.users.append(user)
+                            runtime.refreshPrivateChatName(chat)
                         }
                     }
                 }
@@ -568,7 +603,10 @@ final class ConnectionController {
         case "wired.chat.user_list.done":
             if let chatID = message.uint32(forField: "wired.chat.id") {
                 await MainActor.run {
-                    runtime.chats.first(where: { $0.id == chatID })?.joined.toggle()
+                    if let chat = runtime.chat(withID: chatID) {
+                        chat.joined = true
+                        runtime.refreshPrivateChatName(chat)
+                    }
                 }
                 
                 if chatID == 1 {
@@ -579,7 +617,7 @@ final class ConnectionController {
             }
         case "wired.chat.topic":
             if let chatID = message.uint32(forField: "wired.chat.id") {
-                if let chat = await runtime.chats.first(where: { $0.id == chatID }) {
+                if let chat = await runtime.chat(withID: chatID) {
                     if let topic = message.string(forField: "wired.chat.topic.topic"),
                        let nick = message.string(forField: "wired.user.nick"),
                        let time = message.date(forField: "wired.chat.topic.time") {
@@ -592,11 +630,12 @@ final class ConnectionController {
             
         case "wired.chat.user_join":
             if let chatID = message.uint32(forField: "wired.chat.id") {
-                if let chat = await runtime.chats.first(where: { $0.id == chatID }) {
+                if let chat = await runtime.chat(withID: chatID) {
                     if let user = await parseUser(from: message) {
                         await MainActor.run {
                             chat.users.append(user)
                             chat.messages.append(ChatEvent(chat: chat, user: user, type: .join, text: ""))
+                            runtime.refreshPrivateChatName(chat)
                         }
                     }
                 }
@@ -605,12 +644,35 @@ final class ConnectionController {
             if  let chatID = message.uint32(forField: "wired.chat.id"),
                 let userID = message.uint32(forField: "wired.user.id")
             {
-                if let chat = await runtime.chats.first(where: { $0.id == chatID }) {
-                    if let user = await chat.users.first(where: { $0.id == userID }) {
-                        await MainActor.run {
+                if let chat = await runtime.chat(withID: chatID) {
+                    await MainActor.run {
+                        if let user = chat.users.first(where: { $0.id == userID }) {
                             chat.messages.append(ChatEvent(chat: chat, user: user, type: .leave, text: ""))
                             chat.users.removeAll { $0.id == user.id }
                         }
+                        runtime.refreshPrivateChatName(chat)
+
+                        // Keep local joined state authoritative when our own user leaves.
+                        if userID == runtime.userID {
+                            if chat.isPrivate {
+                                runtime.removePrivateChat(chat.id)
+                            } else {
+                                chat.joined = false
+                                if runtime.selectedChatID == chat.id {
+                                    runtime.selectedChatID = 1
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        case "wired.chat.user_decline_invitation":
+            if let chatID = message.uint32(forField: "wired.chat.id"),
+               let userID = message.uint32(forField: "wired.user.id"),
+               let chat = await runtime.chat(withID: chatID) {
+                await MainActor.run {
+                    if let user = chat.users.first(where: { $0.id == userID }) {
+                        chat.messages.append(ChatEvent(chat: chat, user: user, type: .leave, text: ""))
                     }
                 }
             }
@@ -621,9 +683,9 @@ final class ConnectionController {
                 await MainActor.run {
                     let targetChats: [Chat]
                     if let targetChatID {
-                        targetChats = runtime.chats.filter { $0.id == targetChatID }
+                        targetChats = (runtime.chats + runtime.private_chats).filter { $0.id == targetChatID }
                     } else {
-                        targetChats = runtime.chats
+                        targetChats = runtime.chats + runtime.private_chats
                     }
 
                     for chat in targetChats {
@@ -632,13 +694,14 @@ final class ConnectionController {
                         user.status = message.string(forField: "wired.user.status")
                         user.icon = message.data(forField: "wired.user.icon") ?? user.icon
                         user.idle = message.bool(forField: "wired.user.idle") ?? user.idle
+                        runtime.refreshPrivateChatName(chat)
                     }
                 }
             }
         case "wired.chat.say":
             if let chatID = message.uint32(forField: "wired.chat.id") {
                 if let userID = message.uint32(forField: "wired.user.id") {
-                    if let chat = await runtime.chats.first(where: { $0.id == chatID }) {
+                    if let chat = await runtime.chat(withID: chatID) {
                         if let user = await chat.users.first(where: { $0.id == userID }) {
                             if let say = message.string(forField: "wired.chat.say") {
                                 await MainActor.run {
@@ -659,7 +722,7 @@ final class ConnectionController {
         case "wired.chat.me":
             if let chatID = message.uint32(forField: "wired.chat.id") {
                 if let userID = message.uint32(forField: "wired.user.id") {
-                    if let chat = await runtime.chats.first(where: { $0.id == chatID }) {
+                    if let chat = await runtime.chat(withID: chatID) {
                         if let user = await chat.users.first(where: { $0.id == userID }) {
                             if let say = message.string(forField: "wired.chat.me") {
                                 await MainActor.run {

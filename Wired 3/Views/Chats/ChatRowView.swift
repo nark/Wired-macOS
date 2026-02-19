@@ -7,13 +7,19 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import UniformTypeIdentifiers
+#endif
 
 struct ChatRowView: View {
     @Environment(ConnectionRuntime.self) private var runtime
     
-    @State var chat: Chat
+    var chat: Chat
     @State var showEditPublicChatSheet = false
     @State var showDeletePublicChatConfirm = false
+#if os(macOS)
+    @State private var isDropTargeted = false
+#endif
     
     var body: some View {
         HStack {
@@ -23,6 +29,10 @@ struct ChatRowView: View {
             
             Spacer()
         }
+        .contentShape(Rectangle())
+#if os(macOS)
+        .background(isDropTargeted ? Color.accentColor.opacity(0.12) : Color.clear)
+#endif
         .badge(chat.unreadMessagesCount)
         .contextMenu {
             if chat.joined {
@@ -30,10 +40,6 @@ struct ChatRowView: View {
                     Task {
                         do {
                             try await runtime.leaveChat(chat.id)
-                            
-                            chat.users.removeAll()
-                            chat.joined = false
-                            
                         } catch {
                             
                         }
@@ -54,22 +60,63 @@ struct ChatRowView: View {
                 .disabled(chat.joined || chat.id == 1)
             }
             
-            Divider()
-            
-            // TODO: add `wired.account.chat.edit_public_chats` message ?
-//            Button("Edit") {
-//                showEditPublicChatSheet.toggle()
-//            }
-//            .disabled(chat.id == 1 || !runtime.hasPrivilege("wired.account.chat.create_public_chats"))
-//            
-//            Divider()
-            
-            Button("Delete") {
-                showDeletePublicChatConfirm.toggle()
+            if !chat.isPrivate {
+                Divider()
                 
+                // TODO: add `wired.account.chat.edit_public_chats` message ?
+//                Button("Edit") {
+//                    showEditPublicChatSheet.toggle()
+//                }
+//                .disabled(chat.id == 1 || !runtime.hasPrivilege("wired.account.chat.create_public_chats"))
+//                
+//                Divider()
+                
+                Button("Delete") {
+                    showDeletePublicChatConfirm.toggle()
+                    
+                }
+                .disabled(chat.id == 1 || !runtime.hasPrivilege("wired.account.chat.delete_public_chats"))
             }
-            .disabled(chat.id == 1 || !runtime.hasPrivilege("wired.account.chat.delete_public_chats"))
         }
+#if os(macOS)
+        .onDrop(of: [UTType.plainText.identifier], isTargeted: $isDropTargeted) { providers in
+            guard chat.isPrivate else { return false }
+
+            let accepted = providers.contains { provider in
+                provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
+            }
+
+            guard accepted else { return false }
+
+            for provider in providers {
+                provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
+                    var stringValue: String?
+
+                    if let data = item as? Data {
+                        stringValue = String(data: data, encoding: .utf8)
+                    } else if let str = item as? String {
+                        stringValue = str
+                    } else if let ns = item as? NSString {
+                        stringValue = ns as String
+                    }
+
+                    guard let raw = stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          let userID = UInt32(raw) else { return }
+
+                    Task { @MainActor in
+                        guard userID != runtime.userID else { return }
+                        do {
+                            try await runtime.inviteUserToPrivateChat(userID: userID, chatID: chat.id)
+                        } catch {
+                            runtime.lastError = error
+                        }
+                    }
+                }
+            }
+
+            return true
+        }
+#endif
         .sheet(isPresented: $showEditPublicChatSheet) {
             PublicChatFormView(chat: chat)
                 .environment(runtime)

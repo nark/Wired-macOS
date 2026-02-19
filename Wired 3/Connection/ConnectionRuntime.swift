@@ -9,6 +9,12 @@
 import SwiftUI
 import WiredSwift
 
+struct ChatInvitation: Equatable {
+    let chatID: UInt32
+    let inviterUserID: UInt32
+    let inviterNick: String?
+}
+
 @Observable
 @MainActor
 final class ConnectionRuntime: Identifiable {
@@ -34,6 +40,7 @@ final class ConnectionRuntime: Identifiable {
     var serverInfo: P7Message? = nil
     var chats: [Chat] = []
     var private_chats: [Chat] = []
+    var pendingChatInvitation: ChatInvitation? = nil
     
     var showInfos: Bool = false
     var showInfosUserID: UInt32 = 0
@@ -49,7 +56,7 @@ final class ConnectionRuntime: Identifiable {
     }
     
     var totalUnreadChatMessages: Int {
-        chats.reduce(0) { $0 + $1.unreadMessagesCount }
+        (chats + private_chats).reduce(0) { $0 + $1.unreadMessagesCount }
     }
     
     enum Status {
@@ -87,6 +94,7 @@ final class ConnectionRuntime: Identifiable {
         privileges = [:]
         userID = 0
         status = .disconnected
+        pendingChatInvitation = nil
         
         if let error {
             lastError = error
@@ -135,10 +143,32 @@ final class ConnectionRuntime: Identifiable {
     
     func resetChats() {
         chats = []
+        private_chats = []
     }
 
     func appendChat(_ chat: Chat) {
         chats.append(chat)
+    }
+
+    func appendPrivateChat(_ chat: Chat) {
+        guard private_chats.contains(where: { $0.id == chat.id }) == false else { return }
+        private_chats.append(chat)
+    }
+
+    func removePrivateChat(_ chatID: UInt32) {
+        private_chats.removeAll { $0.id == chatID }
+
+        if selectedChatID == chatID {
+            selectedChatID = 1
+        }
+    }
+
+    func chat(withID chatID: UInt32) -> Chat? {
+        if let chat = chats.first(where: { $0.id == chatID }) {
+            return chat
+        }
+
+        return private_chats.first(where: { $0.id == chatID })
     }
     
     
@@ -207,7 +237,124 @@ final class ConnectionRuntime: Identifiable {
         
         message.addParameter(field: "wired.chat.id", value: chatID)
         
-        try await self.send(message)
+        let response = try await self.send(message)
+
+        // Keep server as source of truth: update local state only on explicit success.
+        if response?.name == "wired.okay",
+           let chat = chat(withID: chatID) {
+            if chat.isPrivate {
+                removePrivateChat(chatID)
+            } else {
+                chat.joined = false
+                chat.users.removeAll()
+
+                if selectedChatID == chatID {
+                    selectedChatID = 1
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    func createPrivateChat() async throws -> UInt32 {
+        let message = P7Message(withName: "wired.chat.create_chat", spec: spec!)
+        guard let response = try await self.send(message) else {
+            throw WiredError(withTitle: "Private Chat", message: "No response from server.")
+        }
+
+        if response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+
+        guard response.name == "wired.chat.chat_created",
+              let chatID = response.uint32(forField: "wired.chat.id") else {
+            throw WiredError(withTitle: "Private Chat", message: "Invalid server response.")
+        }
+
+        if chat(withID: chatID) == nil {
+            appendPrivateChat(Chat(id: chatID, name: "Private Chat", isPrivate: true))
+        }
+
+        selectedChatID = chatID
+
+        try await joinChat(chatID)
+        _ = await waitForChatJoin(chatID, timeout: 2.0)
+        return chatID
+    }
+
+    func createPrivateChat(inviting userID: UInt32) async throws {
+        let chatID = try await createPrivateChat()
+        try await inviteUserToPrivateChat(userID: userID, chatID: chatID)
+    }
+
+    func inviteUserToPrivateChat(userID: UInt32, chatID: UInt32) async throws {
+        let message = P7Message(withName: "wired.chat.invite_user", spec: spec!)
+        message.addParameter(field: "wired.chat.id", value: chatID)
+        message.addParameter(field: "wired.user.id", value: userID)
+
+        if let response = try await send(message), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func acceptPendingChatInvitation() {
+        guard let invitation = pendingChatInvitation else { return }
+
+        Task {
+            do {
+                try await joinChat(invitation.chatID)
+            } catch {
+                lastError = error
+            }
+        }
+
+        pendingChatInvitation = nil
+        selectedChatID = invitation.chatID
+    }
+
+    func declinePendingChatInvitation() {
+        guard let invitation = pendingChatInvitation else { return }
+
+        Task {
+            do {
+                let message = P7Message(withName: "wired.chat.decline_invitation", spec: spec!)
+                message.addParameter(field: "wired.chat.id", value: invitation.chatID)
+                message.addParameter(field: "wired.user.id", value: invitation.inviterUserID)
+
+                if let response = try await send(message), response.name == "wired.error" {
+                    lastError = WiredError(message: response)
+                }
+            } catch {
+                lastError = error
+            }
+        }
+
+        pendingChatInvitation = nil
+    }
+
+    func refreshPrivateChatName(_ chat: Chat) {
+        guard chat.isPrivate else { return }
+
+        let others = chat.users
+            .filter { $0.id != userID }
+            .map { $0.nick }
+            .sorted()
+
+        chat.name = others.isEmpty ? "Private Chat" : others.joined(separator: ", ")
+    }
+
+    private func waitForChatJoin(_ chatID: UInt32, timeout: TimeInterval) async -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+
+        while Date() < end {
+            if let chat = chat(withID: chatID), chat.joined {
+                return true
+            }
+
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        return false
     }
     
     func deletePublicChat(_ chatID: UInt32) async throws {

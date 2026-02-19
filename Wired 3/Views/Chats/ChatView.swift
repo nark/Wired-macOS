@@ -90,7 +90,7 @@ struct ChatView: View {
             Divider()
             
             if let chatID = runtime.selectedChatID,
-               let chat = runtime.chats.first(where: { $0.id == chatID })
+               let chat = runtime.chat(withID: chatID)
             {
                 ChatUsersList(chat: chat)
                     .environment(runtime)

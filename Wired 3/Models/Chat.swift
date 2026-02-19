@@ -13,6 +13,7 @@ import SwiftUI
 final class Chat: Identifiable {
     let id: UInt32
     var name: String
+    var isPrivate: Bool
     var topic: Topic?
     var joined = false
     
@@ -21,8 +22,9 @@ final class Chat: Identifiable {
     
     var unreadMessagesCount : Int = 0
     
-    init(id: UInt32, name: String) {
+    init(id: UInt32, name: String, isPrivate: Bool = false) {
         self.id = id
         self.name = name
+        self.isPrivate = isPrivate
     }
 }

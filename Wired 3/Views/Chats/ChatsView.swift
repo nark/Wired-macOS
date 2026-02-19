@@ -17,6 +17,11 @@ struct ChatsView: View {
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
     
     @State var showCreatePublicChatSheet = false
+
+    private var selectedChat: Chat? {
+        guard let chatID = runtime.selectedChatID else { return nil }
+        return runtime.chat(withID: chatID)
+    }
         
     var body: some View {
         @Bindable var runtime = runtime
@@ -48,7 +53,7 @@ struct ChatsView: View {
                         if new == nil {
                             runtime.selectedChatID = old
                         } else {
-                            if let chat = runtime.chats.first(where: { $0.id == new! }) {
+                            if let chat = runtime.chat(withID: new!) {
                                 runtime.resetUnreads(chat)
                             }
                         }
@@ -71,7 +76,13 @@ struct ChatsView: View {
                             .disabled(!runtime.hasPrivilege("wired.account.chat.create_public_chats"))
                             
                             Button("New Private Chat") {
-                                
+                                Task {
+                                    do {
+                                        _ = try await runtime.createPrivateChat()
+                                    } catch {
+                                        runtime.lastError = error
+                                    }
+                                }
                             }
                             .disabled(!runtime.hasPrivilege("wired.account.chat.create_chats"))
                         }
@@ -87,8 +98,7 @@ struct ChatsView: View {
                 Divider()
                 
                 if let chatID = runtime.selectedChatID,
-                   let chat = runtime.chats.first(where: { $0.id == chatID })
-                {
+                   let chat = selectedChat {
                     if chat.joined == true {
                         ChatView(chat: chat)
                             .environment(runtime)
@@ -111,6 +121,32 @@ struct ChatsView: View {
             PublicChatFormView()
                 .environment(runtime)
         }
+        .alert(
+            "Private Chat Invitation",
+            isPresented: Binding(
+                get: { runtime.pendingChatInvitation != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        runtime.pendingChatInvitation = nil
+                    }
+                }
+            ),
+            presenting: runtime.pendingChatInvitation
+        ) { invitation in
+            Button("Accept") {
+                runtime.acceptPendingChatInvitation()
+            }
+
+            Button("Decline", role: .destructive) {
+                runtime.declinePendingChatInvitation()
+            }
+        } message: { invitation in
+            if let nick = invitation.inviterNick, !nick.isEmpty {
+                Text("\(nick) invited you to a private chat.")
+            } else {
+                Text("You were invited to a private chat.")
+            }
+        }
 #elseif os(iOS)
         NavigationStack {
             List(selection: $runtime.selectedChatID) {
@@ -131,8 +167,14 @@ struct ChatsView: View {
                 
                 Section {
                     ForEach(runtime.private_chats) { chat in
-                        ChatRowView(chat: chat)
-                            .environment(runtime)
+                        NavigationLink {
+                            ChatView(chat: chat)
+                                .environment(runtime)
+                                .navigationTitle(chat.name)
+                        } label: {
+                            ChatRowView(chat: chat)
+                                .environment(runtime)
+                        }
                     }
                 } header: {
                     Text("Private Chats")
@@ -151,7 +193,7 @@ struct ChatsView: View {
 
     private func ensureDefaultSelectedChat() {
         if let selected = runtime.selectedChatID,
-           runtime.chats.contains(where: { $0.id == selected }) {
+           runtime.chat(withID: selected) != nil {
             return
         }
 

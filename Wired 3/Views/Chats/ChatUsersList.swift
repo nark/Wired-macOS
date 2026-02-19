@@ -18,7 +18,7 @@ struct ChatUsersList: View {
         
         List {
             ForEach(chat.users) { user in
-                UserListRowView(user: user)
+                UserListRowView(user: user, sourceChat: chat)
                     .environment(runtime)
             }
         }
@@ -33,4 +33,3 @@ struct ChatUsersList: View {
         #endif
     }
 }
-

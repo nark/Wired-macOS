@@ -7,11 +7,13 @@
 //
 
 import SwiftUI
+import Foundation
 
 struct UserListRowView: View {
     @Environment(ConnectionRuntime.self) private var runtime
     
     var user: User
+    var sourceChat: Chat
 
     @State private var showBanSheet: Bool = false
     @State private var showKickSheet: Bool = false
@@ -22,6 +24,11 @@ struct UserListRowView: View {
             return false
         }
         return !status.isEmpty
+    }
+
+    private var canInviteToPrivateChat: Bool {
+        runtime.hasPrivilege("wired.account.chat.create_chats")
+        && user.id != runtime.userID
     }
     
     var body: some View {
@@ -41,6 +48,11 @@ struct UserListRowView: View {
         }
         .opacity(user.idle ? 0.6 : 1.0)
         .listRowSeparator(.hidden)
+#if os(macOS)
+        .onDrag {
+            NSItemProvider(object: NSString(string: String(user.id)))
+        }
+#endif
         .contextMenu {
             Button("Get Infos") {
                 runtime.getUserInfo(user.id)
@@ -54,6 +66,21 @@ struct UserListRowView: View {
             }
             .disabled(true)
             .disabled(!runtime.hasPrivilege("wired.account.message.send_messages"))
+
+            Button("Invite to Private Chat") {
+                Task {
+                    do {
+                        if sourceChat.isPrivate {
+                            try await runtime.inviteUserToPrivateChat(userID: user.id, chatID: sourceChat.id)
+                        } else {
+                            try await runtime.createPrivateChat(inviting: user.id)
+                        }
+                    } catch {
+                        runtime.lastError = error
+                    }
+                }
+            }
+            .disabled(!canInviteToPrivateChat)
             
             Divider()
             
