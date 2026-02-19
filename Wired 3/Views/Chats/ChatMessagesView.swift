@@ -32,6 +32,7 @@ struct ChatMessagesView: View {
                 }
             }
             .listStyle(.plain)
+            .textSelection(.enabled)
             .frame(maxHeight: .infinity)
             .onChange(of: chat.messages.count) {
                 DispatchQueue.main.async {
