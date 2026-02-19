@@ -70,11 +70,13 @@ final class ConnectionRuntime: Identifiable {
     // MARK: - Connection State
 
     func connect() {
+        lastError = nil
         status = .connecting
     }
 
     func connected(_ connection: Connection) {
         self.connection = connection
+        lastError = nil
         status = .connected
     }
 
