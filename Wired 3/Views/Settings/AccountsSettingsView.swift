@@ -62,6 +62,7 @@ struct AccountSummary: Identifiable, Hashable {
     let uploads: UInt32
     let downloadTransferred: UInt64
     let uploadTransferred: UInt64
+    let color: UInt32
 }
 
 struct AccountEditor {
@@ -450,7 +451,10 @@ final class AccountsSettingsViewModel: ObservableObject {
             downloads: message.uint32(forField: "wired.account.downloads") ?? 0,
             uploads: message.uint32(forField: "wired.account.uploads") ?? 0,
             downloadTransferred: message.uint64(forField: "wired.account.download_transferred") ?? 0,
-            uploadTransferred: message.uint64(forField: "wired.account.upload_transferred") ?? 0
+            uploadTransferred: message.uint64(forField: "wired.account.upload_transferred") ?? 0,
+            color: message.enumeration(forField: "wired.account.color")
+                ?? message.uint32(forField: "wired.account.color")
+                ?? 0
         )
     }
 
@@ -467,7 +471,10 @@ final class AccountsSettingsViewModel: ObservableObject {
             downloads: 0,
             uploads: 0,
             downloadTransferred: 0,
-            uploadTransferred: 0
+            uploadTransferred: 0,
+            color: message.enumeration(forField: "wired.account.color")
+                ?? message.uint32(forField: "wired.account.color")
+                ?? 0
         )
     }
 
@@ -572,9 +579,10 @@ struct AccountsSettingsView: View {
                             if account.name == "admin" {
                                 Text(account.name)
                                     .fontWeight(.bold)
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(accountSummaryColor(account.color))
                             } else {
                                 Text(account.name)
+                                    .foregroundStyle(accountSummaryColor(account.color))
                             }
                         }
                         .tag(account.id)
@@ -941,4 +949,8 @@ private enum WiredAccountColor: UInt32, CaseIterable, Identifiable {
         case .purple: return .purple
         }
     }
+}
+
+private func accountSummaryColor(_ value: UInt32) -> Color {
+    WiredAccountColor(rawValue: value)?.color ?? .primary
 }
