@@ -176,6 +176,7 @@ struct MainView: View {
             }
         }
         .onAppear {
+            connectionController.activeConnectionID = selectedConnectionID
             for bookmark in bookmarks where bookmark.connectAtStartup {
                 connectionController.connect(bookmark)
             }
@@ -193,6 +194,10 @@ struct MainView: View {
             guard let newValue else { return }
             selectedConnectionID = newValue
             connectionController.requestedSelectionID = nil
+            connectionController.activeConnectionID = newValue
+        }
+        .onChange(of: selectedConnectionID) { _, newValue in
+            connectionController.activeConnectionID = newValue
         }
     }
 

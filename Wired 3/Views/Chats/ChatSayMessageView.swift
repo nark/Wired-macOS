@@ -23,7 +23,7 @@ struct ChatSayMessageView: View {
                         .font(.caption)
                         .foregroundStyle(.gray)
                         .padding(.trailing, 10)
-                    Text(message.text)
+                    Text(message.text.attributedWithDetectedLinks(linkColor: .white))
                         .messageBubbleStyle(isFromYou: isFromYou)
                 }
                 .padding(.bottom, 10)
@@ -35,7 +35,7 @@ struct ChatSayMessageView: View {
                         .font(.caption)
                         .foregroundStyle(.gray)
                         .padding(.leading, 10)
-                    Text(message.text)
+                    Text(message.text.attributedWithDetectedLinks(linkColor: .blue))
                         .messageBubbleStyle(isFromYou: isFromYou)
                 }
                 .padding(.bottom, 10)

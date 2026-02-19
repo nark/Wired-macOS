@@ -42,6 +42,11 @@ struct TemporaryConnection: Identifiable, Hashable {
     var login: String
 }
 
+struct IncomingURLAction {
+    let connectionID: UUID
+    let remotePath: String?
+}
+
 struct ConnectionConfiguration: Identifiable, @unchecked Sendable {
     let id: UUID
     let name: String
@@ -99,6 +104,7 @@ final class ConnectionController {
     var temporaryConnections: [TemporaryConnection] = []
     var presentedNewConnection: NewConnectionDraft? = nil
     var requestedSelectionID: UUID? = nil
+    var activeConnectionID: UUID? = nil
     
     // MARK: - Runtime
 
@@ -158,6 +164,23 @@ final class ConnectionController {
         connect(configuration)
         requestedSelectionID = id
         return id
+    }
+
+    func connectOrReuseTemporary(_ draft: NewConnectionDraft) -> UUID? {
+        let hostname = draft.hostname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let login = draft.login.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !hostname.isEmpty, !login.isEmpty else { return nil }
+
+        if let existing = configurationsByID.values.first(where: {
+            $0.hostname.caseInsensitiveCompare(hostname) == .orderedSame &&
+            $0.login.caseInsensitiveCompare(login) == .orderedSame
+        }) {
+            connect(existing)
+            requestedSelectionID = existing.id
+            return existing.id
+        }
+
+        return connectTemporary(draft)
     }
 
     func markConnectionAsBookmarked(_ id: UUID) {
@@ -343,14 +366,14 @@ final class ConnectionController {
     }
 
     @MainActor
-    func handleIncomingURL(_ url: URL) {
+    func handleIncomingURL(_ url: URL) -> IncomingURLAction? {
         guard let scheme = url.scheme?.lowercased(),
               scheme == "wired3" || scheme == "wired" else {
-            return
+            return nil
         }
 
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return
+            return nil
         }
 
         let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -373,15 +396,35 @@ final class ConnectionController {
         let login = (components.user ?? loginFromQuery ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let password = components.password ?? passwordFromQuery ?? ""
+        let normalizedRemotePath: String? = {
+            let path = components.percentEncodedPath.removingPercentEncoding ?? components.path
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed != "/" else { return nil }
+            return trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        }()
 
-        guard !hostWithPort.isEmpty else {
-            presentNewConnection()
-            return
+        if hostWithPort.isEmpty {
+            guard let remotePath = normalizedRemotePath else {
+                presentNewConnection()
+                return nil
+            }
+
+            if let activeConnectionID {
+                return IncomingURLAction(connectionID: activeConnectionID, remotePath: remotePath)
+            }
+
+            if let connected = runtimeStores.first(where: { $0.status == .connected }) {
+                requestedSelectionID = connected.id
+                activeConnectionID = connected.id
+                return IncomingURLAction(connectionID: connected.id, remotePath: remotePath)
+            }
+
+            return nil
         }
 
         if login.isEmpty {
             presentNewConnection(prefill: NewConnectionDraft(hostname: hostWithPort))
-            return
+            return nil
         }
 
         let draft = NewConnectionDraft(
@@ -389,7 +432,10 @@ final class ConnectionController {
             login: login,
             password: password
         )
-        _ = connectTemporary(draft)
+        guard let connectionID = connectOrReuseTemporary(draft) else {
+            return nil
+        }
+        return IncomingURLAction(connectionID: connectionID, remotePath: normalizedRemotePath)
     }
 
     // MARK: - Event handling

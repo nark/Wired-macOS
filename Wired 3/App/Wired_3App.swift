@@ -89,19 +89,13 @@ struct Wired_3App: App {
     }()
 
     var body: some Scene {
-        WindowGroup {
 #if os(macOS)
+        Window("Wired 3", id: "main") {
             AppRootView(appTerminationDelegate: appTerminationDelegate)
                 .environment(controller)
                 .environmentObject(transfers)
-#else
-            AppRootView()
-                .environment(controller)
-                .environmentObject(transfers)
-#endif
         }
         .modelContainer(sharedModelContainer)
-#if os(macOS)
         .commands {
             CommandGroup(after: .newItem) {
                 Button("New Connection") {
@@ -110,12 +104,17 @@ struct Wired_3App: App {
                 .keyboardShortcut("k", modifiers: [.command])
             }
         }
-#endif
-        
-#if os(macOS)
+
         Settings {
             SettingsView()
         }
+#else
+        WindowGroup {
+            AppRootView()
+                .environment(controller)
+                .environmentObject(transfers)
+        }
+        .modelContainer(sharedModelContainer)
 #endif
     }
 }
@@ -150,8 +149,76 @@ private struct AppRootView: View {
                 }
             }
             .onOpenURL { url in
-                connectionController.handleIncomingURL(url)
+                guard let action = connectionController.handleIncomingURL(url) else { return }
+                guard let remotePath = action.remotePath else { return }
+                Task {
+                    await startRemoteDownload(for: action.connectionID, remotePath: remotePath)
+                }
             }
+    }
+
+    private func startRemoteDownload(for connectionID: UUID, remotePath: String) async {
+        guard remotePath.hasPrefix("/") else {
+            if let runtime = connectionController.runtime(for: connectionID) {
+                runtime.lastError = WiredError(
+                    withTitle: "Download Error",
+                    message: "Invalid remote path: \(remotePath)"
+                )
+            }
+            return
+        }
+
+        guard let connection = await waitForConnectionReady(connectionID: connectionID, timeoutSeconds: 20) else {
+            if let runtime = connectionController.runtime(for: connectionID) {
+                runtime.lastError = WiredError(
+                    withTitle: "Download Error",
+                    message: "Unable to connect to server before starting download for \(remotePath)."
+                )
+            }
+            return
+        }
+
+        _ = connection
+        // Deep-link behavior: server is authoritative, so queue a direct file download.
+        let file = FileItem((remotePath as NSString).lastPathComponent, path: remotePath, type: .file)
+        if let runtime = connectionController.runtime(for: connectionID) {
+            runtime.selectedTab = .files
+        }
+        handleQueuedDownload(file: file, connectionID: connectionID, remotePath: remotePath)
+    }
+
+    private func handleQueuedDownload(file: FileItem, connectionID: UUID, remotePath: String) {
+        switch transfers.queueDownload(file, with: connectionID, overwriteExistingFile: false) {
+        case .started, .resumed:
+            break
+        case .needsOverwrite(let destination):
+            if let runtime = connectionController.runtime(for: connectionID) {
+                runtime.lastError = WiredError(
+                    withTitle: "Download Blocked",
+                    message: "A local file already exists at \(destination)."
+                )
+            }
+        case .failed:
+            if let runtime = connectionController.runtime(for: connectionID) {
+                runtime.lastError = WiredError(
+                    withTitle: "Download Error",
+                    message: "Unable to start download for \(remotePath)."
+                )
+            }
+        }
+    }
+
+    private func waitForConnectionReady(connectionID: UUID, timeoutSeconds: TimeInterval) async -> AsyncConnection? {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+
+        while Date() < deadline {
+            if let connection = connectionController.runtime(for: connectionID)?.connection as? AsyncConnection {
+                return connection
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+
+        return nil
     }
 }
 

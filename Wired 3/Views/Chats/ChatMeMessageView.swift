@@ -15,7 +15,11 @@ struct ChatMeMessageView: View {
     
     var body: some View {
         HStack(alignment: .bottom) {
-            Text("**\(message.user.nick)** \(message.text)")
+            (
+                Text("**\(message.user.nick)** ")
+                +
+                Text(message.text.attributedWithDetectedLinks(linkColor: .blue))
+            )
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .foregroundStyle(.gray)
