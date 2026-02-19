@@ -514,6 +514,11 @@ final class ConnectionController {
                 }
             }
 
+            if let color = message.enumeration(forField: "wired.account.color")
+                ?? message.uint32(forField: "wired.account.color") {
+                parsedPrivileges["wired.account.color"] = color
+            }
+
             await MainActor.run {
                 runtime.privileges = parsedPrivileges
             }

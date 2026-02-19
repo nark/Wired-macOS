@@ -1,6 +1,17 @@
 import SwiftUI
 import WiredSwift
 
+private func accountPrivilegesIncludingColorFromSpec() -> [String] {
+    var privileges = spec?.accountPrivileges ?? []
+
+    if spec?.fieldsByName["wired.account.color"] != nil,
+       !privileges.contains("wired.account.color") {
+        privileges.append("wired.account.color")
+    }
+
+    return privileges
+}
+
 enum AccountFilter: String, CaseIterable, Identifiable {
     case all
     case users
@@ -378,7 +389,7 @@ final class AccountsSettingsViewModel: ObservableObject {
         message.addParameter(field: "wired.account.groups", value: editor.secondaryGroups)
         message.addParameter(field: "wired.account.password", value: editor.password)
 
-        for privilege in spec?.accountPrivileges ?? [] {
+        for privilege in accountPrivilegesIncludingColorFromSpec() {
             guard let field = spec?.fieldsByName[privilege] else { continue }
             switch field.type {
             case .bool:
@@ -407,7 +418,7 @@ final class AccountsSettingsViewModel: ObservableObject {
 
         message.addParameter(field: "wired.account.comment", value: editor.comment)
 
-        for privilege in spec?.accountPrivileges ?? [] {
+        for privilege in accountPrivilegesIncludingColorFromSpec() {
             guard let field = spec?.fieldsByName[privilege] else { continue }
             switch field.type {
             case .bool:
@@ -464,7 +475,7 @@ final class AccountsSettingsViewModel: ObservableObject {
         var privilegesBool: [String: Bool] = [:]
         var privilegesUInt32: [String: UInt32] = [:]
 
-        for privilege in spec?.accountPrivileges ?? [] {
+        for privilege in accountPrivilegesIncludingColorFromSpec() {
             guard let field = spec?.fieldsByName[privilege] else { continue }
             switch field.type {
             case .bool:
@@ -502,7 +513,7 @@ final class AccountsSettingsViewModel: ObservableObject {
         var privilegesBool: [String: Bool] = [:]
         var privilegesUInt32: [String: UInt32] = [:]
 
-        for privilege in spec?.accountPrivileges ?? [] {
+        for privilege in accountPrivilegesIncludingColorFromSpec() {
             guard let field = spec?.fieldsByName[privilege] else { continue }
             switch field.type {
             case .bool:
@@ -818,13 +829,13 @@ private struct AccountPermissionsForm: View {
     let onSetUInt32: (String, UInt32) -> Void
 
     var boolPrivileges: [String] {
-        (spec?.accountPrivileges ?? []).filter {
+        accountPrivilegesIncludingColorFromSpec().filter {
             spec?.fieldsByName[$0]?.type == .bool
         }
     }
 
     var uint32Privileges: [String] {
-        (spec?.accountPrivileges ?? []).filter {
+        accountPrivilegesIncludingColorFromSpec().filter {
             let type = spec?.fieldsByName[$0]?.type
             return type == .enum32 || type == .uint32
         }
