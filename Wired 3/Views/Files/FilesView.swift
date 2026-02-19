@@ -307,6 +307,10 @@ struct FilesView: View {
     @State private var activeUploadConflict: UploadConflict? = nil
     @State private var infoSheetItem: FileItem? = nil
     @State private var primarySelectionPath: String? = nil
+    @State private var backDirectoryHistory: [String] = []
+    @State private var forwardDirectoryHistory: [String] = []
+    @State private var currentDirectoryPath: String = "/"
+    @State private var isApplyingHistoryNavigation: Bool = false
 
     private var selectedItem: FileItem? {
         switch selectedFileViewType {
@@ -322,6 +326,14 @@ struct FilesView: View {
         }
     }
 
+    private var canGoBack: Bool {
+        !backDirectoryHistory.isEmpty
+    }
+
+    private var canGoForward: Bool {
+        !forwardDirectoryHistory.isEmpty
+    }
+
     private func itemForPath(_ path: String) -> FileItem? {
         if let item = filesViewModel.columns
             .flatMap(\.items)
@@ -335,8 +347,9 @@ struct FilesView: View {
             return item
         }
 
-        if path == "/" {
-            return FileItem("/", path: "/", type: .directory)
+        if path == "/" || path == filesViewModel.treeRootPath {
+            let name = path == "/" ? "/" : (path as NSString).lastPathComponent
+            return FileItem(name, path: path, type: .directory)
         }
 
         return nil
@@ -448,6 +461,14 @@ struct FilesView: View {
             },
             onPrimarySelectionChange: { path in
                 primarySelectionPath = path
+                registerNavigation(fromPrimarySelectionPath: path)
+            },
+            onOpenDirectory: { directory in
+                Task { @MainActor in
+                    guard await filesViewModel.setTreeRoot(directory.path) else { return }
+                    primarySelectionPath = directory.path
+                    registerNavigation(toDirectoryPath: directory.path)
+                }
             },
             onRequestUploadInDirectory: { directory in
                 guard canUpload(to: directory) else { return }
@@ -503,6 +524,7 @@ struct FilesView: View {
             },
             onPrimarySelectionChange: { path in
                 primarySelectionPath = path
+                registerNavigation(fromPrimarySelectionPath: path)
             },
             onRequestUploadInDirectory: { directory in
                 guard canUpload(to: directory) else { return }
@@ -647,7 +669,10 @@ struct FilesView: View {
             guard request.connectionID == bookmark.id else { return }
 
             Task { @MainActor in
-                _ = await filesViewModel.revealRemotePath(request.path)
+                let didReveal = await filesViewModel.revealRemotePath(request.path)
+                if didReveal {
+                    registerNavigation(fromPrimarySelectionPath: request.path)
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .wiredFileDirectoryChanged)) { notification in
@@ -681,6 +706,20 @@ struct FilesView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 80)
+
+            Button {
+                Task { await navigateHistory(backward: true) }
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .disabled(!canGoBack)
+
+            Button {
+                Task { await navigateHistory(backward: false) }
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(!canGoForward)
 
             Button {
                 Task {
@@ -860,6 +899,84 @@ struct FilesView: View {
         return unique
     }
 
+    private func normalizedRemotePath(_ path: String) -> String {
+        if path == "/" { return "/" }
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if trimmed.isEmpty { return "/" }
+        return "/" + trimmed
+    }
+
+    private func directoryPath(from path: String?) -> String? {
+        guard let path else { return nil }
+        if let item = itemForPath(path) {
+            if item.type == .directory || item.type == .uploads || item.type == .dropbox {
+                return normalizedRemotePath(item.path)
+            }
+            return normalizedRemotePath(item.path.stringByDeletingLastPathComponent)
+        }
+        if path == "/" {
+            return "/"
+        }
+        return normalizedRemotePath(path.stringByDeletingLastPathComponent)
+    }
+
+    private func registerNavigation(fromPrimarySelectionPath path: String?) {
+        guard let directory = directoryPath(from: path) else { return }
+        registerNavigation(toDirectoryPath: directory)
+    }
+
+    private func registerNavigation(toDirectoryPath path: String) {
+        let normalized = normalizedRemotePath(path)
+        if normalized == currentDirectoryPath { return }
+        if !isApplyingHistoryNavigation {
+            backDirectoryHistory.append(currentDirectoryPath)
+            forwardDirectoryHistory.removeAll()
+        }
+        currentDirectoryPath = normalized
+    }
+
+    @MainActor
+    private func applyHistoryNavigation(to directoryPath: String) async {
+        let normalized = normalizedRemotePath(directoryPath)
+        switch selectedFileViewType {
+        case .columns:
+            let didReveal = await filesViewModel.revealRemotePath(normalized)
+            if didReveal, normalized != "/",
+               let columnIndex = filesViewModel.columns.indices.last,
+               let selectedID = filesViewModel.columns[columnIndex].selection {
+                filesViewModel.selectColumnItem(
+                    id: selectedID,
+                    at: columnIndex,
+                    onColumnAppended: { _ in }
+                )
+            }
+            primarySelectionPath = normalized
+        case .tree:
+            _ = await filesViewModel.setTreeRoot(normalized)
+            primarySelectionPath = normalized
+        }
+    }
+
+    @MainActor
+    private func navigateHistory(backward: Bool) async {
+        if backward {
+            guard let previous = backDirectoryHistory.popLast() else { return }
+            forwardDirectoryHistory.append(currentDirectoryPath)
+            isApplyingHistoryNavigation = true
+            defer { isApplyingHistoryNavigation = false }
+            await applyHistoryNavigation(to: previous)
+            currentDirectoryPath = normalizedRemotePath(previous)
+            return
+        }
+
+        guard let next = forwardDirectoryHistory.popLast() else { return }
+        backDirectoryHistory.append(currentDirectoryPath)
+        isApplyingHistoryNavigation = true
+        defer { isApplyingHistoryNavigation = false }
+        await applyHistoryNavigation(to: next)
+        currentDirectoryPath = normalizedRemotePath(next)
+    }
+
     private func presentInfo(for item: FileItem) {
         guard canGetInfo(for: item) else { return }
         infoSheetItem = item
@@ -873,6 +990,7 @@ struct FilesTreeView: View {
 
     let onRequestCreateFolder: (FileItem) -> Void
     let onPrimarySelectionChange: (String?) -> Void
+    let onOpenDirectory: (FileItem) -> Void
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: ([FileItem]) -> Void
     let onRequestDownloadSelection: ([FileItem]) -> Void
@@ -891,6 +1009,7 @@ struct FilesTreeView: View {
     var body: some View {
         #if os(macOS)
         AppKitFilesTreeView(
+            rootPath: filesViewModel.treeRootPath,
             treeChildrenByPath: filesViewModel.treeChildrenByPath,
             expandedPaths: filesViewModel.expandedTreePaths,
             connectionID: bookmark.id,
@@ -921,6 +1040,9 @@ struct FilesTreeView: View {
             onDownloadSingleFile: { item in
                 guard canDownloadForItem(item) else { return }
                 onRequestDownloadSelection([item])
+            },
+            onOpenDirectory: { directory in
+                onOpenDirectory(directory)
             },
             onRequestCreateFolder: {
                 let target = contextMenuTargetDirectory()
@@ -988,7 +1110,9 @@ struct FilesTreeView: View {
             return FileItem(parentPath.lastPathComponent, path: parentPath, type: .directory)
         }
 
-        return FileItem("/", path: "/", type: .directory)
+        let root = filesViewModel.treeRootPath
+        let rootName = root == "/" ? "/" : (root as NSString).lastPathComponent
+        return FileItem(rootName, path: root, type: .directory)
     }
 
 }
@@ -1030,6 +1154,7 @@ private final class FinderDropSecurityScopeBroker {
 }
 
 private struct AppKitFilesTreeView: NSViewRepresentable {
+    let rootPath: String
     let treeChildrenByPath: [String: [FileItem]]
     let expandedPaths: Set<String>
     let connectionID: UUID
@@ -1040,6 +1165,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
     let onSelectionChange: (Set<String>) -> Void
     let onSetDirectoryExpanded: (String, Bool) -> Void
     let onDownloadSingleFile: (FileItem) -> Void
+    let onOpenDirectory: (FileItem) -> Void
     let onRequestCreateFolder: () -> Void
     let onRequestUploadInDirectory: (FileItem) -> Void
     let onRequestDeleteSelection: () -> Void
@@ -1101,6 +1227,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
         scrollView.documentView = outlineView
         context.coordinator.outlineView = outlineView
         context.coordinator.syncFromModel(
+            rootPath: rootPath,
             childrenByPath: treeChildrenByPath,
             expandedPaths: expandedPaths,
             selectedPaths: selectedPaths
@@ -1112,6 +1239,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.syncFromModel(
+            rootPath: rootPath,
             childrenByPath: treeChildrenByPath,
             expandedPaths: expandedPaths,
             selectedPaths: selectedPaths
@@ -1132,6 +1260,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
         weak var outlineView: NSOutlineView?
         private let rootNode = OutlineNode(item: FileItem("/", path: "/", type: .directory))
         private var nodesByPath: [String: OutlineNode] = [:]
+        private var currentRootPath: String = "/"
         private var isApplyingSelectionFromSwiftUI = false
         private var isApplyingExpandedStateFromSwiftUI = false
         private var suppressDisclosureCallbacks = false
@@ -1141,6 +1270,14 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
 
         init(parent: AppKitFilesTreeView) {
             self.parent = parent
+            self.currentRootPath = parent.rootPath
+            let normalizedRoot: String = {
+                if parent.rootPath == "/" { return "/" }
+                let trimmed = parent.rootPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                return trimmed.isEmpty ? "/" : "/" + trimmed
+            }()
+            let rootName = normalizedRoot == "/" ? "/" : (normalizedRoot as NSString).lastPathComponent
+            self.contextDirectoryTarget = FileItem(rootName, path: normalizedRoot, type: .directory)
         }
 
         private func isDirectory(_ item: FileItem) -> Bool {
@@ -1187,8 +1324,22 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             return path.split(separator: "/").count
         }
 
-        func refreshTree(childrenByPath: [String: [FileItem]]) {
+        private func normalizedRemotePath(_ path: String) -> String {
+            if path == "/" { return "/" }
+            let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if trimmed.isEmpty { return "/" }
+            return "/" + trimmed
+        }
+
+        private func directoryItem(for path: String) -> FileItem {
+            let normalized = normalizedRemotePath(path)
+            let name = normalized == "/" ? "/" : (normalized as NSString).lastPathComponent
+            return FileItem(name, path: normalized, type: .directory)
+        }
+
+        func refreshTree(rootPath: String, childrenByPath: [String: [FileItem]]) {
             nodesByPath.removeAll()
+            currentRootPath = normalizedRemotePath(rootPath)
 
             func node(for item: FileItem) -> OutlineNode {
                 if let existing = nodesByPath[item.path] { return existing }
@@ -1215,11 +1366,12 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             }
 
             var visiting: Set<String> = []
-            rootNode.children = buildChildren(parentPath: "/", visiting: &visiting)
+            rootNode.children = buildChildren(parentPath: currentRootPath, visiting: &visiting)
             outlineView?.reloadData()
         }
 
         func syncFromModel(
+            rootPath: String,
             childrenByPath: [String: [FileItem]],
             expandedPaths: Set<String>,
             selectedPaths: Set<String>
@@ -1244,7 +1396,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
 
             suppressDisclosureCallbacks = true
             defer { suppressDisclosureCallbacks = false }
-            refreshTree(childrenByPath: childrenByPath)
+            refreshTree(rootPath: rootPath, childrenByPath: childrenByPath)
             applyExpandedState(effectiveExpandedPaths)
             updateSelection(selectedPaths)
         }
@@ -1414,7 +1566,9 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             guard row >= 0, let node = outlineView.item(atRow: row) as? OutlineNode else { return }
             let item = node.item
             let isDir = isDirectory(item)
-            if !isDir, parent.canDownloadForItem(item) {
+            if isDir {
+                parent.onOpenDirectory(item)
+            } else if parent.canDownloadForItem(item) {
                 parent.onDownloadSingleFile(item)
             }
         }
@@ -1461,7 +1615,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
 
         private func dropDestination(for itemRef: Any?) -> FileItem? {
             guard let node = itemRef as? OutlineNode else {
-                return FileItem("/", path: "/", type: .directory)
+                return directoryItem(for: currentRootPath)
             }
 
             let item = node.item
@@ -1474,7 +1628,7 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
             guard !urls.isEmpty else { return [] }
             guard let destination = dropDestination(for: item) else { return [] }
 
-            if destination.path == "/" {
+            if item == nil || destination.path == currentRootPath {
                 outlineView.setDropItem(nil, dropChildIndex: NSOutlineViewDropOnItemIndex)
             } else {
                 outlineView.setDropItem(item, dropChildIndex: NSOutlineViewDropOnItemIndex)
@@ -1529,14 +1683,14 @@ private struct AppKitFilesTreeView: NSViewRepresentable {
                         contextDirectoryTarget = FileItem(parentPath.lastPathComponent, path: parentPath, type: .directory)
                     }
                 } else {
-                    contextDirectoryTarget = FileItem("/", path: "/", type: .directory)
+                    contextDirectoryTarget = directoryItem(for: currentRootPath)
                 }
             } else {
                 clickedRowHadSelection = false
                 if hasSelectionBefore {
                     outlineView.deselectAll(nil)
                 }
-                contextDirectoryTarget = FileItem("/", path: "/", type: .directory)
+                contextDirectoryTarget = directoryItem(for: currentRootPath)
             }
 
             let selectedRows = outlineView.selectedRowIndexes.compactMap { row -> Int? in

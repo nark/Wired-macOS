@@ -37,6 +37,7 @@ final class FilesViewModel: ObservableObject {
 
     @Published var columns: [FileColumn] = []
     @Published var treeChildrenByPath: [String: [FileItem]] = [:]
+    @Published var treeRootPath: String = "/"
     @Published var expandedTreePaths: Set<String> = ["/"]
     @Published var treeSelectionPath: String? = nil
     @Published var treeViewRevision: Int = 0
@@ -261,7 +262,7 @@ final class FilesViewModel: ObservableObject {
             await remoteDirectoryDeleted(path)
         } catch {
             if isPermissionDeniedError(error) {
-                treeChildrenByPath["/"] = []
+                treeChildrenByPath[treeRootPath] = []
                 treeViewRevision &+= 1
                 return
             }
@@ -281,20 +282,25 @@ final class FilesViewModel: ObservableObject {
 
     @MainActor
     func loadTreeRoot() async {
+        let rootPath = normalizedRemotePath(treeRootPath)
+        treeRootPath = rootPath
+
         guard let connection = runtime?.connection as? AsyncConnection,
               let fileService else { return }
 
         do {
             var items: [FileItem] = []
-            for try await file in fileService.listDirectory(path: "/", recursive: false, connection: connection) {
+            for try await file in fileService.listDirectory(path: rootPath, recursive: false, connection: connection) {
                 items.append(file)
             }
-            treeChildrenByPath["/"] = items
+            treeChildrenByPath[rootPath] = items
+            expandedTreePaths.insert("/")
+            expandedTreePaths.insert(rootPath)
             treeViewRevision &+= 1
             await syncDirectorySubscriptions()
         } catch {
             if isPermissionDeniedError(error) {
-                treeChildrenByPath["/"] = []
+                treeChildrenByPath[rootPath] = []
                 treeViewRevision &+= 1
                 return
             }
@@ -372,7 +378,7 @@ final class FilesViewModel: ObservableObject {
             }
         }
 
-        appendChildren(for: "/", level: 0)
+        appendChildren(for: treeRootPath, level: 0)
         return nodes
     }
 
@@ -395,10 +401,46 @@ final class FilesViewModel: ObservableObject {
                 return found
             }
         }
-        if selection == "/" {
-            return FileItem("/", path: "/", type: .directory)
+        if selection == treeRootPath {
+            let name = selection == "/" ? "/" : (selection as NSString).lastPathComponent
+            return FileItem(name, path: selection, type: .directory)
         }
         return nil
+    }
+
+    @MainActor
+    @discardableResult
+    func setTreeRoot(_ path: String) async -> Bool {
+        let normalized = normalizedRemotePath(path)
+
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return false }
+
+        do {
+            var items: [FileItem] = []
+            for try await file in fileService.listDirectory(path: normalized, recursive: false, connection: connection) {
+                items.append(file)
+            }
+
+            deniedDirectoryPaths.remove(normalized)
+            treeRootPath = normalized
+            treeChildrenByPath[normalized] = items
+            expandedTreePaths.insert("/")
+            expandedTreePaths.insert(normalized)
+            treeSelectionPath = normalized
+            treeViewRevision &+= 1
+            await expandTreeAncestors(for: normalized, includeSelf: true)
+            await syncDirectorySubscriptions()
+            return true
+        } catch {
+            if isPermissionDeniedError(error) {
+                deniedDirectoryPaths.insert(normalized)
+                return false
+            }
+
+            self.error = error
+            return false
+        }
     }
 
     @MainActor
@@ -550,6 +592,7 @@ final class FilesViewModel: ObservableObject {
         if normalized == "/" {
             columns.removeAll()
             treeChildrenByPath.removeAll()
+            treeRootPath = "/"
             expandedTreePaths = ["/"]
             treeSelectionPath = nil
             await loadRoot()
@@ -568,8 +611,16 @@ final class FilesViewModel: ObservableObject {
 
         treeChildrenByPath = treeChildrenByPath.filter { !isSameOrDescendant($0.key, of: normalized) }
         expandedTreePaths = Set(expandedTreePaths.filter { !isSameOrDescendant($0, of: normalized) })
+
+        if isSameOrDescendant(treeRootPath, of: normalized) {
+            treeRootPath = parentPath(of: normalized) ?? "/"
+            expandedTreePaths.insert(treeRootPath)
+            treeSelectionPath = treeRootPath
+            await ensureTreeChildren(for: treeRootPath)
+        }
+
         if let selected = treeSelectionPath, isSameOrDescendant(selected, of: normalized) {
-            treeSelectionPath = parentPath(of: normalized) ?? "/"
+            treeSelectionPath = parentPath(of: normalized) ?? treeRootPath
         }
         treeViewRevision &+= 1
 
@@ -660,7 +711,7 @@ private extension FilesViewModel {
                 treeChildrenByPath.removeValue(forKey: path)
                 expandedTreePaths.remove(path)
                 if let selected = treeSelectionPath, isSameOrDescendant(selected, of: path) {
-                    treeSelectionPath = parentPath(of: path) ?? "/"
+                    treeSelectionPath = parentPath(of: path) ?? treeRootPath
                 }
                 treeViewRevision &+= 1
                 await syncDirectorySubscriptions()
