@@ -836,17 +836,31 @@ private struct AccountPermissionsForm: View {
     let onToggle: (String, Bool) -> Void
     let onSetUInt32: (String, UInt32) -> Void
 
-    var boolPrivileges: [String] {
-        accountPrivilegesIncludingColorFromSpec().filter {
-            spec?.fieldsByName[$0]?.type == .bool
+    private var groupedPrivileges: [(PermissionCategory, [String])] {
+        var buckets: [PermissionCategory: [String]] = [:]
+
+        for key in accountPrivilegesIncludingColorFromSpec() {
+            guard let field = spec?.fieldsByName[key] else { continue }
+            guard field.type == .bool || field.type == .enum32 || field.type == .uint32 else { continue }
+
+            let category = PermissionCategory.category(for: key)
+            buckets[category, default: []].append(key)
         }
+
+        var result: [(PermissionCategory, [String])] = []
+
+        for category in PermissionCategory.displayOrder {
+            let keys = (buckets[category] ?? []).sorted(by: permissionSortKey)
+            if !keys.isEmpty {
+                result.append((category, keys))
+            }
+        }
+
+        return result
     }
 
-    var uint32Privileges: [String] {
-        accountPrivilegesIncludingColorFromSpec().filter {
-            let type = spec?.fieldsByName[$0]?.type
-            return type == .enum32 || type == .uint32
-        }
+    private func permissionSortKey(_ lhs: String, _ rhs: String) -> Bool {
+        permissionDisplayName(lhs).localizedCaseInsensitiveCompare(permissionDisplayName(rhs)) == .orderedAscending
     }
 
     var body: some View {
@@ -860,55 +874,59 @@ private struct AccountPermissionsForm: View {
             .padding(.top, 6)
 
             List {
-                ForEach(boolPrivileges, id: \.self) { key in
-                    Toggle(isOn: Binding(
-                        get: { editor.privilegesBool[key] ?? false },
-                        set: { onToggle(key, $0) }
-                    )) {
-                        Text(key)
-                            .font(.system(size: 12))
-                    }
-                }
+                ForEach(groupedPrivileges, id: \.0) { category, keys in
+                    Section(category.title) {
+                        ForEach(keys, id: \.self) { key in
+                            if spec?.fieldsByName[key]?.type == .bool {
+                                Toggle(isOn: Binding(
+                                    get: { editor.privilegesBool[key] ?? false },
+                                    set: { onToggle(key, $0) }
+                                )) {
+                                    Text(permissionDisplayName(key))
+                                        .font(.system(size: 12))
+                                }
+                            } else {
+                                HStack {
+                                    Text(permissionDisplayName(key))
+                                        .font(.system(size: 12))
+                                    Spacer()
 
-                ForEach(uint32Privileges, id: \.self) { key in
-                    HStack {
-                        Text(key)
-                            .font(.system(size: 12))
-                        Spacer()
-
-                        if key == "wired.account.color" {
-                            Picker(
-                                "",
-                                selection: Binding(
-                                    get: { editor.privilegesUInt32[key] ?? 0 },
-                                    set: { onSetUInt32(key, $0) }
-                                )
-                            ) {
-                                ForEach(WiredAccountColor.allCases) { option in
-                                    HStack(spacing: 8) {
-                                        Circle()
-                                            .fill(option.color)
-                                            .frame(width: 10, height: 10)
-                                        Text(option.title)
+                                    if key == "wired.account.color" {
+                                        Picker(
+                                            "",
+                                            selection: Binding(
+                                                get: { editor.privilegesUInt32[key] ?? 0 },
+                                                set: { onSetUInt32(key, $0) }
+                                            )
+                                        ) {
+                                            ForEach(WiredAccountColor.allCases) { option in
+                                                HStack(spacing: 8) {
+                                                    Circle()
+                                                        .fill(option.color)
+                                                        .frame(width: 10, height: 10)
+                                                    Text(option.title)
+                                                }
+                                                .tag(option.rawValue)
+                                            }
+                                        }
+                                        .labelsHidden()
+                                        .pickerStyle(.menu)
+                                        .frame(width: 150, alignment: .trailing)
+                                    } else {
+                                        TextField(
+                                            "",
+                                            value: Binding(
+                                                get: { editor.privilegesUInt32[key] ?? 0 },
+                                                set: { onSetUInt32(key, $0) }
+                                            ),
+                                            format: .number
+                                        )
+                                        .frame(width: 90)
+                                        .multilineTextAlignment(.trailing)
+                                        .textFieldStyle(.roundedBorder)
                                     }
-                                    .tag(option.rawValue)
                                 }
                             }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(width: 150, alignment: .trailing)
-                        } else {
-                            TextField(
-                                "",
-                                value: Binding(
-                                    get: { editor.privilegesUInt32[key] ?? 0 },
-                                    set: { onSetUInt32(key, $0) }
-                                ),
-                                format: .number
-                            )
-                            .frame(width: 90)
-                            .multilineTextAlignment(.trailing)
-                            .textFieldStyle(.roundedBorder)
                         }
                     }
                 }
@@ -916,6 +934,116 @@ private struct AccountPermissionsForm: View {
             .listStyle(.inset)
         }
     }
+}
+
+private enum PermissionCategory: String, CaseIterable, Hashable {
+    case basic
+    case files
+    case messages
+    case transfers
+    case boards
+    case users
+    case accounts
+    case administration
+    case tracker
+    case limits
+    case other
+
+    static var displayOrder: [PermissionCategory] {
+        [.basic, .files, .messages, .transfers, .boards, .users, .accounts, .administration, .tracker, .limits, .other]
+    }
+
+    var title: String {
+        switch self {
+        case .basic: return "Basic"
+        case .files: return "Files"
+        case .messages: return "Messages"
+        case .transfers: return "Transfers"
+        case .boards: return "Boards"
+        case .users: return "Users"
+        case .accounts: return "Accounts"
+        case .administration: return "Administration"
+        case .tracker: return "Tracker"
+        case .limits: return "Limits"
+        case .other: return "Other"
+        }
+    }
+
+    static func category(for key: String) -> PermissionCategory {
+        if key == "wired.account.color" ||
+            key.hasPrefix("wired.account.chat.create_") ||
+            key == "wired.account.chat.set_topic" ||
+            key == "wired.account.user.cannot_set_nick" ||
+            key == "wired.account.user.get_info" {
+            return .basic
+        }
+
+        if key.hasPrefix("wired.account.message.") {
+            return .messages
+        }
+
+        if key.hasPrefix("wired.account.transfer.") {
+            if key.hasSuffix("_limit") || key.hasSuffix("_speed_limit") {
+                return .limits
+            }
+            return .transfers
+        }
+
+        if key == "wired.account.files" || key.hasPrefix("wired.account.file.") {
+            if key.hasSuffix("_limit") {
+                return .limits
+            }
+            return .files
+        }
+
+        if key.hasPrefix("wired.account.board.") {
+            return .boards
+        }
+
+        if key.hasPrefix("wired.account.tracker.") {
+            return .tracker
+        }
+
+        if key == "wired.account.chat.kick_users" ||
+            key == "wired.account.user.disconnect_users" ||
+            key == "wired.account.user.ban_users" ||
+            key == "wired.account.user.cannot_be_disconnected" ||
+            key == "wired.account.user.get_users" {
+            return .users
+        }
+
+        if key.hasPrefix("wired.account.account.") {
+            return .accounts
+        }
+
+        if key.hasPrefix("wired.account.log.") ||
+            key.hasPrefix("wired.account.events.") ||
+            key.hasPrefix("wired.account.settings.") ||
+            key.hasPrefix("wired.account.banlist.") {
+            return .administration
+        }
+
+        if key.hasSuffix("_limit") {
+            return .limits
+        }
+
+        return .other
+    }
+}
+
+private func permissionDisplayName(_ key: String) -> String {
+    if key == "wired.account.color" {
+        return "Color"
+    }
+
+    let short = key.replacingOccurrences(of: "wired.account.", with: "")
+    let words = short
+        .split(separator: ".")
+        .joined(separator: " ")
+        .split(separator: "_")
+        .map { $0.capitalized }
+
+    return words.joined(separator: " ")
 }
 
 private enum WiredAccountColor: UInt32, CaseIterable, Identifiable {
