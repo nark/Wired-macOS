@@ -21,6 +21,7 @@ struct ChatView: View {
     @State private var historyIndex: Int? = nil
     @State private var historyDraft: String = ""
     @State private var lastProgrammaticHistoryValue: String? = nil
+    @State private var chatInputHeight: CGFloat = 22
     
     @AppStorage("SubstituteEmoji") var substituteEmoji: Bool = true
     @AppStorageCodable(key: "EmojiSubstitutions", defaultValue: [
@@ -49,22 +50,34 @@ struct ChatView: View {
                 Divider()
 
 #if os(macOS)
-                ChatInputField(
-                    text: $chatInput,
-                    onSubmit: {
-                        Task { await sendMessage() }
-                    },
-                    onHistoryUp: {
-                        browseHistoryUp()
-                    },
-                    onHistoryDown: {
-                        browseHistoryDown()
+                ZStack(alignment: .leading) {
+                    ChatInputField(
+                        text: $chatInput,
+                        dynamicHeight: $chatInputHeight,
+                        onSubmit: {
+                            Task { await sendMessage() }
+                        },
+                        onHistoryUp: {
+                            browseHistoryUp()
+                        },
+                        onHistoryDown: {
+                            browseHistoryDown()
+                        }
+                    )
+
+                    if chatInput.isEmpty {
+                        Text("Chat here…")
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 12)
+                            .allowsHitTesting(false)
                     }
-                )
+                }
+                .frame(height: chatInputHeight)
                 .padding(5)
 #else
-                TextField("", text: $chatInput)
+                TextField("", text: $chatInput, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
+                    .lineLimit(1...5)
                     .padding(5)
                     .onSubmit {
                         Task {
@@ -119,6 +132,7 @@ struct ChatView: View {
         }
     }
     
+    @MainActor
     func sendMessage() async {
         do {
             let originalInput = chatInput
@@ -134,6 +148,7 @@ struct ChatView: View {
             historyIndex = nil
             historyDraft = ""
             chatInput = ""
+            chatInputHeight = 22
         } catch {
             runtime.lastError = error
         }
@@ -175,91 +190,220 @@ struct ChatView: View {
 }
 
 #if os(macOS)
+private final class FocusableInputScrollView: NSScrollView {
+    weak var focusTarget: NSTextView?
+
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        if let focusTarget, self.window?.firstResponder !== focusTarget {
+            self.window?.makeFirstResponder(focusTarget)
+        }
+    }
+}
+
 private struct ChatInputField: NSViewRepresentable {
     @Binding var text: String
+    @Binding var dynamicHeight: CGFloat
 
     let onSubmit: () -> Void
     let onHistoryUp: () -> Void
     let onHistoryDown: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onSubmit: onSubmit)
+        Coordinator(text: $text, dynamicHeight: $dynamicHeight, onSubmit: onSubmit)
     }
 
-    func makeNSView(context: Context) -> NSTextField {
-        let textField = NSTextField(frame: .zero)
-        textField.delegate = context.coordinator
-        textField.stringValue = text
-        textField.isBezeled = true
-        textField.bezelStyle = .roundedBezel
-        textField.focusRingType = .default
-        textField.drawsBackground = true
-        textField.target = context.coordinator
-        textField.action = #selector(Coordinator.submit)
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = FocusableInputScrollView(frame: .zero)
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
+        scrollView.wantsLayer = true
+        scrollView.layer?.cornerRadius = 6
+        scrollView.layer?.masksToBounds = true
+        scrollView.layer?.borderWidth = 1
+        scrollView.layer?.borderColor = NSColor.separatorColor.cgColor
 
+        let textView = NSTextView(frame: .zero)
+        textView.isRichText = false
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.allowsUndo = true
+        textView.drawsBackground = false
+        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
+        textView.textColor = .labelColor
+        textView.insertionPointColor = .labelColor
+        textView.typingAttributes = [
+            .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+            .foregroundColor: NSColor.labelColor
+        ]
+        textView.textContainerInset = NSSize(width: 6, height: 2)
+        textView.textContainer?.lineFragmentPadding = 2
+        textView.textContainer?.lineBreakMode = .byWordWrapping
+        textView.textContainer?.maximumNumberOfLines = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.frame = NSRect(x: 0, y: 0, width: 200, height: dynamicHeight)
+        textView.autoresizingMask = [.width]
+        textView.string = text
+        textView.delegate = context.coordinator
+        context.coordinator.textView = textView
+        scrollView.focusTarget = textView
+
+        scrollView.documentView = textView
+        context.coordinator.recomputeHeight()
+        context.coordinator.applyTypingStyle()
         DispatchQueue.main.async {
-            textField.window?.makeFirstResponder(textField)
+            if let container = textView.textContainer {
+                container.containerSize = NSSize(width: max(scrollView.contentSize.width, 1), height: CGFloat.greatestFiniteMagnitude)
+            }
+            context.coordinator.recomputeHeight()
         }
-
-        return textField
+        DispatchQueue.main.async {
+            textView.window?.makeFirstResponder(textView)
+        }
+        return scrollView
     }
 
-    func updateNSView(_ nsView: NSTextField, context: Context) {
-        if nsView.stringValue != text {
-            nsView.stringValue = text
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let textView = context.coordinator.textView else { return }
+        nsView.backgroundColor = .textBackgroundColor
+        nsView.layer?.borderColor = NSColor.separatorColor.cgColor
+        if let container = textView.textContainer {
+            container.containerSize = NSSize(width: max(nsView.contentSize.width, 1), height: CGFloat.greatestFiniteMagnitude)
         }
+        if textView.string != text {
+            textView.string = text
+            // History navigation can change text in one state update; force layout on next runloop too.
+            DispatchQueue.main.async {
+                context.coordinator.recomputeHeight()
+            }
+        }
+        context.coordinator.recomputeHeight()
         context.coordinator.onHistoryUp = onHistoryUp
         context.coordinator.onHistoryDown = onHistoryDown
     }
 
-    final class Coordinator: NSObject, NSTextFieldDelegate, NSControlTextEditingDelegate {
+    final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: String
+        @Binding var dynamicHeight: CGFloat
         let onSubmit: () -> Void
         var onHistoryUp: (() -> Void)?
         var onHistoryDown: (() -> Void)?
+        weak var textView: NSTextView?
+        private let minimumLineCount: CGFloat = 1
+        private let maximumLineCount: CGFloat = 5
+        private let minimumHeight: CGFloat = 22
 
-        init(text: Binding<String>, onSubmit: @escaping () -> Void) {
+        init(text: Binding<String>, dynamicHeight: Binding<CGFloat>, onSubmit: @escaping () -> Void) {
             self._text = text
+            self._dynamicHeight = dynamicHeight
             self.onSubmit = onSubmit
         }
 
-        func controlTextDidChange(_ obj: Notification) {
-            guard let field = obj.object as? NSTextField else { return }
-            text = field.stringValue
+        func textDidChange(_ notification: Notification) {
+            guard let textView else { return }
+            text = textView.string
+            applyTypingStyle()
+            recomputeHeight()
         }
 
-        @objc func submit() {
-            onSubmit()
+        func textDidBeginEditing(_ notification: Notification) {
+            applyTypingStyle()
         }
 
-        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        func applyTypingStyle() {
+            guard let textView else { return }
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+                .foregroundColor: NSColor.labelColor
+            ]
+            textView.typingAttributes = attrs
+            textView.textColor = .labelColor
+            textView.insertionPointColor = .labelColor
+        }
+
+        func recomputeHeight() {
+            guard let textView, let layoutManager = textView.layoutManager, let container = textView.textContainer else { return }
+            if let visibleWidth = textView.enclosingScrollView?.contentSize.width, visibleWidth > 0 {
+                let targetWidth = max(visibleWidth, 1)
+                container.containerSize = NSSize(width: targetWidth, height: CGFloat.greatestFiniteMagnitude)
+                if textView.frame.width != targetWidth {
+                    textView.setFrameSize(NSSize(width: targetWidth, height: textView.frame.height))
+                }
+            }
+            layoutManager.ensureLayout(for: container)
+
+            let lineHeight = layoutManager.defaultLineHeight(for: textView.font ?? .systemFont(ofSize: NSFont.systemFontSize))
+            let verticalInset = textView.textContainerInset.height * 2
+            let minHeight = max(minimumHeight, lineHeight * minimumLineCount + verticalInset + 2)
+            let maxHeight = lineHeight * maximumLineCount + verticalInset + 4
+            if textView.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                dynamicHeight = minHeight
+                return
+            }
+            let usedRect = layoutManager.usedRect(for: container)
+            let contentHeight = ceil(usedRect.height + verticalInset + 2)
+            dynamicHeight = min(max(contentHeight, minHeight), maxHeight)
+        }
+
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             guard let event = NSApp.currentEvent else { return false }
-            guard event.modifierFlags.contains(.command) else { return false }
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-            // Reliable path for Cmd+Up / Cmd+Down regardless of resolved selector.
-            switch event.keyCode {
-            case 126: // up arrow
-                onHistoryUp?()
-                return true
-            case 125: // down arrow
-                onHistoryDown?()
-                return true
-            default:
-                break
+            if flags.contains(.command) {
+                switch event.keyCode {
+                case 126: // up arrow
+                    onHistoryUp?()
+                    return true
+                case 125: // down arrow
+                    onHistoryDown?()
+                    return true
+                default:
+                    break
+                }
             }
 
-            switch commandSelector {
-            case #selector(NSResponder.moveUp(_:)),
-                 #selector(NSResponder.moveToBeginningOfDocument(_:)):
-                onHistoryUp?()
-                return true
-            case #selector(NSResponder.moveDown(_:)),
-                 #selector(NSResponder.moveToEndOfDocument(_:)):
-                onHistoryDown?()
-                return true
-            default:
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                if flags.contains(.shift) || flags.contains(.option) {
+                    return false
+                } else {
+                    onSubmit()
+                    return true
+                }
+            }
+
+            if commandSelector == #selector(NSResponder.insertLineBreak(_:)) {
+                // Option+Return should always insert a line break.
                 return false
             }
+
+            if flags.contains(.command) {
+                switch commandSelector {
+                case #selector(NSResponder.moveUp(_:)),
+                     #selector(NSResponder.moveToBeginningOfDocument(_:)):
+                    onHistoryUp?()
+                    return true
+                case #selector(NSResponder.moveDown(_:)),
+                     #selector(NSResponder.moveToEndOfDocument(_:)):
+                    onHistoryDown?()
+                    return true
+                default:
+                    break
+                }
+            }
+
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                return false
+            }
+
+            return false
         }
     }
 }
