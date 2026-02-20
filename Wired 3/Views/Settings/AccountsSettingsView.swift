@@ -607,7 +607,6 @@ struct AccountsSettingsView: View {
         } detail: {
             detailView
         }
-        .searchable(text: $viewModel.searchText, prompt: "Rechercher")
         .overlay {
             if viewModel.isLoading {
                 ProgressView()
