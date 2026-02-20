@@ -124,8 +124,20 @@ struct TabsView: View {
                         runtime.selectedTab = .chats
                     } label: {
                         VStack {
-                            Image(systemName: "text.bubble")
-                                .frame(minHeight: 18)
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "text.bubble")
+                                    .frame(minHeight: 18)
+
+                                if runtime.totalUnreadChatMessages > 0 {
+                                    Text(runtime.totalUnreadChatMessages > 99 ? "99+" : "\(runtime.totalUnreadChatMessages)")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(.red))
+                                        .offset(x: 12, y: -8)
+                                }
+                            }
 
                             Text("Chats")
                                 .font(.subheadline)
@@ -138,8 +150,20 @@ struct TabsView: View {
                         runtime.selectedTab = .messages
                     } label: {
                         VStack {
-                            Image(systemName: "ellipsis.message")
-                                .frame(minHeight: 18)
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "ellipsis.message")
+                                    .frame(minHeight: 18)
+
+                                if runtime.totalUnreadPrivateMessages > 0 {
+                                    Text(runtime.totalUnreadPrivateMessages > 99 ? "99+" : "\(runtime.totalUnreadPrivateMessages)")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(.red))
+                                        .offset(x: 12, y: -8)
+                                }
+                            }
 
                             Text("Messages").font(.subheadline)
                         }
