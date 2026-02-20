@@ -47,7 +47,8 @@ struct TabsView: View {
                                     .environment(connectionController)
                                     .environment(runtime)
                             case .messages:
-                                Text("Messages")
+                                MessagesView()
+                                    .environment(runtime)
                             case .boards:
                                 Text("Boards")
                             case .files:
@@ -263,7 +264,8 @@ struct TabsView: View {
                     }
 
                     Tab("Messages", systemImage: "ellipsis.message.fill") {
-                        Text("Messages")
+                        MessagesView()
+                            .environment(runtime)
                     }
 
                     Tab("Boards", systemImage: "newspaper.fill") {

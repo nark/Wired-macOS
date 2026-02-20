@@ -15,26 +15,7 @@ struct ChatView: View {
     @Environment(ConnectionRuntime.self) private var runtime
     
     var chat: Chat
-    
     @State private var chatInput: String = ""
-    @State private var messageHistory: [String] = []
-    @State private var historyIndex: Int? = nil
-    @State private var historyDraft: String = ""
-    @State private var lastProgrammaticHistoryValue: String? = nil
-    @State private var chatInputHeight: CGFloat = 22
-    
-    @AppStorage("SubstituteEmoji") var substituteEmoji: Bool = true
-    @AppStorageCodable(key: "EmojiSubstitutions", defaultValue: [
-        ":-)": "😊",
-        ":)":  "😊",
-        ";-)": "😉",
-        ";)":  "😉",
-        ":-D": "😀",
-        ":D":  "😀",
-        "<3":  "❤️",
-        "+1":  "👍"
-    ])
-    var emojiSubstitutions: [String: String]
     
     var body: some View {
         HStack(spacing: 0) {
@@ -48,43 +29,18 @@ struct ChatView: View {
                     .environment(runtime)
                 
                 Divider()
-
-#if os(macOS)
-                ZStack(alignment: .leading) {
-                    ChatInputField(
-                        text: $chatInput,
-                        dynamicHeight: $chatInputHeight,
-                        onSubmit: {
-                            Task { await sendMessage() }
-                        },
-                        onHistoryUp: {
-                            browseHistoryUp()
-                        },
-                        onHistoryDown: {
-                            browseHistoryDown()
-                        }
-                    )
-
-                    if chatInput.isEmpty {
-                        Text("Chat here…")
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 12)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .frame(height: chatInputHeight)
-                .padding(5)
-#else
-                TextField("", text: $chatInput, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1...5)
-                    .padding(5)
-                    .onSubmit {
-                        Task {
-                            await sendMessage()
+                ConversationComposer(
+                    text: $chatInput,
+                    placeholder: "Chat here…",
+                    isEnabled: true,
+                    onSend: { text in
+                        do {
+                            _ = try await runtime.sendChatMessage(chat.id, text)
+                        } catch {
+                            runtime.lastError = error
                         }
                     }
-#endif
+                )
             }
 #if os(macOS)
             Divider()
@@ -108,13 +64,6 @@ struct ChatView: View {
             }
 #endif
         }
-        .onChange(of: chatInput) { _, newValue in
-            if lastProgrammaticHistoryValue == newValue {
-                lastProgrammaticHistoryValue = nil
-                return
-            }
-            historyIndex = nil
-        }
         .toolbar {
 #if os(iOS)
             ToolbarItem(placement: .topBarTrailing) {
@@ -131,27 +80,101 @@ struct ChatView: View {
 #endif
         }
     }
-    
-    @MainActor
-    func sendMessage() async {
-        do {
-            let originalInput = chatInput
-            let trimmed = originalInput.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
+}
 
-            if substituteEmoji {
-                chatInput = chatInput.replacingEmoticons(using: emojiSubstitutions)
+struct ConversationComposer: View {
+    @Binding var text: String
+
+    let placeholder: String
+    let isEnabled: Bool
+    let onSend: (String) async -> Void
+
+    @State private var messageHistory: [String] = []
+    @State private var historyIndex: Int? = nil
+    @State private var historyDraft: String = ""
+    @State private var lastProgrammaticHistoryValue: String? = nil
+    @State private var inputHeight: CGFloat = 22
+
+    @AppStorage("SubstituteEmoji") private var substituteEmoji: Bool = true
+    @AppStorageCodable(key: "EmojiSubstitutions", defaultValue: [
+        ":-)": "😊",
+        ":)":  "😊",
+        ";-)": "😉",
+        ";)":  "😉",
+        ":-D": "😀",
+        ":D":  "😀",
+        "<3":  "❤️",
+        "+1":  "👍"
+    ])
+    private var emojiSubstitutions: [String: String]
+
+    var body: some View {
+        Group {
+#if os(macOS)
+            ZStack(alignment: .leading) {
+                ChatInputField(
+                    text: $text,
+                    dynamicHeight: $inputHeight,
+                    onSubmit: {
+                        submit()
+                    },
+                    onHistoryUp: {
+                        browseHistoryUp()
+                    },
+                    onHistoryDown: {
+                        browseHistoryDown()
+                    }
+                )
+
+                if text.isEmpty {
+                    Text(placeholder)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 12)
+                        .allowsHitTesting(false)
+                }
             }
-            
-            _ = try await runtime.sendChatMessage(chat.id, chatInput)
-            messageHistory.append(trimmed)
-            historyIndex = nil
-            historyDraft = ""
-            chatInput = ""
-            chatInputHeight = 22
-        } catch {
-            runtime.lastError = error
+            .frame(height: inputHeight)
+            .padding(5)
+            .opacity(isEnabled ? 1.0 : 0.65)
+            .allowsHitTesting(isEnabled)
+#else
+            TextField("", text: $text, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...5)
+                .padding(5)
+                .disabled(!isEnabled)
+                .onSubmit {
+                    submit()
+                }
+#endif
         }
+        .onChange(of: text) { _, newValue in
+            if lastProgrammaticHistoryValue == newValue {
+                lastProgrammaticHistoryValue = nil
+                return
+            }
+            historyIndex = nil
+        }
+    }
+
+    private func submit() {
+        guard isEnabled else { return }
+
+        var value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+
+        if substituteEmoji {
+            value = value.replacingEmoticons(using: emojiSubstitutions)
+        }
+
+        let finalText = value
+        Task { await onSend(finalText) }
+
+        messageHistory.append(finalText)
+        historyIndex = nil
+        historyDraft = ""
+        text = ""
+        inputHeight = 22
     }
 
     private func browseHistoryUp() {
@@ -162,14 +185,14 @@ struct ChatView: View {
             guard historyIndex > 0 else { return }
             targetIndex = historyIndex - 1
         } else {
-            historyDraft = chatInput
+            historyDraft = text
             targetIndex = messageHistory.count - 1
         }
 
         historyIndex = targetIndex
         let value = messageHistory[targetIndex]
         lastProgrammaticHistoryValue = value
-        chatInput = value
+        text = value
     }
 
     private func browseHistoryDown() {
@@ -180,11 +203,11 @@ struct ChatView: View {
             self.historyIndex = next
             let value = messageHistory[next]
             lastProgrammaticHistoryValue = value
-            chatInput = value
+            text = value
         } else {
             self.historyIndex = nil
             lastProgrammaticHistoryValue = historyDraft
-            chatInput = historyDraft
+            text = historyDraft
         }
     }
 }

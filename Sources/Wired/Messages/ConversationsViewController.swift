@@ -29,7 +29,11 @@ class ConversationsViewController: ConnectionViewController, ConnectionDelegate,
     override func viewDidAppear() {
         super.viewDidAppear()
         
+        if self.connection != nil {
+            _ = ConversationsController.shared.openBroadcastConversation(onConnection: self.connection)
+        }
         ConversationsController.shared.reload()
+        conversationsTableView.reloadData()
     }
     
     override var representedObject: Any? {
@@ -61,6 +65,9 @@ class ConversationsViewController: ConnectionViewController, ConnectionDelegate,
     // MARK: -
     @IBAction func deleteConversation(_ sender: Any) {
         if let c = self.selectedConversation {
+            if c.userID == -2 {
+                return
+            }
             // TODO: fix that: we want to clean unread message before remove the conv
             if let connection = c.connection {
                 AppDelegate.updateUnreadMessages(forConnection: connection)
@@ -144,10 +151,26 @@ class ConversationsViewController: ConnectionViewController, ConnectionDelegate,
     
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+
+        if self.connection != nil {
+            menu.addItem(withTitle: NSLocalizedString("New Broadcast", comment: ""), action: #selector(newBroadcastConversation(_:)), keyEquivalent: "")
+            menu.addItem(NSMenuItem.separator())
+        }
         
         if self.selectedConversation != nil {
             let localstring = NSLocalizedString("Delete Conversation", comment: "")
-            menu.addItem(withTitle: localstring, action: #selector(deleteConversation(_:)), keyEquivalent: "")
+            if self.selectedConversation?.userID != -2 {
+                menu.addItem(withTitle: localstring, action: #selector(deleteConversation(_:)), keyEquivalent: "")
+            }
+        }
+    }
+
+    @objc private func newBroadcastConversation(_ sender: Any) {
+        guard let connection = self.connection else { return }
+        if let conversation = ConversationsController.shared.openBroadcastConversation(onConnection: connection) {
+            ConversationsController.shared.reload()
+            conversationsTableView.reloadData()
+            NotificationCenter.default.post(name: NSNotification.Name("ShouldSelectConversation"), object: conversation)
         }
     }
     
@@ -238,6 +261,55 @@ class ConversationsViewController: ConnectionViewController, ConnectionDelegate,
                             AppDelegate.notify(identifier: "privateMessage", title: localstring, subtitle: userInfo.nick!, text: messageString, connection: connection)
                             AppDelegate.updateUnreadMessages(forConnection: connection)
                         }
+                    }
+                }
+            } else if message.name == "wired.message.broadcast" {
+                guard let userID = message.uint32(forField: "wired.user.id") else {
+                    return
+                }
+
+                guard let messageString = message.string(forField: "wired.message.broadcast") else {
+                    return
+                }
+
+                let context = AppDelegate.shared.persistentContainer.viewContext
+                let broadcastConversation = ConversationsController.shared.openBroadcastConversation(onConnection: connection as! ServerConnection)
+                broadcastConversation?.connection = connection as? ServerConnection
+
+                let senderNick = ConnectionsController.shared.usersController(forConnection: connection as! ServerConnection).user(forID: userID)?.nick
+                    ?? NSLocalizedString("Broadcast", comment: "")
+
+                if let cdObject = NSEntityDescription.insertNewObject(forEntityName: "Message", into: context) as? Message {
+                    cdObject.body = messageString
+                    cdObject.nick = senderNick
+                    cdObject.userID = Int32(userID)
+                    cdObject.date = Date()
+                    cdObject.me = false
+                    cdObject.read = NSApp.isActive && self.view.window != nil && self.view.window!.isKeyWindow
+
+                    broadcastConversation?.addToMessages(cdObject)
+
+                    try? context.save()
+
+                    if let conversation = broadcastConversation,
+                       let index = ConversationsController.shared.conversations().index(of: conversation) {
+                        self.conversationsTableView.reloadData(forRowIndexes: [index], columnIndexes: [0])
+                    } else {
+                        ConversationsController.shared.reload()
+                        self.conversationsTableView.reloadData()
+                    }
+
+                    NotificationCenter.default.post(name: NSNotification.Name(rawValue: "ReceivedPrivateMessage"), object: [connection, cdObject])
+
+                    if NSApp.isActive == false || self.view.window?.isKeyWindow == false || AppDelegate.selectedToolbarIdentifier(forConnection: connection) != "Messages" {
+                        AppDelegate.notify(
+                            identifier: "broadcastMessage",
+                            title: NSLocalizedString("New Broadcast", comment: ""),
+                            subtitle: senderNick,
+                            text: messageString,
+                            connection: connection
+                        )
+                        AppDelegate.updateUnreadMessages(forConnection: connection)
                     }
                 }
             }

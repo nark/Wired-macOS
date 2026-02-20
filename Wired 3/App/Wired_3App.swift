@@ -78,6 +78,11 @@ struct Wired_3App: App {
         let schema = Schema([
             Bookmark.self,
             Transfer.self,
+            StoredPrivateConversation.self,
+            StoredPrivateMessage.self,
+            StoredBroadcastConversation.self,
+            StoredBroadcastMessage.self,
+            StoredMessageSelection.self,
         ])
         let storeURL = Self.swiftDataStoreURL()
         Self.migrateLegacySandboxStoreIfNeeded(to: storeURL)
@@ -175,6 +180,7 @@ private struct AppRootView: View {
             .onAppear {
                 // Attach SwiftData once, and restore persisted transfers.
                 transfers.attach(modelContext: modelContext)
+                connectionController.attach(modelContext: modelContext)
 
 #if os(macOS)
                 appTerminationDelegate.transferManager = transfers

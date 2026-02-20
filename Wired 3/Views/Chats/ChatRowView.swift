@@ -7,9 +7,6 @@
 //
 
 import SwiftUI
-#if os(macOS)
-import UniformTypeIdentifiers
-#endif
 
 struct ChatRowView: View {
     @Environment(ConnectionRuntime.self) private var runtime
@@ -79,32 +76,17 @@ struct ChatRowView: View {
             }
         }
 #if os(macOS)
-        .onDrop(of: [UTType.plainText.identifier], isTargeted: $isDropTargeted) { providers in
-            guard chat.isPrivate else { return false }
+        .dropDestination(
+            for: UserDragPayload.self,
+            action: { items, _ in
+                guard chat.isPrivate else { return false }
+                let uniqueUserIDs = Set(items.map(\.userID))
+                guard !uniqueUserIDs.isEmpty else { return false }
 
-            let accepted = providers.contains { provider in
-                provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
-            }
-
-            guard accepted else { return false }
-
-            for provider in providers {
-                provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
-                    var stringValue: String?
-
-                    if let data = item as? Data {
-                        stringValue = String(data: data, encoding: .utf8)
-                    } else if let str = item as? String {
-                        stringValue = str
-                    } else if let ns = item as? NSString {
-                        stringValue = ns as String
-                    }
-
-                    guard let raw = stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          let userID = UInt32(raw) else { return }
-
+                for userID in uniqueUserIDs {
                     Task { @MainActor in
                         guard userID != runtime.userID else { return }
+                        guard chat.users.contains(where: { $0.id == userID }) == false else { return }
                         do {
                             try await runtime.inviteUserToPrivateChat(userID: userID, chatID: chat.id)
                         } catch {
@@ -112,10 +94,13 @@ struct ChatRowView: View {
                         }
                     }
                 }
-            }
 
-            return true
-        }
+                return true
+            },
+            isTargeted: { isTargeted in
+                isDropTargeted = isTargeted
+            }
+        )
 #endif
         .sheet(isPresented: $showEditPublicChatSheet) {
             PublicChatFormView(chat: chat)

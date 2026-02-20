@@ -44,6 +44,11 @@ class ConversationsController {
         for conversation in self._conversations {
             for connection in ConnectionsController.shared.connections {
                 if conversation.uri == connection.URI {
+                    if conversation.userID == -2 {
+                        conversation.connection = connection
+                        continue
+                    }
+
                     let uc = ConnectionsController.shared.usersController(forConnection: connection)
                                         
                     if let user = uc.user(withNick: conversation.nick!) {
@@ -85,6 +90,31 @@ class ConversationsController {
         AppDelegate.shared.showMessages(self)
         NotificationCenter.default.post(name: NSNotification.Name("ShouldSelectConversation"), object: conversation)
         
+        return conversation
+    }
+
+    @discardableResult
+    public func openBroadcastConversation(onConnection connection: ServerConnection) -> Conversation? {
+        let title = NSLocalizedString("Broadcasts", comment: "")
+        var conversation = ConnectionsController.shared.conversation(withNick: title, onConnection: connection)
+        let context = AppDelegate.shared.persistentContainer.viewContext
+
+        if conversation == nil {
+            conversation = NSEntityDescription.insertNewObject(
+                forEntityName: "Conversation",
+                into: context
+            ) as? Conversation
+
+            conversation?.nick = title
+            conversation?.icon = nil
+            conversation?.uri = connection.URI
+            conversation?.userID = -2
+            conversation?.connection = connection
+
+            AppDelegate.shared.saveAction(self as AnyObject)
+        }
+
+        conversation?.connection = connection
         return conversation
     }
 }

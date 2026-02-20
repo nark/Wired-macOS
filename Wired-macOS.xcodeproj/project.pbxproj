@@ -29,6 +29,15 @@
 		4C0C2DE62EF437DE00213277 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4C0C2DE02EF437DE00213277 /* Assets.xcassets */; };
 		4C0C2DE72EF437DE00213277 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2DE12EF437DE00213277 /* MainView.swift */; };
 		4C0C2DE82EF437DE00213277 /* Bookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2DE22EF437DE00213277 /* Bookmark.swift */; };
+		4C8D12012F30000200213277 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D12112F30000200213277 /* MessagesView.swift */; };
+		4C8D12022F30000200213277 /* MessageConversationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D12122F30000200213277 /* MessageConversationRow.swift */; };
+		4C8D12032F30000200213277 /* MessageConversationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D12132F30000200213277 /* MessageConversationDetailView.swift */; };
+		4C8D12042F30000200213277 /* MessageConversationMessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D12142F30000200213277 /* MessageConversationMessagesView.swift */; };
+		4C8D11012F30000100213277 /* StoredPrivateConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11112F30000100213277 /* StoredPrivateConversation.swift */; };
+		4C8D11022F30000100213277 /* StoredPrivateMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11122F30000100213277 /* StoredPrivateMessage.swift */; };
+		4C8D11032F30000100213277 /* StoredBroadcastConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11132F30000100213277 /* StoredBroadcastConversation.swift */; };
+		4C8D11042F30000100213277 /* StoredBroadcastMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11142F30000100213277 /* StoredBroadcastMessage.swift */; };
+		4C8D11052F30000100213277 /* StoredMessageSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11152F30000100213277 /* StoredMessageSelection.swift */; };
 		4C0C2DE92EF437DE00213277 /* Wired_3App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2DE42EF437DE00213277 /* Wired_3App.swift */; };
 		4C0C2DEC2EF43B7200213277 /* BookmarkFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2DEB2EF43B7200213277 /* BookmarkFormView.swift */; };
 		4C0C2DEF2EF458E000213277 /* KeychainSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4C0C2DEE2EF458E000213277 /* KeychainSwift */; };
@@ -50,6 +59,7 @@
 		4C0C2E2B2EFDB92200213277 /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E2A2EFDB92100213277 /* Chat.swift */; };
 		4C0C2E2D2EFDB93B00213277 /* Topic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E2C2EFDB93A00213277 /* Topic.swift */; };
 		4C0C2E2F2EFDB95100213277 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E2E2EFDB95000213277 /* User.swift */; };
+		4C8D13012F30000300213277 /* UserDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D13112F30000300213277 /* UserDragPayload.swift */; };
 		4C0C2E312EFDB97300213277 /* ChatEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E302EFDB97200213277 /* ChatEvent.swift */; };
 		4C0C2E332EFDBA9E00213277 /* ChatMeMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E322EFDBA9E00213277 /* ChatMeMessageView.swift */; };
 		4C0C2E352EFDBD4000213277 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E342EFDBD4000213277 /* SettingsView.swift */; };
@@ -232,6 +242,15 @@
 		4C7E10022F21000100213277 /* AccountsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsView.swift; sourceTree = "<group>"; };
 		4C0C2DE12EF437DE00213277 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		4C0C2DE22EF437DE00213277 /* Bookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bookmark.swift; sourceTree = "<group>"; };
+		4C8D12112F30000200213277 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
+		4C8D12122F30000200213277 /* MessageConversationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageConversationRow.swift; sourceTree = "<group>"; };
+		4C8D12132F30000200213277 /* MessageConversationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageConversationDetailView.swift; sourceTree = "<group>"; };
+		4C8D12142F30000200213277 /* MessageConversationMessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageConversationMessagesView.swift; sourceTree = "<group>"; };
+		4C8D11112F30000100213277 /* StoredPrivateConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredPrivateConversation.swift; sourceTree = "<group>"; };
+		4C8D11122F30000100213277 /* StoredPrivateMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredPrivateMessage.swift; sourceTree = "<group>"; };
+		4C8D11132F30000100213277 /* StoredBroadcastConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredBroadcastConversation.swift; sourceTree = "<group>"; };
+		4C8D11142F30000100213277 /* StoredBroadcastMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredBroadcastMessage.swift; sourceTree = "<group>"; };
+		4C8D11152F30000100213277 /* StoredMessageSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredMessageSelection.swift; sourceTree = "<group>"; };
 		4C0C2DE32EF437DE00213277 /* Wired_3.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Wired_3.entitlements; sourceTree = "<group>"; };
 		4C0C2DE42EF437DE00213277 /* Wired_3App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wired_3App.swift; sourceTree = "<group>"; };
 		4C0C2DEB2EF43B7200213277 /* BookmarkFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkFormView.swift; sourceTree = "<group>"; };
@@ -252,6 +271,7 @@
 		4C0C2E2A2EFDB92100213277 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
 		4C0C2E2C2EFDB93A00213277 /* Topic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Topic.swift; sourceTree = "<group>"; };
 		4C0C2E2E2EFDB95000213277 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		4C8D13112F30000300213277 /* UserDragPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDragPayload.swift; sourceTree = "<group>"; };
 		4C0C2E302EFDB97200213277 /* ChatEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatEvent.swift; sourceTree = "<group>"; };
 		4C0C2E322EFDBA9E00213277 /* ChatMeMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMeMessageView.swift; sourceTree = "<group>"; };
 		4C0C2E342EFDBD4000213277 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -470,12 +490,24 @@
 			children = (
 				4C0C2E252EFDB8DA00213277 /* Main */,
 				4C0C2E162EFD454500213277 /* Chats */,
+				4C8D12212F30000200213277 /* Messages */,
 				4C0C2E522F110DB600213277 /* Files */,
 				4C0C2E652F17AC0E00213277 /* Transfers */,
 				4C0C2E4E2F0EDB5900213277 /* ServerInfo */,
 				4C7E10032F21000100213277 /* Settings */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		4C8D12212F30000200213277 /* Messages */ = {
+			isa = PBXGroup;
+			children = (
+				4C8D12112F30000200213277 /* MessagesView.swift */,
+				4C8D12122F30000200213277 /* MessageConversationRow.swift */,
+				4C8D12132F30000200213277 /* MessageConversationDetailView.swift */,
+				4C8D12142F30000200213277 /* MessageConversationMessagesView.swift */,
+			);
+			path = Messages;
 			sourceTree = "<group>";
 		};
 		4C0C2E032EF5659100213277 /* Connection */ = {
@@ -493,6 +525,11 @@
 			isa = PBXGroup;
 			children = (
 				4C0C2DE22EF437DE00213277 /* Bookmark.swift */,
+				4C8D11112F30000100213277 /* StoredPrivateConversation.swift */,
+				4C8D11122F30000100213277 /* StoredPrivateMessage.swift */,
+				4C8D11132F30000100213277 /* StoredBroadcastConversation.swift */,
+				4C8D11142F30000100213277 /* StoredBroadcastMessage.swift */,
+				4C8D11152F30000100213277 /* StoredMessageSelection.swift */,
 				4C0C2E552F1192EA00213277 /* Transfer.swift */,
 			);
 			path = SwiftData;
@@ -556,6 +593,7 @@
 				4C0C2E282EFDB90A00213277 /* ConnectionState.swift */,
 				4C0C2E2C2EFDB93A00213277 /* Topic.swift */,
 				4C0C2E2E2EFDB95000213277 /* User.swift */,
+				4C8D13112F30000300213277 /* UserDragPayload.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1132,6 +1170,7 @@
 				4C0C2E502F0EDB6400213277 /* ServerInfoView.swift in Sources */,
 				4C0C2E5E2F14029C00213277 /* FilesViewModel.swift in Sources */,
 				4C0C2E2F2EFDB95100213277 /* User.swift in Sources */,
+				4C8D13012F30000300213277 /* UserDragPayload.swift in Sources */,
 				4C0C2E292EFDB90A00213277 /* ConnectionState.swift in Sources */,
 				4C0C2E152EFC833D00213277 /* ChatView.swift in Sources */,
 				4C0C2DE72EF437DE00213277 /* MainView.swift in Sources */,
@@ -1143,6 +1182,15 @@
 				4C0C2E2B2EFDB92200213277 /* Chat.swift in Sources */,
 				4C0C2E5A2F14025200213277 /* TransferWorker.swift in Sources */,
 				4C0C2DE82EF437DE00213277 /* Bookmark.swift in Sources */,
+				4C8D12012F30000200213277 /* MessagesView.swift in Sources */,
+				4C8D12022F30000200213277 /* MessageConversationRow.swift in Sources */,
+				4C8D12032F30000200213277 /* MessageConversationDetailView.swift in Sources */,
+				4C8D12042F30000200213277 /* MessageConversationMessagesView.swift in Sources */,
+				4C8D11012F30000100213277 /* StoredPrivateConversation.swift in Sources */,
+				4C8D11022F30000100213277 /* StoredPrivateMessage.swift in Sources */,
+				4C8D11032F30000100213277 /* StoredBroadcastConversation.swift in Sources */,
+				4C8D11042F30000100213277 /* StoredBroadcastMessage.swift in Sources */,
+				4C8D11052F30000100213277 /* StoredMessageSelection.swift in Sources */,
 				4C0C2E072EF5C84000213277 /* ConnectionRuntime.swift in Sources */,
 				4C0C2E1E2EFD7C6300213277 /* ChatSayMessageView.swift in Sources */,
 				4C0C2E482F07F6EF00213277 /* View.swift in Sources */,

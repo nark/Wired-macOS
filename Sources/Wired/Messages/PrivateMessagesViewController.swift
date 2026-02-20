@@ -203,12 +203,21 @@ class PrivateMessagesViewController: ConnectionViewController, ConnectionDelegat
         if let conversation = self.conversation {
 
             if conversation.connection != nil && conversation.connection.isConnected() {
-                let uc = ConnectionsController.shared.usersController(forConnection: conversation.connection)
-                if conversation.userID != -1 && uc.user(forID: UInt32(conversation.userID)) != nil {
-                    self.chatInput.isEditable = true
-                    self.emojiButton.isEnabled = true
-                    self.chatInput.placeholderString = "Type message here"
-                    self.chatInput.becomeFirstResponder()
+                if conversation.userID == -2 {
+                    if conversation.connection.hasPrivilege(key: "wired.account.message.broadcast") {
+                        self.chatInput.isEditable = true
+                        self.emojiButton.isEnabled = true
+                        self.chatInput.placeholderString = "Type message here"
+                        self.chatInput.becomeFirstResponder()
+                    }
+                } else {
+                    let uc = ConnectionsController.shared.usersController(forConnection: conversation.connection)
+                    if conversation.userID != -1 && uc.user(forID: UInt32(conversation.userID)) != nil {
+                        self.chatInput.isEditable = true
+                        self.emojiButton.isEnabled = true
+                        self.chatInput.placeholderString = "Type message here"
+                        self.chatInput.becomeFirstResponder()
+                    }
                 }
                 AppDelegate.updateUnreadMessages(forConnection: conversation.connection)
             }
@@ -247,10 +256,16 @@ class PrivateMessagesViewController: ConnectionViewController, ConnectionDelegat
         if self.connection != nil && self.connection.isConnected() {
             if let textField = sender as? NSTextField, textField.stringValue.count > 0 {
                 self.substituteEmojis()
-                
-                let message = P7Message(withName: "wired.message.send_message", spec: self.connection.spec)
-                message.addParameter(field: "wired.user.id", value: UInt32(self.conversation.userID))
-                message.addParameter(field: "wired.message.message", value: textField.stringValue)
+
+                let messageName = self.conversation.userID == -2 ? "wired.message.send_broadcast" : "wired.message.send_message"
+                let message = P7Message(withName: messageName, spec: self.connection.spec)
+
+                if self.conversation.userID == -2 {
+                    message.addParameter(field: "wired.message.broadcast", value: textField.stringValue)
+                } else {
+                    message.addParameter(field: "wired.user.id", value: UInt32(self.conversation.userID))
+                    message.addParameter(field: "wired.message.message", value: textField.stringValue)
+                }
                 
                 if self.connection.isConnected() {
                     if self.connection.send(message: message) {

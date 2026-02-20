@@ -7,12 +7,78 @@
 //
 
 import SwiftUI
+import SwiftData
 import WiredSwift
 
 struct ChatInvitation: Equatable {
     let chatID: UInt32
     let inviterUserID: UInt32
     let inviterNick: String?
+}
+
+enum MessageConversationKind {
+    case direct
+    case broadcast
+}
+
+@Observable
+@MainActor
+final class MessageEvent: Identifiable {
+    let id: UUID
+    let senderNick: String
+    let senderUserID: UInt32?
+    let senderIcon: Data?
+    let text: String
+    let date: Date
+    let isFromCurrentUser: Bool
+
+    init(
+        id: UUID = UUID(),
+        senderNick: String,
+        senderUserID: UInt32?,
+        senderIcon: Data?,
+        text: String,
+        date: Date = Date(),
+        isFromCurrentUser: Bool
+    ) {
+        self.id = id
+        self.senderNick = senderNick
+        self.senderUserID = senderUserID
+        self.senderIcon = senderIcon
+        self.text = text
+        self.date = date
+        self.isFromCurrentUser = isFromCurrentUser
+    }
+}
+
+@Observable
+@MainActor
+final class MessageConversation: Identifiable {
+    let id: UUID
+    let kind: MessageConversationKind
+    var title: String
+    var participantNick: String?
+    var participantUserID: UInt32?
+    var messages: [MessageEvent] = []
+    var unreadMessagesCount: Int = 0
+
+    var lastMessageDate: Date? {
+        messages.last?.date
+    }
+
+    init(
+        id: UUID = UUID(),
+        kind: MessageConversationKind,
+        title: String,
+        participantNick: String? = nil,
+        participantUserID: UInt32? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.participantNick = participantNick
+        self.participantUserID = participantUserID
+    }
 }
 
 @Observable
@@ -36,11 +102,15 @@ final class ConnectionRuntime: Identifiable {
     var lastMessageSentAt: Date = .now
     private(set) var isIdle: Bool = false
     private var timerTask: Task<Void, Never>?
+    private var didLoadPersistedMessages: Bool = false
+    private var modelContext: ModelContext?
     
     var serverInfo: P7Message? = nil
     var chats: [Chat] = []
     var private_chats: [Chat] = []
     var pendingChatInvitation: ChatInvitation? = nil
+    var selectedMessageConversationID: UUID? = nil
+    var messageConversations: [MessageConversation] = []
     
     var showInfos: Bool = false
     var showInfosUserID: UInt32 = 0
@@ -52,11 +122,15 @@ final class ConnectionRuntime: Identifiable {
     }
     
     var totalUnreadMessages: Int {
-        totalUnreadChatMessages
+        totalUnreadChatMessages + totalUnreadPrivateMessages
     }
     
     var totalUnreadChatMessages: Int {
         (chats + private_chats).reduce(0) { $0 + $1.unreadMessagesCount }
+    }
+
+    var totalUnreadPrivateMessages: Int {
+        messageConversations.reduce(0) { $0 + $1.unreadMessagesCount }
     }
     
     enum Status {
@@ -72,6 +146,12 @@ final class ConnectionRuntime: Identifiable {
         self.id = id
         self.connectionController = connectionController
     }
+
+    func attach(modelContext: ModelContext) {
+        guard self.modelContext == nil else { return }
+        self.modelContext = modelContext
+        loadPersistedMessagesIfNeeded()
+    }
     
 
     // MARK: - Connection State
@@ -81,6 +161,7 @@ final class ConnectionRuntime: Identifiable {
         privileges = [:]
         userID = 0
         status = .connecting
+        loadPersistedMessagesIfNeeded()
     }
 
     func connected(_ connection: Connection) {
@@ -146,6 +227,12 @@ final class ConnectionRuntime: Identifiable {
         private_chats = []
     }
 
+    func resetMessages() {
+        selectedMessageConversationID = nil
+        messageConversations = []
+        persistMessages()
+    }
+
     func appendChat(_ chat: Chat) {
         chats.append(chat)
     }
@@ -169,6 +256,455 @@ final class ConnectionRuntime: Identifiable {
         }
 
         return private_chats.first(where: { $0.id == chatID })
+    }
+
+    // MARK: - Messages
+
+    func messageConversation(withID conversationID: UUID?) -> MessageConversation? {
+        guard let conversationID else { return nil }
+        return messageConversations.first(where: { $0.id == conversationID })
+    }
+
+    func ensureBroadcastConversation() -> MessageConversation {
+        if let conversation = messageConversations.first(where: { $0.kind == .broadcast }) {
+            return conversation
+        }
+
+        let conversation = MessageConversation(
+            kind: .broadcast,
+            title: "Broadcasts"
+        )
+        messageConversations.append(conversation)
+        sortMessageConversations()
+        persistMessages()
+        return conversation
+    }
+
+    func openPrivateMessageConversation(with user: User) -> MessageConversation {
+        let conversation = ensureDirectConversation(
+            nick: user.nick,
+            userID: user.id
+        )
+        selectedMessageConversationID = conversation.id
+        selectedTab = .messages
+        resetUnreads(conversation)
+        persistMessages()
+        return conversation
+    }
+
+    func ensureDirectConversation(
+        nick: String,
+        userID: UInt32?
+    ) -> MessageConversation {
+        if let conversation = messageConversations.first(where: {
+            $0.kind == .direct && $0.participantNick == nick
+        }) {
+            if let userID {
+                conversation.participantUserID = userID
+            }
+            return conversation
+        }
+
+        let conversation = MessageConversation(
+            kind: .direct,
+            title: nick,
+            participantNick: nick,
+            participantUserID: userID
+        )
+        messageConversations.append(conversation)
+        sortMessageConversations()
+        persistMessages()
+        return conversation
+    }
+
+    func sendPrivateMessage(_ text: String, in conversation: MessageConversation) async throws {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard conversation.kind == .direct else { return }
+
+        guard let recipientUserID = resolvedRecipientUserID(for: conversation) else {
+            throw WiredError(withTitle: "Private Message", message: "User is offline.")
+        }
+
+        let message = P7Message(withName: "wired.message.send_message", spec: spec!)
+        message.addParameter(field: "wired.user.id", value: recipientUserID)
+        message.addParameter(field: "wired.message.message", value: trimmed)
+
+        if let response = try await send(message), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+
+        appendOwnPrivateMessage(trimmed, to: conversation)
+    }
+
+    func sendBroadcastMessage(_ text: String) async throws {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let message = P7Message(withName: "wired.message.send_broadcast", spec: spec!)
+        message.addParameter(field: "wired.message.broadcast", value: trimmed)
+
+        if let response = try await send(message), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+
+        let conversation = ensureBroadcastConversation()
+        appendOwnMessage(trimmed, to: conversation, isBroadcast: true)
+    }
+
+    func receivePrivateMessage(from userID: UInt32, text: String) {
+        let sender = onlineUser(withID: userID)
+        let nick = sender?.nick ?? "User #\(userID)"
+        let icon = sender?.icon
+        let conversation = ensureDirectConversation(
+            nick: nick,
+            userID: userID
+        )
+        appendIncomingMessage(
+            text,
+            fromNick: nick,
+            userID: userID,
+            icon: icon,
+            to: conversation
+        )
+    }
+
+    func receiveBroadcastMessage(from userID: UInt32, text: String) {
+        let sender = onlineUser(withID: userID)
+        let nick = sender?.nick ?? "User #\(userID)"
+        let icon = sender?.icon
+        let conversation = ensureBroadcastConversation()
+        appendIncomingMessage(
+            text,
+            fromNick: nick,
+            userID: userID,
+            icon: icon,
+            to: conversation
+        )
+    }
+
+    func resetUnreads(_ conversation: MessageConversation) {
+        conversation.unreadMessagesCount = 0
+        connectionController.updateNotificationsBadge()
+        persistMessages()
+    }
+
+    func canSendMessage(to conversation: MessageConversation) -> Bool {
+        switch conversation.kind {
+        case .broadcast:
+            return hasPrivilege("wired.account.message.broadcast")
+        case .direct:
+            guard hasPrivilege("wired.account.message.send_messages") else { return false }
+            return resolvedRecipientUserID(for: conversation) != nil
+        }
+    }
+
+    func onlineUser(for conversation: MessageConversation) -> User? {
+        guard conversation.kind == .direct else { return nil }
+
+        if let knownID = conversation.participantUserID,
+           let user = onlineUser(withID: knownID) {
+            if let nick = conversation.participantNick {
+                if user.nick == nick {
+                    return user
+                }
+            } else {
+                return user
+            }
+        }
+
+        if let nick = conversation.participantNick {
+            return (chats + private_chats)
+                .flatMap(\.users)
+                .first(where: { $0.nick == nick })
+        }
+
+        return nil
+    }
+
+    func messageConversationIcon(for conversation: MessageConversation) -> Data? {
+        onlineUser(for: conversation)?.icon
+    }
+
+    private func appendOwnPrivateMessage(_ text: String, to conversation: MessageConversation) {
+        appendOwnMessage(text, to: conversation, isBroadcast: false)
+    }
+
+    private func appendOwnMessage(_ text: String, to conversation: MessageConversation, isBroadcast: Bool) {
+        let me = onlineUser(withID: userID)
+        let nick = me?.nick ?? "You"
+        let icon = me?.icon
+        conversation.messages.append(
+            MessageEvent(
+                senderNick: nick,
+                senderUserID: userID,
+                senderIcon: icon,
+                text: text,
+                isFromCurrentUser: true
+            )
+        )
+        selectedMessageConversationID = conversation.id
+        resetUnreads(conversation)
+        sortMessageConversations()
+        if selectedTab != .messages && !isBroadcast {
+            connectionController.updateNotificationsBadge()
+        }
+        persistMessages()
+    }
+
+    private func appendIncomingMessage(
+        _ text: String,
+        fromNick nick: String,
+        userID: UInt32,
+        icon: Data?,
+        to conversation: MessageConversation
+    ) {
+        conversation.messages.append(
+            MessageEvent(
+                senderNick: nick,
+                senderUserID: userID,
+                senderIcon: icon,
+                text: text,
+                isFromCurrentUser: false
+            )
+        )
+
+        let isSelected = selectedTab == .messages && selectedMessageConversationID == conversation.id
+        if !isSelected {
+            conversation.unreadMessagesCount += 1
+        }
+
+        sortMessageConversations()
+        connectionController.updateNotificationsBadge()
+        persistMessages()
+    }
+
+    private func sortMessageConversations() {
+        messageConversations.sort {
+            let leftDate = $0.lastMessageDate ?? .distantPast
+            let rightDate = $1.lastMessageDate ?? .distantPast
+            if leftDate != rightDate {
+                return leftDate > rightDate
+            }
+            return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+        }
+    }
+
+    // MARK: - Message Persistence
+
+    private func loadPersistedMessagesIfNeeded() {
+        guard !didLoadPersistedMessages else { return }
+        guard modelContext != nil else { return }
+        didLoadPersistedMessages = true
+        loadPersistedMessages()
+    }
+
+    private func loadPersistedMessages() {
+        guard let modelContext else { return }
+        guard let key = persistenceKey() else { return }
+
+        do {
+            let privateDescriptor = FetchDescriptor<StoredPrivateConversation>(
+                predicate: #Predicate<StoredPrivateConversation> { $0.connectionKey == key }
+            )
+            let storedPrivateConversations = try modelContext.fetch(privateDescriptor)
+            let restoredPrivateConversations = storedPrivateConversations.map { storedConversation in
+                let conversation = MessageConversation(
+                    id: storedConversation.conversationID,
+                    kind: .direct,
+                    title: storedConversation.title,
+                    participantNick: storedConversation.participantNick,
+                    participantUserID: storedConversation.participantUserID
+                )
+                conversation.unreadMessagesCount = storedConversation.unreadMessagesCount
+                conversation.messages = storedConversation.messages
+                    .sorted(by: { $0.date < $1.date })
+                    .map { storedMessage in
+                        MessageEvent(
+                            id: storedMessage.eventID,
+                            senderNick: storedMessage.senderNick,
+                            senderUserID: storedMessage.senderUserID,
+                            senderIcon: storedMessage.senderIcon,
+                            text: storedMessage.text,
+                            date: storedMessage.date,
+                            isFromCurrentUser: storedMessage.isFromCurrentUser
+                        )
+                    }
+                return conversation
+            }
+
+            let broadcastDescriptor = FetchDescriptor<StoredBroadcastConversation>(
+                predicate: #Predicate<StoredBroadcastConversation> { $0.connectionKey == key }
+            )
+            let storedBroadcastConversations = try modelContext.fetch(broadcastDescriptor)
+            let restoredBroadcastConversations = storedBroadcastConversations.map { storedConversation in
+                let conversation = MessageConversation(
+                    id: storedConversation.conversationID,
+                    kind: .broadcast,
+                    title: storedConversation.title
+                )
+                conversation.unreadMessagesCount = storedConversation.unreadMessagesCount
+                conversation.messages = storedConversation.messages
+                    .sorted(by: { $0.date < $1.date })
+                    .map { storedMessage in
+                        MessageEvent(
+                            id: storedMessage.eventID,
+                            senderNick: storedMessage.senderNick,
+                            senderUserID: storedMessage.senderUserID,
+                            senderIcon: storedMessage.senderIcon,
+                            text: storedMessage.text,
+                            date: storedMessage.date,
+                            isFromCurrentUser: storedMessage.isFromCurrentUser
+                        )
+                    }
+                return conversation
+            }
+
+            messageConversations = restoredPrivateConversations + restoredBroadcastConversations
+            sortMessageConversations()
+
+            let selectionDescriptor = FetchDescriptor<StoredMessageSelection>(
+                predicate: #Predicate<StoredMessageSelection> { $0.connectionKey == key }
+            )
+            let selection = try modelContext.fetch(selectionDescriptor).first
+            selectedMessageConversationID = selection?.selectedConversationID
+
+            if selectedMessageConversationID == nil {
+                selectedMessageConversationID = messageConversations.first?.id
+            }
+        } catch {
+            print("[Messages] load failed:", error)
+        }
+    }
+
+    private func persistMessages() {
+        guard let modelContext else { return }
+        guard let key = persistenceKey() else { return }
+
+        do {
+            let privateDescriptor = FetchDescriptor<StoredPrivateConversation>(
+                predicate: #Predicate<StoredPrivateConversation> { $0.connectionKey == key }
+            )
+            let existingPrivateConversations = try modelContext.fetch(privateDescriptor)
+            for conversation in existingPrivateConversations {
+                modelContext.delete(conversation)
+            }
+
+            let broadcastDescriptor = FetchDescriptor<StoredBroadcastConversation>(
+                predicate: #Predicate<StoredBroadcastConversation> { $0.connectionKey == key }
+            )
+            let existingBroadcastConversations = try modelContext.fetch(broadcastDescriptor)
+            for conversation in existingBroadcastConversations {
+                modelContext.delete(conversation)
+            }
+
+            for conversation in messageConversations where conversation.kind == .direct {
+                let storedConversation = StoredPrivateConversation(
+                    conversationID: conversation.id,
+                    connectionKey: key,
+                    title: conversation.title,
+                    participantNick: conversation.participantNick,
+                    participantUserID: conversation.participantUserID,
+                    unreadMessagesCount: conversation.unreadMessagesCount,
+                    lastUpdatedAt: conversation.lastMessageDate ?? .distantPast
+                )
+
+                storedConversation.messages = conversation.messages.map { message in
+                    StoredPrivateMessage(
+                        eventID: message.id,
+                        senderNick: message.senderNick,
+                        senderUserID: message.senderUserID,
+                        senderIcon: message.senderIcon,
+                        text: message.text,
+                        date: message.date,
+                        isFromCurrentUser: message.isFromCurrentUser,
+                        conversation: storedConversation
+                    )
+                }
+
+                modelContext.insert(storedConversation)
+            }
+
+            for conversation in messageConversations where conversation.kind == .broadcast {
+                let storedConversation = StoredBroadcastConversation(
+                    conversationID: conversation.id,
+                    connectionKey: key,
+                    title: conversation.title,
+                    unreadMessagesCount: conversation.unreadMessagesCount,
+                    lastUpdatedAt: conversation.lastMessageDate ?? .distantPast
+                )
+
+                storedConversation.messages = conversation.messages.map { message in
+                    StoredBroadcastMessage(
+                        eventID: message.id,
+                        senderNick: message.senderNick,
+                        senderUserID: message.senderUserID,
+                        senderIcon: message.senderIcon,
+                        text: message.text,
+                        date: message.date,
+                        isFromCurrentUser: message.isFromCurrentUser,
+                        conversation: storedConversation
+                    )
+                }
+
+                modelContext.insert(storedConversation)
+            }
+
+            let selectionDescriptor = FetchDescriptor<StoredMessageSelection>(
+                predicate: #Predicate<StoredMessageSelection> { $0.connectionKey == key }
+            )
+            if let storedSelection = try modelContext.fetch(selectionDescriptor).first {
+                storedSelection.selectedConversationID = selectedMessageConversationID
+            } else {
+                let newSelection = StoredMessageSelection(
+                    connectionKey: key,
+                    selectedConversationID: selectedMessageConversationID
+                )
+                modelContext.insert(newSelection)
+            }
+
+            try modelContext.save()
+        } catch {
+            print("[Messages] save failed:", error)
+        }
+    }
+
+    private func persistenceKey() -> String? {
+        if let configuration = connectionController.configuration(for: id) {
+            return "\(configuration.hostname.lowercased())|\(configuration.login.lowercased())"
+        }
+
+        if let url = connection?.url {
+            return "\(url.hostname.lowercased())|\(url.login.lowercased())"
+        }
+
+        return nil
+    }
+
+    private func onlineUser(withID userID: UInt32) -> User? {
+        (chats + private_chats)
+            .flatMap(\.users)
+            .first(where: { $0.id == userID })
+    }
+
+    private func resolvedRecipientUserID(for conversation: MessageConversation) -> UInt32? {
+        guard conversation.kind == .direct else { return nil }
+        guard let nick = conversation.participantNick else { return nil }
+
+        if let knownID = conversation.participantUserID,
+           let user = onlineUser(withID: knownID),
+           user.nick == nick {
+            return knownID
+        }
+
+        if let user = (chats + private_chats)
+            .flatMap(\.users)
+            .first(where: { $0.nick == nick }) {
+            conversation.participantUserID = user.id
+            return user.id
+        }
+
+        return nil
     }
     
     

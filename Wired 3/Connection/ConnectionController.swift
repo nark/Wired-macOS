@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import WiredSwift
 import UserNotifications
 
@@ -110,6 +111,7 @@ final class ConnectionController {
 
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var configurationsByID: [UUID: ConnectionConfiguration] = [:]
+    private var modelContext: ModelContext?
 
     // MARK: - Init
 
@@ -289,6 +291,9 @@ final class ConnectionController {
             if !runtimeStores.contains(where: { $0.id == id }) {
                 runtimeStores.append(runtime)
             }
+            if let modelContext {
+                runtime.attach(modelContext: modelContext)
+            }
             runtime.connect()
         }
 
@@ -351,6 +356,15 @@ final class ConnectionController {
             Task { await socketClient.disconnect(id: id) }
         }
         tasks.removeAll()
+    }
+
+    @MainActor
+    func attach(modelContext: ModelContext) {
+        guard self.modelContext == nil else { return }
+        self.modelContext = modelContext
+        for runtime in runtimeStores {
+            runtime.attach(modelContext: modelContext)
+        }
     }
     
     func isConnected(_ bookmark: Bookmark) -> Bool {
@@ -748,6 +762,47 @@ final class ConnectionController {
                     }
                 }
             }
+        case "wired.message.message":
+            if let senderUserID = message.uint32(forField: "wired.user.id"),
+               let body = message.string(forField: "wired.message.message") {
+                await MainActor.run {
+                    guard senderUserID != runtime.userID else { return }
+                    runtime.receivePrivateMessage(from: senderUserID, text: body)
+
+                    if runtime.selectedTab != .messages {
+                        self.sendMessageNotification(
+                            title: "New Private Message",
+                            from: runtime.messageConversations.first(where: {
+                                $0.kind == .direct && $0.participantUserID == senderUserID
+                            })?.title ?? "User",
+                            text: body
+                        )
+                    }
+                }
+            }
+        case "wired.message.broadcast":
+            if let senderUserID = message.uint32(forField: "wired.user.id"),
+               let body = message.string(forField: "wired.message.broadcast") {
+                await MainActor.run {
+                    guard senderUserID != runtime.userID else { return }
+                    runtime.receiveBroadcastMessage(from: senderUserID, text: body)
+
+                    if runtime.selectedTab != .messages {
+                        let nick =
+                            runtime.messageConversations
+                            .first(where: { $0.kind == .broadcast })?
+                            .messages
+                            .last(where: { $0.senderUserID == senderUserID })?
+                            .senderNick ?? "User"
+
+                        self.sendMessageNotification(
+                            title: "New Broadcast",
+                            from: nick,
+                            text: body
+                        )
+                    }
+                }
+            }
 
         case "wired.file.directory_changed":
             if let path = message.string(forField: "wired.file.path") {
@@ -894,8 +949,13 @@ final class ConnectionController {
     // MARK: -
     
     private func sendChatNotification(from nick: String, text:String) {
+        sendMessageNotification(title: "New message", from: nick, text: text)
+    }
+
+    private func sendMessageNotification(title: String, from nick: String, text: String) {
         let content = UNMutableNotificationContent()
-            content.title = "New message from \(nick)"
+            content.title = title
+            content.subtitle = nick
             content.body = text
             content.sound = .default
 
@@ -910,7 +970,7 @@ final class ConnectionController {
     
     @MainActor public func updateNotificationsBadge() {
         let count = runtimeStores.reduce(0) {
-            $0 + $1.totalUnreadChatMessages
+            $0 + $1.totalUnreadMessages
         }
 
         UNUserNotificationCenter.current().setBadgeCount(count)
