@@ -79,7 +79,10 @@ struct Wired_3App: App {
             Bookmark.self,
             Transfer.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let storeURL = Self.swiftDataStoreURL()
+        Self.migrateLegacySandboxStoreIfNeeded(to: storeURL)
+        print("SwiftData store URL: \(storeURL.path)")
+        let modelConfiguration = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -87,6 +90,41 @@ struct Wired_3App: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
+
+    private static func swiftDataStoreURL() -> URL {
+        let fm = FileManager.default
+        let appSupportURL = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+
+#if os(macOS)
+        return appSupportURL.appendingPathComponent("default.store")
+#else
+        let appFolderName = Bundle.main.bundleIdentifier ?? "Wired3"
+        let appFolderURL = appSupportURL.appendingPathComponent(appFolderName, isDirectory: true)
+        try? fm.createDirectory(at: appFolderURL, withIntermediateDirectories: true)
+        return appFolderURL.appendingPathComponent("default.store")
+#endif
+    }
+
+    private static func migrateLegacySandboxStoreIfNeeded(to destinationStoreURL: URL) {
+#if os(macOS)
+        let fm = FileManager.default
+        guard !fm.fileExists(atPath: destinationStoreURL.path) else { return }
+
+        let bundleID = Bundle.main.bundleIdentifier ?? "fr.read-write.Wired-3"
+        let legacyBaseURL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent("Library/Containers/\(bundleID)/Data/Library/Application Support", isDirectory: true)
+
+        let legacyStoreURL = legacyBaseURL.appendingPathComponent("default.store")
+        guard fm.fileExists(atPath: legacyStoreURL.path) else { return }
+
+        for suffix in ["", "-shm", "-wal"] {
+            let sourceURL = URL(fileURLWithPath: legacyStoreURL.path + suffix)
+            let destinationURL = URL(fileURLWithPath: destinationStoreURL.path + suffix)
+            guard fm.fileExists(atPath: sourceURL.path) else { continue }
+            try? fm.copyItem(at: sourceURL, to: destinationURL)
+        }
+#endif
+    }
 
     var body: some Scene {
 #if os(macOS)
