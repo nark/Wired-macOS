@@ -877,12 +877,18 @@ private struct AccountPermissionsForm: View {
                     Section(category.title) {
                         ForEach(keys, id: \.self) { key in
                             if spec?.fieldsByName[key]?.type == .bool {
-                                Toggle(isOn: Binding(
-                                    get: { editor.privilegesBool[key] ?? false },
-                                    set: { onToggle(key, $0) }
-                                )) {
+                                HStack {
                                     Text(permissionDisplayName(key))
                                         .font(.system(size: 12))
+                                    Spacer()
+                                    Toggle(
+                                        "",
+                                        isOn: Binding(
+                                            get: { editor.privilegesBool[key] ?? false },
+                                            set: { onToggle(key, $0) }
+                                        )
+                                    )
+                                    .labelsHidden()
                                 }
                             } else {
                                 HStack {
