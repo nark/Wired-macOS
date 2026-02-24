@@ -63,6 +63,9 @@ struct ConnectionConfiguration: Identifiable, @unchecked Sendable {
     let login: String
     let password: String?
     let autoReconnect: Bool
+    let usesCustomIdentity: Bool
+    let customNick: String
+    let customStatus: String
     let cipher: P7Socket.CipherType
     let compression: P7Socket.Compression
     let checksum: P7Socket.Checksum
@@ -78,6 +81,9 @@ struct ConnectionConfiguration: Identifiable, @unchecked Sendable {
         self.login = bookmark.login
         self.password = password
         self.autoReconnect = bookmark.autoReconnect
+        self.usesCustomIdentity = bookmark.useCustomIdentity
+        self.customNick = bookmark.customNick.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.customStatus = bookmark.customStatus
         self.cipher = bookmark.cipher
         self.compression = bookmark.compression
         self.checksum = bookmark.checksum
@@ -90,6 +96,9 @@ struct ConnectionConfiguration: Identifiable, @unchecked Sendable {
         login: String,
         password: String?,
         autoReconnect: Bool = false,
+        usesCustomIdentity: Bool = false,
+        customNick: String = "",
+        customStatus: String = "",
         cipher: P7Socket.CipherType = .ECDH_CHACHA20_POLY1305,
         compression: P7Socket.Compression = .LZ4,
         checksum: P7Socket.Checksum = .HMAC_256
@@ -100,6 +109,9 @@ struct ConnectionConfiguration: Identifiable, @unchecked Sendable {
         self.login = login
         self.password = password
         self.autoReconnect = autoReconnect
+        self.usesCustomIdentity = usesCustomIdentity
+        self.customNick = customNick
+        self.customStatus = customStatus
         self.cipher = cipher
         self.compression = compression
         self.checksum = checksum
@@ -465,6 +477,8 @@ final class ConnectionController {
     @MainActor @objc func wiredUserNickDidChange(_ notification: Notification) {
         if let nick = notification.object as? String {
             for r in runtimeStores {
+                let hasCustomIdentity = withStateLock { configurationsByID[r.id]?.usesCustomIdentity ?? false }
+                if hasCustomIdentity { continue }
                 if let message = r.setNickMessage(nick) {
                     Task {
                         try? await r.send(message)
@@ -477,6 +491,8 @@ final class ConnectionController {
     @MainActor @objc func wiredUserStatusDidChange(_ notification: Notification) {
         if let status = notification.object as? String {
             for r in runtimeStores {
+                let hasCustomIdentity = withStateLock { configurationsByID[r.id]?.usesCustomIdentity ?? false }
+                if hasCustomIdentity { continue }
                 if let message = r.setStatusMessage(status) {
                     Task {
                         _ = try? await r.send(message)

@@ -18,6 +18,9 @@ final class Bookmark {
     var login: String
     var connectAtStartup: Bool = false
     var autoReconnect: Bool = false
+    var useCustomIdentity: Bool = false
+    var customNick: String = ""
+    var customStatus: String = ""
     var status: Status
     var lastMessageAt: Date?
     

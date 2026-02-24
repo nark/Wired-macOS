@@ -57,7 +57,6 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
             alert.messageText = "Active connections and transfers"
             alert.informativeText = "There are \(activeConnectionIDs.count) active connections and active transfers. Quitting now will stop transfers."
             alert.addButton(withTitle: "Disconnect and Quit")
-            alert.addButton(withTitle: "Quit")
             alert.addButton(withTitle: "Cancel")
         } else if !activeConnectionIDs.isEmpty {
             alert.messageText = activeConnectionIDs.count == 1 ? "Active connection" : "Active connections"
@@ -65,7 +64,6 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
                 ? "Do you want to disconnect the active connection before quitting?"
                 : "Do you want to disconnect \(activeConnectionIDs.count) active connections before quitting?"
             alert.addButton(withTitle: "Disconnect and Quit")
-            alert.addButton(withTitle: "Quit")
             alert.addButton(withTitle: "Cancel")
         } else {
             alert.messageText = "Active transfers are in progress."
@@ -82,10 +80,6 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
             transferManager.prepareForTermination()
             return .terminateNow
         case .alertSecondButtonReturn:
-            if !activeConnectionIDs.isEmpty {
-                transferManager.prepareForTermination()
-                return .terminateNow
-            }
             return .terminateCancel
         default:
             return .terminateCancel
@@ -99,19 +93,7 @@ private struct MainAppCommands: Commands {
     let controller: ConnectionController
 
     var body: some Commands {
-        CommandGroup(after: .newItem) {
-            Button("New Window") {
-                controller.requestedSelectionID = controller.firstActiveConnectionID()
-                openWindow(id: "main")
-            }
-            .keyboardShortcut("n", modifiers: [.command])
-
-            Button("New Tab") {
-                controller.requestedSelectionID = controller.firstActiveConnectionID()
-                openMainTab()
-            }
-            .keyboardShortcut("t", modifiers: [.command])
-
+        CommandGroup(replacing: .newItem) {
             Button("New Connection") {
                 controller.presentedNewConnectionWindowNumber = NSApp.keyWindow?.windowNumber ?? NSApp.mainWindow?.windowNumber
                 controller.presentNewConnection()

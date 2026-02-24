@@ -21,6 +21,9 @@ struct BookmarkFormView: View {
     
     @State var connectAtStartup: Bool = false
     @State var autoReconnect: Bool = false
+    @State var useCustomIdentity: Bool = false
+    @State var customNick: String = ""
+    @State var customStatus: String = ""
     
     @State var cipher: UInt32 = P7Socket.CipherType.ECDH_CHACHA20_POLY1305.rawValue
     @State var checksum: UInt32 = P7Socket.Checksum.HMAC_256.rawValue
@@ -54,6 +57,19 @@ struct BookmarkFormView: View {
                 Section {
                     Toggle("Connect At Startup", isOn: $connectAtStartup)
                     Toggle("Auto-reconnect when disconnected", isOn: $autoReconnect)
+                }
+
+                Section {
+                    Toggle("Use custom nickname and status", isOn: $useCustomIdentity)
+                    if useCustomIdentity {
+                        TextField("Nickname", text: $customNick)
+#if os(iOS)
+                            .textInputAutocapitalization(.never)
+#endif
+                        TextField("Status", text: $customStatus)
+                    }
+                } header: {
+                    Text("Identity")
                 }
                 
                 Section {
@@ -130,6 +146,9 @@ struct BookmarkFormView: View {
                 login = bookmark.login
                 connectAtStartup = bookmark.connectAtStartup
                 autoReconnect = bookmark.autoReconnect
+                useCustomIdentity = bookmark.useCustomIdentity
+                customNick = bookmark.customNick
+                customStatus = bookmark.customStatus
                 compression = bookmark.compressionRawValue
                 checksum = bookmark.checksumRawValue
                 cipher = bookmark.cipherRawValue
@@ -147,6 +166,9 @@ struct BookmarkFormView: View {
             bookmark.login = login
             bookmark.connectAtStartup = connectAtStartup
             bookmark.autoReconnect = autoReconnect
+            bookmark.useCustomIdentity = useCustomIdentity
+            bookmark.customNick = useCustomIdentity ? customNick.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            bookmark.customStatus = useCustomIdentity ? customStatus : ""
             bookmark.compressionRawValue = compression
             bookmark.cipherRawValue = cipher
             bookmark.checksumRawValue = checksum
@@ -157,6 +179,9 @@ struct BookmarkFormView: View {
             let newBookmark = Bookmark(name: name, hostname: hostname, login: login)
             newBookmark.connectAtStartup = connectAtStartup
             newBookmark.autoReconnect = autoReconnect
+            newBookmark.useCustomIdentity = useCustomIdentity
+            newBookmark.customNick = useCustomIdentity ? customNick.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            newBookmark.customStatus = useCustomIdentity ? customStatus : ""
             newBookmark.cipherRawValue = cipher
             newBookmark.compressionRawValue = compression
             newBookmark.checksumRawValue = checksum

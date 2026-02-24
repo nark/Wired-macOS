@@ -467,14 +467,6 @@ struct MainView: View {
                     Button("Connect") {
                         openOrSelectBookmark(bookmark)
                     }
-
-                    Button("Connect in New Window") {
-                        connectInNewWindow(bookmark)
-                    }
-
-                    Button("Connect in New Tab") {
-                        connectInNewTab(bookmark)
-                    }
                 }
 
                 Divider()
@@ -857,7 +849,6 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
             : "Do you want to disconnect \(activeConnectionIDs.count) active connections before closing this window/tab?"
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Disconnect and Close")
-        alert.addButton(withTitle: "Close")
         alert.addButton(withTitle: "Cancel")
 
         switch alert.runModal() {
@@ -867,8 +858,6 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
                     connectionController.disconnect(connectionID: id, runtime: runtime)
                 }
             }
-            return true
-        case .alertSecondButtonReturn:
             return true
         default:
             return false

@@ -46,9 +46,14 @@ actor SocketClient {
                 withSpec: spec!,
                 delegate: proxy
             )
-            
-            connection.nick = userNick
-            connection.status = userStatus
+
+            if configuration.usesCustomIdentity {
+                connection.nick = configuration.customNick.isEmpty ? userNick : configuration.customNick
+                connection.status = configuration.customStatus
+            } else {
+                connection.nick = userNick
+                connection.status = userStatus
+            }
             connection.clientInfoDelegate = proxy
             connection.serverInfoDelegate = proxy
             if let userIcon = userIcon {
