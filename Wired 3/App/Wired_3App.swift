@@ -23,6 +23,7 @@ let byteCountFormatter = ByteCountFormatter()
 #if os(macOS)
 final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
     weak var transferManager: TransferManager?
+    weak var connectionController: ConnectionController?
 
     func applicationShouldSaveApplicationState(_ sender: NSApplication) -> Bool {
         false
@@ -36,29 +37,59 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    @MainActor
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let transferManager else {
             return .terminateNow
         }
 
-        guard transferManager.hasActiveTransfers() else {
+        let checkConnectionsBeforeClose = UserDefaults.standard.object(forKey: "CheckActiveConnectionsBeforeClosingWindowTab") as? Bool ?? true
+        let activeConnectionIDs = checkConnectionsBeforeClose ? (connectionController?.activeConnectedConnectionIDs() ?? []) : []
+        let hasActiveTransfers = transferManager.hasActiveTransfers()
+
+        guard !activeConnectionIDs.isEmpty || hasActiveTransfers else {
             transferManager.prepareForTermination()
             return .terminateNow
         }
 
         let alert = NSAlert()
-        alert.messageText = "Active transfers are in progress."
-        alert.informativeText = "Quitting now will stop active transfers."
+        if !activeConnectionIDs.isEmpty && hasActiveTransfers {
+            alert.messageText = "Active connections and transfers"
+            alert.informativeText = "There are \(activeConnectionIDs.count) active connections and active transfers. Quitting now will stop transfers."
+            alert.addButton(withTitle: "Disconnect and Quit")
+            alert.addButton(withTitle: "Quit")
+            alert.addButton(withTitle: "Cancel")
+        } else if !activeConnectionIDs.isEmpty {
+            alert.messageText = activeConnectionIDs.count == 1 ? "Active connection" : "Active connections"
+            alert.informativeText = activeConnectionIDs.count == 1
+                ? "Do you want to disconnect the active connection before quitting?"
+                : "Do you want to disconnect \(activeConnectionIDs.count) active connections before quitting?"
+            alert.addButton(withTitle: "Disconnect and Quit")
+            alert.addButton(withTitle: "Quit")
+            alert.addButton(withTitle: "Cancel")
+        } else {
+            alert.messageText = "Active transfers are in progress."
+            alert.informativeText = "Quitting now will stop active transfers."
+            alert.addButton(withTitle: "Quit Anyway")
+            alert.addButton(withTitle: "Cancel")
+        }
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Quit Anyway")
-        alert.addButton(withTitle: "Cancel")
-
-        if alert.runModal() == .alertFirstButtonReturn {
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            if !activeConnectionIDs.isEmpty {
+                connectionController?.disconnectAll()
+            }
             transferManager.prepareForTermination()
             return .terminateNow
+        case .alertSecondButtonReturn:
+            if !activeConnectionIDs.isEmpty {
+                transferManager.prepareForTermination()
+                return .terminateNow
+            }
+            return .terminateCancel
+        default:
+            return .terminateCancel
         }
-
-        return .terminateCancel
     }
 }
 
@@ -82,6 +113,7 @@ private struct MainAppCommands: Commands {
             .keyboardShortcut("t", modifiers: [.command])
 
             Button("New Connection") {
+                controller.presentedNewConnectionWindowNumber = NSApp.keyWindow?.windowNumber ?? NSApp.mainWindow?.windowNumber
                 controller.presentNewConnection()
             }
             .keyboardShortcut("k", modifiers: [.command])
@@ -492,6 +524,7 @@ private struct AppRootView: View {
 
 #if os(macOS)
                 appTerminationDelegate.transferManager = transfers
+                appTerminationDelegate.connectionController = connectionController
 #endif
 
                 UNUserNotificationCenter.current().requestAuthorization(

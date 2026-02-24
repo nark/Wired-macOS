@@ -203,6 +203,10 @@ struct NewConnectionFormView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        connectionController.presentedNewConnection = nil
+#if os(macOS)
+                        connectionController.presentedNewConnectionWindowNumber = nil
+#endif
                         dismiss()
                     }
                 }
@@ -233,6 +237,9 @@ struct NewConnectionFormView: View {
         )
         guard let id = connectionController.connectTemporary(normalized, requestSelection: false) else { return }
         connectionController.presentedNewConnection = nil
+#if os(macOS)
+        connectionController.presentedNewConnectionWindowNumber = nil
+#endif
         dismiss()
         DispatchQueue.main.async {
             onConnected(id)

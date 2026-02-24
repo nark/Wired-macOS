@@ -123,6 +123,9 @@ final class ConnectionController {
     var connectionEvents: [SocketEvent] = []
     var temporaryConnections: [TemporaryConnection] = []
     var presentedNewConnection: NewConnectionDraft? = nil
+    #if os(macOS)
+    var presentedNewConnectionWindowNumber: Int? = nil
+    #endif
     var suppressPresentedNewConnectionSheet: Bool = false
     var requestedSelectionID: UUID? = nil
     var activeConnectionID: UUID? = nil
@@ -232,6 +235,30 @@ final class ConnectionController {
     }
 
     @MainActor
+    func activeConnectedConnectionIDs(inTabGroupOf window: NSWindow) -> [UUID] {
+        cleanupWindowRegistry()
+        let windowsInGroup = Set((window.tabGroup?.windows ?? [window]).map { ObjectIdentifier($0) })
+        let connectedIDs = activeConnectedConnectionIDs()
+
+        return connectedIDs.filter { id in
+            guard let associatedWindow = windowsByConnectionID[id]?.window else { return false }
+            return windowsInGroup.contains(ObjectIdentifier(associatedWindow))
+        }
+    }
+
+    @MainActor
+    func activeConnectedConnectionIDs(in windows: [NSWindow]) -> [UUID] {
+        cleanupWindowRegistry()
+        let windowSet = Set(windows.map { ObjectIdentifier($0) })
+        let connectedIDs = activeConnectedConnectionIDs()
+
+        return connectedIDs.filter { id in
+            guard let associatedWindow = windowsByConnectionID[id]?.window else { return false }
+            return windowSet.contains(ObjectIdentifier(associatedWindow))
+        }
+    }
+
+    @MainActor
     private func removeWindowAssociations(for window: NSWindow) {
         for (id, box) in windowsByConnectionID where box.window === window {
             windowsByConnectionID[id] = nil
@@ -276,6 +303,14 @@ final class ConnectionController {
         }
 
         return withStateLock { tasks.keys.first }
+    }
+
+    @MainActor
+    func activeConnectedConnectionIDs() -> [UUID] {
+        let activeTaskIDs = withStateLock { Set(tasks.keys) }
+        return runtimeStores
+            .filter { activeTaskIDs.contains($0.id) && $0.status == .connected }
+            .map(\.id)
     }
 
     func activeBookmarkedConnectionID() -> UUID? {
@@ -333,6 +368,11 @@ final class ConnectionController {
     }
 
     func presentNewConnection(prefill: NewConnectionDraft = NewConnectionDraft()) {
+        #if os(macOS)
+        if presentedNewConnectionWindowNumber == nil {
+            presentedNewConnectionWindowNumber = NSApp.keyWindow?.windowNumber ?? NSApp.mainWindow?.windowNumber
+        }
+        #endif
         presentedNewConnection = prefill
     }
 

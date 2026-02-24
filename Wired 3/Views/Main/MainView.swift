@@ -32,6 +32,7 @@ struct MainView: View {
     @State private var lastTransfersHeight: CGFloat = 200
     @State private var isTransfersVisible = false
     @State private var isTabBarVisible = false
+    @State private var windowNumber: Int? = nil
 
     private var activeTransfersCount: Int {
         transfers.transfers.filter { !$0.isStopped() }.count
@@ -71,10 +72,21 @@ struct MainView: View {
         Binding(
             get: {
                 guard !connectionController.suppressPresentedNewConnectionSheet else { return nil }
-                return connectionController.presentedNewConnection
+                guard let draft = connectionController.presentedNewConnection else { return nil }
+#if os(macOS)
+                if let presenterWindowNumber = connectionController.presentedNewConnectionWindowNumber {
+                    guard presenterWindowNumber == windowNumber else { return nil }
+                }
+#endif
+                return draft
             },
             set: { newValue in
                 connectionController.presentedNewConnection = newValue
+                if newValue == nil {
+#if os(macOS)
+                    connectionController.presentedNewConnectionWindowNumber = nil
+#endif
+                }
             }
         )
     }
@@ -123,6 +135,9 @@ struct MainView: View {
                 onWindowBecameKey: {
                     listSelectionID = windowConnectionID
                 },
+                onWindowChanged: { window in
+                    windowNumber = window.windowNumber
+                },
                 onTabBarVisibilityChanged: { isVisible in
                     isTabBarVisible = isVisible
                 }
@@ -132,17 +147,11 @@ struct MainView: View {
 #endif
         .sheet(item: newConnectionSheetBinding) { draft in
             NewConnectionFormView(draft: draft) { id in
-                if windowConnectionID == nil || windowConnectionID == id {
-                    windowConnectionID = id
-                    listSelectionID = id
-                    connectionController.activeConnectionID = id
-                } else {
-                    connectionController.suppressPresentedNewConnectionSheet = true
-                    connectionController.requestedSelectionID = id
-                    openMainTab()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        connectionController.suppressPresentedNewConnectionSheet = false
-                    }
+                connectionController.suppressPresentedNewConnectionSheet = true
+                connectionController.requestedSelectionID = id
+                openMainTab()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    connectionController.suppressPresentedNewConnectionSheet = false
                 }
             }
         }
@@ -240,6 +249,7 @@ struct MainView: View {
 #endif
                 ToolbarItem {
                     Button {
+                        connectionController.presentedNewConnectionWindowNumber = windowNumber
                         connectionController.presentNewConnection()
                     } label: {
                         Label("New Connection", systemImage: "plus")
@@ -499,6 +509,21 @@ struct MainView: View {
         }
 
         guard hasConnectionContext(id) else { return }
+
+#if os(macOS)
+        if connectionController.hasWindowAssociation(for: id),
+           connectionController.focusWindow(for: id) {
+            return
+        }
+#endif
+
+        if let configuration = connectionController.configuration(for: id) {
+            connectionController.requestedSelectionID = id
+            openMainTab()
+            connectionController.connect(configuration)
+            return
+        }
+
         windowConnectionID = id
         listSelectionID = id
         connectionController.activeConnectionID = id
@@ -573,6 +598,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
     let checkBeforeClosing: Bool
     let connectionController: ConnectionController
     let onWindowBecameKey: () -> Void
+    let onWindowChanged: (NSWindow) -> Void
     let onTabBarVisibilityChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> NSView {
@@ -586,6 +612,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
         context.coordinator.checkBeforeClosing = checkBeforeClosing
         context.coordinator.connectionController = connectionController
         context.coordinator.onWindowBecameKey = onWindowBecameKey
+        context.coordinator.onWindowChanged = onWindowChanged
         context.coordinator.onTabBarVisibilityChanged = onTabBarVisibilityChanged
         context.coordinator.attach(to: nsView)
     }
@@ -596,6 +623,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
             checkBeforeClosing: checkBeforeClosing,
             connectionController: connectionController,
             onWindowBecameKey: onWindowBecameKey,
+            onWindowChanged: onWindowChanged,
             onTabBarVisibilityChanged: onTabBarVisibilityChanged
         )
     }
@@ -606,6 +634,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
         fileprivate var checkBeforeClosing: Bool
         fileprivate weak var connectionController: ConnectionController?
         fileprivate var onWindowBecameKey: () -> Void
+        fileprivate var onWindowChanged: (NSWindow) -> Void
         fileprivate var onTabBarVisibilityChanged: (Bool) -> Void
 
         private var observedWindow: NSWindow?
@@ -618,12 +647,14 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
             checkBeforeClosing: Bool,
             connectionController: ConnectionController,
             onWindowBecameKey: @escaping () -> Void,
+            onWindowChanged: @escaping (NSWindow) -> Void,
             onTabBarVisibilityChanged: @escaping (Bool) -> Void
         ) {
             self.selectedConnectionID = selectedConnectionID
             self.checkBeforeClosing = checkBeforeClosing
             self.connectionController = connectionController
             self.onWindowBecameKey = onWindowBecameKey
+            self.onWindowChanged = onWindowChanged
             self.onTabBarVisibilityChanged = onTabBarVisibilityChanged
         }
 
@@ -632,6 +663,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
                 guard let self, let window = view?.window else { return }
                 guard self.observedWindow !== window else {
                     self.syncDelegateState()
+                    self.onWindowChanged(window)
                     self.updateTabBarVisibility(for: window)
                     return
                 }
@@ -656,6 +688,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
             closeDelegate?.install(on: window)
             installWindowObservers(for: window)
             syncDelegateState()
+            onWindowChanged(window)
             updateTabBarVisibility(for: window)
             scheduleNativeNewTabButtonHiding(for: window)
         }
@@ -681,6 +714,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
                 Task { @MainActor [weak self] in
                     self?.onWindowBecameKey()
                     if let window = self?.observedWindow {
+                        self?.onWindowChanged(window)
                         self?.updateTabBarVisibility(for: window)
                         self?.scheduleNativeNewTabButtonHiding(for: window)
                     }
@@ -797,23 +831,30 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
         }
     }
 
+    @MainActor
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if originalDelegate?.windowShouldClose?(sender) == false {
             return false
         }
 
         guard checkBeforeClosing,
-              let connectionController,
-              let selectedConnectionID,
-              connectionController.isConnected(selectedConnectionID),
-              let runtime = connectionController.runtime(for: selectedConnectionID),
-              runtime.status == .connected else {
+              let connectionController else {
             return true
         }
 
+        let senderActiveConnectionIDs = connectionController.activeConnectedConnectionIDs(in: [sender])
+        guard !senderActiveConnectionIDs.isEmpty else {
+            return true
+        }
+
+        let activeConnectionIDs = senderActiveConnectionIDs
+        let isSingleConnection = activeConnectionIDs.count == 1
+
         let alert = NSAlert()
-        alert.messageText = "Active connection"
-        alert.informativeText = "Do you want to disconnect the active connection before closing this window/tab?"
+        alert.messageText = isSingleConnection ? "Active connection" : "Active connections"
+        alert.informativeText = isSingleConnection
+            ? "Do you want to disconnect the active connection before closing this window/tab?"
+            : "Do you want to disconnect \(activeConnectionIDs.count) active connections before closing this window/tab?"
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Disconnect and Close")
         alert.addButton(withTitle: "Close")
@@ -821,7 +862,11 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
 
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            connectionController.disconnect(connectionID: selectedConnectionID, runtime: runtime)
+            for id in activeConnectionIDs {
+                if let runtime = connectionController.runtime(for: id) {
+                    connectionController.disconnect(connectionID: id, runtime: runtime)
+                }
+            }
             return true
         case .alertSecondButtonReturn:
             return true
