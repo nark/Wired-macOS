@@ -49,6 +49,108 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
         return .terminateCancel
     }
 }
+
+private struct MainAppCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    let controller: ConnectionController
+
+    var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Button("New Window") {
+                controller.requestedSelectionID = controller.firstActiveConnectionID()
+                openWindow(id: "main")
+            }
+            .keyboardShortcut("n", modifiers: [.command])
+
+            Button("New Tab") {
+                controller.requestedSelectionID = controller.firstActiveConnectionID()
+                openMainTab()
+            }
+            .keyboardShortcut("t", modifiers: [.command])
+
+            Button("New Connection") {
+                controller.presentNewConnection()
+            }
+            .keyboardShortcut("k", modifiers: [.command])
+
+            Divider()
+
+            Menu("New Window for Bookmark") {
+                let bookmarkItems = controller.bookmarkMenuItems()
+                if bookmarkItems.isEmpty {
+                    Text("No Bookmarks")
+                } else {
+                    ForEach(bookmarkItems) { item in
+                        Button(item.name) {
+                            controller.requestedSelectionID = item.id
+                            openWindow(id: "main")
+                            controller.connectBookmark(withID: item.id)
+                        }
+                    }
+                }
+            }
+            .disabled(controller.bookmarkMenuItems().isEmpty)
+
+            Menu("New Tab for Bookmark") {
+                let bookmarkItems = controller.bookmarkMenuItems()
+                if bookmarkItems.isEmpty {
+                    Text("No Bookmarks")
+                } else {
+                    ForEach(bookmarkItems) { item in
+                        Button(item.name) {
+                            controller.requestedSelectionID = item.id
+                            openMainTab()
+                            controller.connectBookmark(withID: item.id)
+                        }
+                    }
+                }
+            }
+            .disabled(controller.bookmarkMenuItems().isEmpty)
+        }
+    }
+
+    private func openMainTab() {
+        NSWindow.allowsAutomaticWindowTabbing = true
+        let sourceWindow = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible }) ?? NSApp.windows.first
+        let existingWindows = Set(NSApp.windows.map { ObjectIdentifier($0) })
+        openWindow(id: "main")
+        attachNewMainWindowAsTab(existingWindows: existingWindows, preferredSourceWindow: sourceWindow)
+    }
+
+    private func attachNewMainWindowAsTab(
+        existingWindows: Set<ObjectIdentifier>,
+        preferredSourceWindow: NSWindow?,
+        attempt: Int = 0
+    ) {
+        if attempt > 10 { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+            guard let newWindow = NSApp.windows.first(where: { !existingWindows.contains(ObjectIdentifier($0)) }) else {
+                attachNewMainWindowAsTab(existingWindows: existingWindows, preferredSourceWindow: preferredSourceWindow, attempt: attempt + 1)
+                return
+            }
+
+            let sourceWindow = preferredSourceWindow
+                ?? NSApp.windows.first(where: { existingWindows.contains(ObjectIdentifier($0)) })
+                ?? NSApp.keyWindow
+                ?? NSApp.mainWindow
+            guard let sourceWindow, newWindow !== sourceWindow else {
+                attachNewMainWindowAsTab(existingWindows: existingWindows, preferredSourceWindow: preferredSourceWindow, attempt: attempt + 1)
+                return
+            }
+
+            sourceWindow.tabbingMode = .preferred
+            sourceWindow.tabbingIdentifier = "WiredMain"
+            newWindow.tabbingMode = .preferred
+            newWindow.tabbingIdentifier = "WiredMain"
+            newWindow.orderOut(nil)
+            sourceWindow.addTabbedWindow(newWindow, ordered: .above)
+            sourceWindow.tabGroup?.selectedWindow = newWindow
+            newWindow.makeKeyAndOrderFront(nil)
+        }
+    }
+}
 #endif
 
 
@@ -99,11 +201,13 @@ struct Wired_3App: App {
     private static func swiftDataStoreURL() -> URL {
         let fm = FileManager.default
         let appSupportURL = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appFolderName = Bundle.main.bundleIdentifier ?? "fr.read-write.Wired-3"
 
 #if os(macOS)
-        return appSupportURL.appendingPathComponent("default.store")
+        let appFolderURL = appSupportURL.appendingPathComponent(appFolderName, isDirectory: true)
+        try? fm.createDirectory(at: appFolderURL, withIntermediateDirectories: true)
+        return appFolderURL.appendingPathComponent("default.store")
 #else
-        let appFolderName = Bundle.main.bundleIdentifier ?? "Wired3"
         let appFolderURL = appSupportURL.appendingPathComponent(appFolderName, isDirectory: true)
         try? fm.createDirectory(at: appFolderURL, withIntermediateDirectories: true)
         return appFolderURL.appendingPathComponent("default.store")
@@ -119,11 +223,22 @@ struct Wired_3App: App {
         let legacyBaseURL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
             .appendingPathComponent("Library/Containers/\(bundleID)/Data/Library/Application Support", isDirectory: true)
 
-        let legacyStoreURL = legacyBaseURL.appendingPathComponent("default.store")
-        guard fm.fileExists(atPath: legacyStoreURL.path) else { return }
+        let oldFlatStoreURL = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("default.store")
+
+        let candidateStores = [
+            legacyBaseURL.appendingPathComponent("default.store"),
+            oldFlatStoreURL,
+        ]
+
+        guard let sourceStoreURL = candidateStores.first(where: { source in
+            source.path != destinationStoreURL.path && fm.fileExists(atPath: source.path)
+        }) else {
+            return
+        }
 
         for suffix in ["", "-shm", "-wal"] {
-            let sourceURL = URL(fileURLWithPath: legacyStoreURL.path + suffix)
+            let sourceURL = URL(fileURLWithPath: sourceStoreURL.path + suffix)
             let destinationURL = URL(fileURLWithPath: destinationStoreURL.path + suffix)
             guard fm.fileExists(atPath: sourceURL.path) else { continue }
             try? fm.copyItem(at: sourceURL, to: destinationURL)
@@ -133,19 +248,14 @@ struct Wired_3App: App {
 
     var body: some Scene {
 #if os(macOS)
-        Window("Wired 3", id: "main") {
+        WindowGroup("Wired 3", id: "main") {
             AppRootView(appTerminationDelegate: appTerminationDelegate)
                 .environment(controller)
                 .environmentObject(transfers)
         }
         .modelContainer(sharedModelContainer)
         .commands {
-            CommandGroup(after: .newItem) {
-                Button("New Connection") {
-                    controller.presentNewConnection()
-                }
-                .keyboardShortcut("k", modifiers: [.command])
-            }
+            MainAppCommands(controller: controller)
         }
 
         Settings {
