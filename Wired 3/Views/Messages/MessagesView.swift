@@ -23,27 +23,43 @@ struct MessagesView: View {
     var body: some View {
 #if os(macOS)
         HStack(spacing: 0) {
-            List(selection: Binding(
-                get: { runtime.selectedMessageConversationID },
-                set: { runtime.selectedMessageConversationID = $0 }
-            )) {
-                Section("Private Messages") {
-                    ForEach(directConversations) { conversation in
-                        MessageConversationRow(conversation: conversation)
-                            .environment(runtime)
-                            .tag(conversation.id)
+            VStack(spacing: 0) {
+                List(selection: Binding(
+                    get: { runtime.selectedMessageConversationID },
+                    set: { runtime.selectedMessageConversationID = $0 }
+                )) {
+                    Section("Private Messages") {
+                        ForEach(directConversations) { conversation in
+                            MessageConversationRow(conversation: conversation)
+                                .environment(runtime)
+                                .tag(conversation.id)
+                                .contextMenu {
+                                    Button("Delete") {
+                                        
+                                    }
+                                }
+                        }
                     }
-                }
 
-                Section("Broadcasts") {
-                    ForEach(broadcastConversations) { conversation in
-                        MessageConversationRow(conversation: conversation)
-                            .environment(runtime)
-                            .tag(conversation.id)
+                    Section("Broadcasts") {
+                        ForEach(broadcastConversations) { conversation in
+                            MessageConversationRow(conversation: conversation)
+                                .environment(runtime)
+                                .tag(conversation.id)
+                        }
                     }
                 }
+                .listStyle(.plain)
+
+                Divider()
+
+                HStack {
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, 9)
+                .padding(.bottom, 10)
             }
-            .listStyle(.plain)
             .frame(width: 260)
 
             Divider()

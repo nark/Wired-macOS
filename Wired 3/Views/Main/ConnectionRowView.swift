@@ -14,10 +14,30 @@ struct ConnectionRowView: View {
     var connectionID: UUID
     var name: String
 
+    private var iconColor: Color {
+        if let runtime = connectionController.runtime(for: connectionID) {
+            if runtime.status == .connecting || runtime.isAutoReconnectScheduled {
+                return .orange
+            }
+
+            if runtime.status == .connected {
+                return .green
+            }
+        }
+
+        if connectionController.hasConnectionIssue(connectionID) {
+            return .red
+        }
+
+        return .blue
+    }
+
     var body: some View {
+        let _ = connectionController.connectionIssueRevision
+
         HStack {
             Image(systemName: "network")
-                .foregroundStyle(connectionController.runtime(for: connectionID)?.status == .connected ? Color.green : Color.blue)
+                .foregroundStyle(iconColor)
 
             Text(name)
             

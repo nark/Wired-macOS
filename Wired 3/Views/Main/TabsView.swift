@@ -32,6 +32,18 @@ struct TabsView: View {
         bookmark != nil
     }
 
+    private var connectionTitle: String {
+        guard let runtime = connectionController.runtime(for: connectionID) else {
+            return connectionName
+        }
+
+        if runtime.status == .disconnected {
+            return "⚠︎ \(connectionName)"
+        }
+
+        return connectionName
+    }
+
     var body: some View {
 #if os(macOS)
         VStack {
@@ -72,8 +84,21 @@ struct TabsView: View {
                                 .foregroundColor(.gray)
                                 .padding(.top, 5)
                         }
-                    }
-                    else {
+                    } else if runtime.status == .connecting {
+                        Image(systemName: "cable.connector.slash")
+                            .font(.system(size: 72))
+                            .foregroundColor(.gray)
+                            .padding(10)
+
+                        ProgressView()
+                            .padding(.top, 4)
+
+                        Text("Connecting…")
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 5)
+                            .padding(.bottom, 5)
+                            .foregroundColor(.gray)
+                    } else {
                         Image(systemName: "cable.connector.slash")
                             .font(.system(size: 72))
                             .foregroundColor(.gray)
@@ -88,9 +113,25 @@ struct TabsView: View {
                         Button("Connect") {
                             connect()
                         }
+
+                        if runtime.isAutoReconnectScheduled {
+                            ProgressView()
+                                .padding(.top, 6)
+                            TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                                Text(autoReconnectLabel(for: runtime, now: timeline.date))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 6)
+                            }
+                        }
                     }
                 }
-                .errorAlert(error: $runtime.lastError)
+                .errorAlert(
+                    error: $runtime.lastError,
+                    source: "Connection",
+                    serverName: connectionName,
+                    connectionID: runtime.id
+                )
                 .task(id: "\(runtime.status)-\(runtime.joined)-\(connectionID.uuidString)") {
                     guard runtime.status == .connected, runtime.joined else { return }
                     filesViewModel.configure(
@@ -106,10 +147,7 @@ struct TabsView: View {
                 }
             }
         }
-        .task {
-            connect()
-        }
-        .navigationTitle("")
+        .navigationTitle(connectionTitle)
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
             if let runtime = connectionController.runtime(for: connectionID) {
@@ -340,11 +378,13 @@ struct TabsView: View {
                         }
                     }
                 }
-                .errorAlert(error: $runtime.lastError)
+                .errorAlert(
+                    error: $runtime.lastError,
+                    source: "Connection",
+                    serverName: connectionName,
+                    connectionID: runtime.id
+                )
             }
-        }
-        .task {
-            connect()
         }
 #endif
     }
@@ -360,7 +400,23 @@ struct TabsView: View {
         }
     }
 
+    private func autoReconnectLabel(for runtime: ConnectionRuntime, now: Date) -> String {
+        let fallback = max(0, Int(runtime.autoReconnectInterval.rounded()))
+        let remaining = max(
+            0,
+            Int((runtime.autoReconnectNextAttemptAt?.timeIntervalSince(now) ?? TimeInterval(fallback)).rounded(.up))
+        )
+
+        if remaining > 0 {
+            return "Auto-reconnect in \(remaining)s (attempt \(runtime.autoReconnectAttempt))"
+        }
+
+        return "Auto-reconnecting..."
+    }
+
     private func bookmarkCurrentConnection() {
+        print("bookmarkCurrentConnection")
+        
         guard bookmark == nil else { return }
         guard let configuration = connectionController.configuration(for: connectionID) else { return }
 
@@ -373,6 +429,14 @@ struct TabsView: View {
         newBookmark.cipherRawValue = configuration.cipher.rawValue
         newBookmark.compressionRawValue = configuration.compression.rawValue
         newBookmark.checksumRawValue = configuration.checksum.rawValue
+        
+        if let runtime = connectionController.runtime(for: configuration.id) {
+            print("runtime \(runtime)")
+            if let serverName = runtime.connection?.serverInfo?.serverName {
+                print("serverName \(serverName)")
+                newBookmark.name = serverName
+            }
+        }
 
         modelContext.insert(newBookmark)
         try? modelContext.save()

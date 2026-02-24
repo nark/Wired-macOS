@@ -610,7 +610,19 @@ struct FilesView: View {
         }
         .sheet(isPresented: $filesViewModel.showCreateFolderSheet) {
             if let selectedFile = selectedDirectoryForUpload {
-                FileFormView(filesViewModel: filesViewModel, parentDirectory: selectedFile)
+                FileFormView(
+                    filesViewModel: filesViewModel,
+                    parentDirectory: selectedFile,
+                    onCreated: { createdPath in
+                        guard selectedFileViewType == .columns else { return }
+                        Task { @MainActor in
+                            let didReveal = await filesViewModel.revealRemotePath(createdPath)
+                            guard didReveal else { return }
+                            primarySelectionPath = createdPath
+                            registerNavigation(fromPrimarySelectionPath: createdPath)
+                        }
+                    }
+                )
                     .environment(connectionController)
                     .environment(runtime)
             }
@@ -667,7 +679,12 @@ struct FilesView: View {
                 }
             )
         }
-        .errorAlert(error: $filesViewModel.error)
+        .errorAlert(
+            error: $filesViewModel.error,
+            source: "Files",
+            serverName: nil,
+            connectionID: connectionID
+        )
         .onChange(of: selectedFileViewType) { _, newValue in
             primarySelectionPath = nil
             selectedItemsForToolbar.removeAll()
@@ -835,7 +852,7 @@ struct FilesView: View {
     }
 
     private func requestDelete(_ items: [FileItem]) {
-        let unique = uniqueItems(items).filter { canDelete(item: $0) }
+        let unique = sanitizedDeleteSelection(from: uniqueItems(items).filter { canDelete(item: $0) })
         guard !unique.isEmpty else { return }
         pendingDeleteItems = unique
         showDeleteSelectionConfirmation = true
@@ -930,6 +947,30 @@ struct FilesView: View {
             unique.append(item)
         }
         return unique
+    }
+
+    private func sanitizedDeleteSelection(from items: [FileItem]) -> [FileItem] {
+        let normalizedByPath = Dictionary(uniqueKeysWithValues: items.map { (normalizedRemotePath($0.path), $0) })
+        let allPaths = Set(normalizedByPath.keys)
+
+        return items.filter { item in
+            let candidate = normalizedRemotePath(item.path)
+            return !allPaths.contains { other in
+                guard other != candidate else { return false }
+                return isAncestorPath(candidate, of: other)
+            }
+        }
+    }
+
+    private func isAncestorPath(_ ancestor: String, of descendant: String) -> Bool {
+        let normalizedAncestor = normalizedRemotePath(ancestor)
+        let normalizedDescendant = normalizedRemotePath(descendant)
+
+        guard normalizedAncestor != normalizedDescendant else { return false }
+        if normalizedAncestor == "/" {
+            return normalizedDescendant != "/"
+        }
+        return normalizedDescendant.hasPrefix(normalizedAncestor + "/")
     }
 
     private func normalizedRemotePath(_ path: String) -> String {

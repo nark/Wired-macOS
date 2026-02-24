@@ -67,8 +67,10 @@ struct AccountSummary: Identifiable, Hashable {
 
 struct AccountEditor {
     var type: AccountType
+    var canEditIdentity: Bool
     var originalName: String
     var name: String
+    var identity: String
     var fullName: String
     var comment: String
     var password: String
@@ -118,7 +120,6 @@ final class AccountsSettingsViewModel: ObservableObject {
 
     func subscribeToAccountChangesIfNeeded() async {
         guard !isSubscribedToAccountChanges else { return }
-        guard canListAccounts else { return }
         guard let connection = runtime?.connection as? AsyncConnection else { return }
 
         let message = P7Message(withName: "wired.account.subscribe_accounts", spec: spec!)
@@ -136,6 +137,10 @@ final class AccountsSettingsViewModel: ObservableObject {
 
             isSubscribedToAccountChanges = true
         } catch {
+            if isServerError(error, named: "wired.error.already_subscribed") {
+                isSubscribedToAccountChanges = true
+                return
+            }
             self.error = error
         }
     }
@@ -159,6 +164,10 @@ final class AccountsSettingsViewModel: ObservableObject {
 
             isSubscribedToAccountChanges = false
         } catch {
+            if isServerError(error, named: "wired.error.not_subscribed") {
+                isSubscribedToAccountChanges = false
+                return
+            }
             self.error = error
         }
     }
@@ -220,7 +229,6 @@ final class AccountsSettingsViewModel: ObservableObject {
 
     func reloadAccounts() async {
         guard let connection = runtime?.connection as? AsyncConnection else { return }
-        guard canListAccounts else { return }
 
         isLoading = true
         defer { isLoading = false }
@@ -255,7 +263,6 @@ final class AccountsSettingsViewModel: ObservableObject {
         }
 
         guard let connection = runtime?.connection as? AsyncConnection else { return }
-        guard canReadAccounts else { return }
 
         do {
             switch selected.type {
@@ -389,6 +396,12 @@ final class AccountsSettingsViewModel: ObservableObject {
         message.addParameter(field: "wired.account.group", value: editor.primaryGroup)
         message.addParameter(field: "wired.account.groups", value: editor.secondaryGroups)
         message.addParameter(field: "wired.account.password", value: editor.password)
+        if editor.canEditIdentity {
+            let identity = editor.identity.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !identity.isEmpty {
+                message.addParameter(field: "wired.account.identity", value: identity)
+            }
+        }
 
         for privilege in accountPrivilegesIncludingColorFromSpec() {
             guard let field = spec?.fieldsByName[privilege] else { continue }
@@ -496,8 +509,10 @@ final class AccountsSettingsViewModel: ObservableObject {
 
         return AccountEditor(
             type: .user,
+            canEditIdentity: false,
             originalName: message.string(forField: "wired.account.name") ?? "",
             name: message.string(forField: "wired.account.name") ?? "",
+            identity: message.string(forField: "wired.account.identity") ?? "",
             fullName: message.string(forField: "wired.account.full_name") ?? "",
             comment: message.string(forField: "wired.account.comment") ?? "",
             password: message.string(forField: "wired.account.password") ?? "",
@@ -534,8 +549,10 @@ final class AccountsSettingsViewModel: ObservableObject {
 
         return AccountEditor(
             type: .group,
+            canEditIdentity: false,
             originalName: message.string(forField: "wired.account.name") ?? "",
             name: message.string(forField: "wired.account.name") ?? "",
+            identity: "",
             fullName: "",
             comment: message.string(forField: "wired.account.comment") ?? "",
             password: "",
@@ -552,6 +569,24 @@ final class AccountsSettingsViewModel: ObservableObject {
             privilegesBool: privilegesBool,
             privilegesUInt32: privilegesUInt32
         )
+    }
+
+    private func isServerError(_ error: Error, named expected: String) -> Bool {
+        if let asyncError = error as? AsyncConnectionError,
+           case let .serverError(message) = asyncError {
+            let name = (message.string(forField: "wired.error.string") ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return name == expected.lowercased()
+        }
+
+        if let wiredError = error as? WiredError {
+            return wiredError.message
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() == expected.lowercased()
+        }
+
+        return false
     }
 }
 
@@ -636,7 +671,10 @@ struct AccountsSettingsView: View {
         .errorAlert(error: Binding(
             get: { viewModel.error },
             set: { viewModel.error = $0 }
-        ))
+        ),
+        source: "Accounts Settings",
+        serverName: nil,
+        connectionID: runtime.id)
     }
 
     @ViewBuilder
@@ -731,6 +769,20 @@ private struct AccountEditorForm: View {
                         }
 
                         if editor.type == .user {
+                            if editor.canEditIdentity {
+                                editableRow(label: "Identity", text: editor.identity) { value in
+                                    var copy = editor
+                                    copy.identity = value
+                                    onUpdate(copy)
+                                }
+                            } else {
+                                row(label: "Identity") {
+                                    Text(editor.identity.isEmpty ? "-" : editor.identity)
+                                        .textSelection(.enabled)
+                                        .foregroundStyle(editor.identity.isEmpty ? .secondary : .primary)
+                                }
+                            }
+
                             editableSecureRow(label: "Mot de passe", text: editor.password) { value in
                                 var copy = editor
                                 copy.password = value

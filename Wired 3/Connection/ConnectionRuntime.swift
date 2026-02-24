@@ -97,6 +97,11 @@ final class ConnectionRuntime: Identifiable {
     var status: Status = .disconnected
     var joined = false
     var lastError: Error?
+    var hasConnectionIssue: Bool = false
+    var isAutoReconnectScheduled: Bool = false
+    var autoReconnectAttempt: Int = 0
+    var autoReconnectInterval: TimeInterval = 0
+    var autoReconnectNextAttemptAt: Date? = nil
 
     let idleTimeout = 10.0
     var lastMessageSentAt: Date = .now
@@ -158,19 +163,24 @@ final class ConnectionRuntime: Identifiable {
 
     func connect() {
         lastError = nil
+        hasConnectionIssue = false
         privileges = [:]
         userID = 0
         status = .connecting
+        resetAutoReconnectState()
         loadPersistedMessagesIfNeeded()
     }
 
     func connected(_ connection: Connection) {
         self.connection = connection
         lastError = nil
+        hasConnectionIssue = false
         status = .connected
+        resetAutoReconnectState()
     }
 
     func disconnect(error: Error? = nil) {
+        let previousStatus = status
         joined = false
         privileges = [:]
         userID = 0
@@ -179,9 +189,33 @@ final class ConnectionRuntime: Identifiable {
         
         if let error {
             lastError = error
+            hasConnectionIssue = true
+        } else if previousStatus == .connected {
+            // Explicit/manual disconnect from a healthy state should not keep warning state.
+            lastError = nil
+            hasConnectionIssue = false
         }
         
         resetChats()
+    }
+
+    func setAutoReconnectState(
+        isScheduled: Bool,
+        attempt: Int = 0,
+        interval: TimeInterval = 0,
+        nextAttemptAt: Date? = nil
+    ) {
+        isAutoReconnectScheduled = isScheduled
+        autoReconnectAttempt = attempt
+        autoReconnectInterval = interval
+        autoReconnectNextAttemptAt = nextAttemptAt
+    }
+
+    func resetAutoReconnectState() {
+        isAutoReconnectScheduled = false
+        autoReconnectAttempt = 0
+        autoReconnectInterval = 0
+        autoReconnectNextAttemptAt = nil
     }
     
     // MARK: - Idle Timer

@@ -21,6 +21,7 @@ struct FileFormView: View {
     
     var parentDirectory: FileItem
     var file: FileItem?
+    var onCreated: ((String) -> Void)? = nil
     
     var body: some View {
         NavigationStack {
@@ -69,17 +70,22 @@ struct FileFormView: View {
         isSaving = true
         defer { isSaving = false }
 
+        let trimmedName = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+
         let selectedType = FileType(rawValue: fileType) ?? .directory
         let effectiveType: FileType = runtime.hasPrivilege("wired.account.file.set_type")
             ? selectedType
             : .directory
+        let fullPath = (parentDirectory.path as NSString).appendingPathComponent(trimmedName)
 
         let created = await filesViewModel.createDirectory(
-            name: fileName,
+            name: trimmedName,
             in: parentDirectory,
             type: effectiveType
         )
         if created {
+            onCreated?(fullPath)
             dismiss()
         }
     }

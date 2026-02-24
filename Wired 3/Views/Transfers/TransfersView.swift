@@ -16,9 +16,6 @@ import UniformTypeIdentifiers
 struct TransfersView: View {
     @Environment(ConnectionController.self) private var connectionController
     @EnvironmentObject private var transfers: TransferManager
-    @State private var showErrorAlert: Bool = false
-    @State private var errorAlertTitle: String = "Transfer Error"
-    @State private var errorAlertMessage: String = ""
     @State private var selection: Set<UUID> = []
     @State private var showRemoveConfirmation: Bool = false
     @State private var pendingRemovalTransferIDs: [UUID] = []
@@ -31,11 +28,6 @@ struct TransfersView: View {
                     selection = selection.intersection(validIDs)
                 }
                 .alternatingRowBackgrounds()
-                .alert(errorAlertTitle, isPresented: $showErrorAlert) {
-                    Button("OK", role: .cancel) { }
-                } message: {
-                    Text(errorAlertMessage)
-                }
                 .alert(
                     "Remove transfer?",
                     isPresented: $showRemoveConfirmation,

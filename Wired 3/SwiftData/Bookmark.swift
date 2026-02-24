@@ -66,3 +66,35 @@ final class Bookmark {
         Url(withString: "wired://\(login)@\(hostname)")
     }
 }
+
+@Model
+final class ErrorLogEntry {
+    @Attribute(.unique) var id: UUID
+    var createdAt: Date
+    var source: String
+    var serverName: String
+    var connectionID: UUID?
+    var title: String
+    var message: String
+    var details: String
+
+    init(
+        id: UUID = UUID(),
+        createdAt: Date = .now,
+        source: String,
+        serverName: String,
+        connectionID: UUID? = nil,
+        title: String,
+        message: String,
+        details: String
+    ) {
+        self.id = id
+        self.createdAt = createdAt
+        self.source = source
+        self.serverName = serverName
+        self.connectionID = connectionID
+        self.title = title
+        self.message = message
+        self.details = details
+    }
+}

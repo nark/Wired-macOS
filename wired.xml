@@ -263,6 +263,11 @@
             <p7:enum name="wired.user.state.transferring" value="3" version="2.0" />
             <p7:enum name="wired.user.state.disconnecting" value="4" version="2.0" />
         </p7:field>
+        <p7:field name="wired.user.identity" type="string" id="3016" version="3.0">
+            <p7:documentation>
+                Stable public identity of a user account. This value is immutable once created.
+            </p7:documentation>
+        </p7:field>
 
         <p7:field name="wired.chat.id" type="uint32" id="4000" version="2.0">
             <p7:documentation>
@@ -304,6 +309,51 @@
         <p7:field name="wired.message.broadcast" type="string" id="5001" version="2.0">
             <p7:documentation>
                 A public broadcast message.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.offline_message_id" type="uuid" id="5002" version="3.0">
+            <p7:documentation>
+                Identifier of an offline private message.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.recipient_identity" type="string" id="5003" version="3.0">
+            <p7:documentation>
+                Recipient stable account identity for an offline private message.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.sender_identity" type="string" id="5004" version="3.0">
+            <p7:documentation>
+                Sender stable account identity for an offline private message.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.ciphertext" type="data" id="5005" version="3.0">
+            <p7:documentation>
+                End-to-end encrypted payload for an offline private message.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.nonce" type="data" id="5006" version="3.0">
+            <p7:documentation>
+                Nonce used to encrypt [field:wired.message.ciphertext].
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.wrapped_key_recipient" type="data" id="5007" version="3.0">
+            <p7:documentation>
+                Wrapped payload key encrypted to the recipient offline public key.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.wrapped_key_sender" type="data" id="5008" version="3.0">
+            <p7:documentation>
+                Optional wrapped payload key encrypted to the sender offline public key.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.created_at" type="date" id="5009" version="3.0">
+            <p7:documentation>
+                Creation date of an offline private message.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.message.expires_at" type="date" id="5010" version="3.0">
+            <p7:documentation>
+                Expiration date of an offline private message.
             </p7:documentation>
         </p7:field>
 
@@ -750,6 +800,36 @@
         <p7:field name="wired.account.message.send_offline_messages" type="bool" id="8087" version="3.0">
             <p7:documentation>
                 Indicates whether the account gives the privilege of sending offline private messages.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.account.identity" type="string" id="8088" version="3.0">
+            <p7:documentation>
+                Stable public identity associated with a user account.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.account.query" type="string" id="8089" version="3.0">
+            <p7:documentation>
+                Query string used when searching accounts by identity.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.account.offline_public_key" type="data" id="8090" version="3.0">
+            <p7:documentation>
+                Account public key used for offline private message encryption.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.account.offline_key_id" type="string" id="8091" version="3.0">
+            <p7:documentation>
+                Identifier of the account offline private message key.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.account.offline_crypto" type="string" id="8092" version="3.0">
+            <p7:documentation>
+                Identifier of the offline private message cryptographic suite.
+            </p7:documentation>
+        </p7:field>
+        <p7:field name="wired.account.account.lookup_identities" type="bool" id="8093" version="3.0">
+            <p7:documentation>
+                Indicates whether the account gives the privilege to search users by identity.
             </p7:documentation>
         </p7:field>
         <p7:field name="wired.account.message.broadcast" type="bool" id="8028" version="2.0">
@@ -1322,6 +1402,7 @@
 
         <p7:collection name="wired.user.info">
             <p7:member field="wired.user.id" />
+            <p7:member field="wired.user.identity" />
             <p7:member field="wired.user.idle" />
             <p7:member field="wired.user.nick" />
             <p7:member field="wired.user.status" />
@@ -1399,6 +1480,7 @@
             <p7:member field="wired.account.account.edit_groups" />
             <p7:member field="wired.account.account.delete_groups" />
             <p7:member field="wired.account.account.raise_account_privileges" />
+            <p7:member field="wired.account.account.lookup_identities" />
             <p7:member field="wired.account.log.view_log" />
             <p7:member field="wired.account.events.view_events" />
             <p7:member field="wired.account.settings.get_settings" />
@@ -1669,6 +1751,7 @@
             </p7:documentation>
             <p7:parameter field="wired.chat.id" use="required" version="2.0" />
             <p7:parameter field="wired.user.id" use="required" version="2.0" />
+            <p7:parameter field="wired.user.identity" version="3.0" />
             <p7:parameter field="wired.user.idle" use="required" version="2.0" />
             <p7:parameter field="wired.user.nick" use="required" version="2.0" />
             <p7:parameter field="wired.user.status" use="required" version="2.0" />
@@ -1907,6 +1990,7 @@
                 Private message from a user. [field:wired.message.message] may not be the empty string.
             </p7:documentation>
             <p7:parameter field="wired.user.id" use="required" version="2.0" />
+            <p7:parameter field="wired.user.identity" version="3.0" />
             <p7:parameter field="wired.message.message" use="required" version="2.0" />
         </p7:message>
 
@@ -1923,7 +2007,74 @@
                 Broadcast message to all users. [field:wired.message.message] may not be the empty string.
             </p7:documentation>
             <p7:parameter field="wired.user.id" use="required" version="2.0" />
+            <p7:parameter field="wired.user.identity" version="3.0" />
             <p7:parameter field="wired.message.broadcast" use="required" version="2.0" />
+        </p7:message>
+
+        <p7:message name="wired.message.set_offline_key" id="5004" version="3.0">
+            <p7:documentation>
+                Publish or replace the sender offline message public key.
+            </p7:documentation>
+            <p7:parameter field="wired.transaction" version="2.0" />
+            <p7:parameter field="wired.account.offline_public_key" use="required" version="3.0" />
+            <p7:parameter field="wired.account.offline_key_id" use="required" version="3.0" />
+            <p7:parameter field="wired.account.offline_crypto" use="required" version="3.0" />
+        </p7:message>
+
+        <p7:message name="wired.message.get_offline_key" id="5005" version="3.0">
+            <p7:documentation>
+                Request offline message public key for a recipient account identity.
+            </p7:documentation>
+            <p7:parameter field="wired.transaction" version="2.0" />
+            <p7:parameter field="wired.account.identity" use="required" version="3.0" />
+        </p7:message>
+
+        <p7:message name="wired.message.offline_key" id="5006" version="3.0">
+            <p7:documentation>
+                Offline message key material for an account identity.
+            </p7:documentation>
+            <p7:parameter field="wired.transaction" version="2.0" />
+            <p7:parameter field="wired.account.identity" use="required" version="3.0" />
+            <p7:parameter field="wired.account.offline_public_key" use="required" version="3.0" />
+            <p7:parameter field="wired.account.offline_key_id" use="required" version="3.0" />
+            <p7:parameter field="wired.account.offline_crypto" use="required" version="3.0" />
+        </p7:message>
+
+        <p7:message name="wired.message.send_offline_message" id="5007" version="3.0">
+            <p7:documentation>
+                Send an encrypted offline private message to a recipient identity.
+            </p7:documentation>
+            <p7:parameter field="wired.transaction" version="2.0" />
+            <p7:parameter field="wired.message.recipient_identity" use="required" version="3.0" />
+            <p7:parameter field="wired.message.ciphertext" use="required" version="3.0" />
+            <p7:parameter field="wired.message.nonce" use="required" version="3.0" />
+            <p7:parameter field="wired.message.wrapped_key_recipient" use="required" version="3.0" />
+            <p7:parameter field="wired.message.wrapped_key_sender" version="3.0" />
+            <p7:parameter field="wired.account.offline_key_id" version="3.0" />
+        </p7:message>
+
+        <p7:message name="wired.message.offline_message" id="5008" version="3.0">
+            <p7:documentation>
+                Encrypted offline private message delivery.
+            </p7:documentation>
+            <p7:parameter field="wired.message.offline_message_id" use="required" version="3.0" />
+            <p7:parameter field="wired.message.sender_identity" use="required" version="3.0" />
+            <p7:parameter field="wired.message.recipient_identity" use="required" version="3.0" />
+            <p7:parameter field="wired.message.ciphertext" use="required" version="3.0" />
+            <p7:parameter field="wired.message.nonce" use="required" version="3.0" />
+            <p7:parameter field="wired.message.wrapped_key_recipient" use="required" version="3.0" />
+            <p7:parameter field="wired.message.wrapped_key_sender" version="3.0" />
+            <p7:parameter field="wired.account.offline_key_id" version="3.0" />
+            <p7:parameter field="wired.message.created_at" use="required" version="3.0" />
+            <p7:parameter field="wired.message.expires_at" use="required" version="3.0" />
+        </p7:message>
+
+        <p7:message name="wired.message.ack_offline_message" id="5009" version="3.0">
+            <p7:documentation>
+                Acknowledge receipt of an offline private message.
+            </p7:documentation>
+            <p7:parameter field="wired.transaction" version="2.0" />
+            <p7:parameter field="wired.message.offline_message_id" use="required" version="3.0" />
         </p7:message>
 
         <p7:message name="wired.board.get_boards" id="6000" version="2.0">
@@ -2593,6 +2744,7 @@
             </p7:documentation>
             <p7:parameter field="wired.transaction" version="2.0" />
             <p7:parameter field="wired.account.name" use="required" version="2.0" />
+            <p7:parameter field="wired.account.identity" version="3.0" />
             <p7:parameter field="wired.account.full_name" use="required" version="2.0" />
             <p7:parameter field="wired.account.comment" use="required" version="2.0" />
             <p7:parameter field="wired.account.creation_time" use="required" version="2.0" />
@@ -2668,6 +2820,7 @@
             </p7:documentation>
             <p7:parameter field="wired.transaction" version="2.0" />
             <p7:parameter field="wired.account.name" use="required" version="2.0" />
+            <p7:parameter field="wired.account.identity" version="3.0" />
             <p7:parameter field="wired.account.full_name" use="required" version="2.0" />
             <p7:parameter field="wired.account.comment" use="required" version="2.0" />
             <p7:parameter field="wired.account.creation_time" use="required" version="2.0" />
@@ -2728,6 +2881,7 @@
             </p7:documentation>
             <p7:parameter field="wired.transaction" version="2.0" />
             <p7:parameter field="wired.account.name" use="required" version="2.0" />
+            <p7:parameter field="wired.account.identity" version="3.0" />
             <p7:parameter field="wired.account.full_name" use="required" version="2.0" />
             <p7:parameter field="wired.account.comment" use="required" version="2.0" />
             <p7:parameter field="wired.account.group" use="required" version="2.0" />
@@ -2771,6 +2925,7 @@
             <p7:parameter field="wired.transaction" version="2.0" />
             <p7:parameter field="wired.account.name" use="required" version="2.0" />
             <p7:parameter field="wired.account.new_name" version="2.0" />
+            <p7:parameter field="wired.account.identity" version="3.0" />
             <p7:parameter field="wired.account.full_name" use="required" version="2.0" />
             <p7:parameter field="wired.account.comment" use="required" version="2.0" />
             <p7:parameter field="wired.account.group" use="required" version="2.0" />
@@ -2833,6 +2988,34 @@
         <p7:message name="wired.account.accounts_changed" id="8020" version="2.0">
             <p7:documentation>
                 Accounts list changed message.
+            </p7:documentation>
+            <p7:parameter field="wired.transaction" version="2.0" />
+        </p7:message>
+        
+        <p7:message name="wired.account.lookup_identity" id="8021" version="3.0">
+            <p7:documentation>
+                Search accounts by identity, user name or full name.
+            </p7:documentation>
+            <p7:parameter field="wired.transaction" version="2.0" />
+            <p7:parameter field="wired.account.query" use="required" version="3.0" />
+        </p7:message>
+
+        <p7:message name="wired.account.lookup_result" id="8022" version="3.0">
+            <p7:documentation>
+                Result item for an account identity lookup.
+            </p7:documentation>
+            <p7:parameter field="wired.transaction" version="2.0" />
+            <p7:parameter field="wired.account.identity" use="required" version="3.0" />
+            <p7:parameter field="wired.account.name" use="required" version="3.0" />
+            <p7:parameter field="wired.account.full_name" use="required" version="3.0" />
+            <p7:parameter field="wired.user.nick" use="required" version="3.0" />
+            <p7:parameter field="wired.user.idle" use="required" version="3.0" />
+            <p7:parameter field="wired.user.state" use="required" version="3.0" />
+        </p7:message>
+
+        <p7:message name="wired.account.lookup_result.done" id="8023" version="3.0">
+            <p7:documentation>
+                Completion message for account identity lookup.
             </p7:documentation>
             <p7:parameter field="wired.transaction" version="2.0" />
         </p7:message>
@@ -3742,6 +3925,76 @@
             </p7:or>
         </p7:transaction>
 
+        <p7:transaction message="wired.message.set_offline_key" originator="client" version="3.0">
+            <p7:documentation>
+                [message:wired.error] should be replied with [enum:wired.error.message_out_of_sequence]
+                if sent before [message:wired.client_info].
+
+                [message:wired.error] should be replied with [enum:wired.error.invalid_message] if the
+                message does not contain all the required parameters.
+
+                Otherwise, [message:wired.okay] should be replied.
+            </p7:documentation>
+            <p7:or>
+                <p7:reply message="wired.okay" count="1" use="required" version="3.0" />
+                <p7:reply message="wired.error" count="1" use="required" version="3.0" />
+            </p7:or>
+        </p7:transaction>
+
+        <p7:transaction message="wired.message.get_offline_key" originator="client" version="3.0">
+            <p7:documentation>
+                [message:wired.error] should be replied with [enum:wired.error.permission_denied]
+                if [field:wired.account.message.send_offline_messages] is not set for the user's account.
+
+                [message:wired.error] should be replied with [enum:wired.error.message_out_of_sequence]
+                if sent before [message:wired.client_info].
+
+                [message:wired.error] should be replied with [enum:wired.error.invalid_message] if the
+                message does not contain all the required parameters.
+
+                Otherwise, [message:wired.message.offline_key] should be replied.
+            </p7:documentation>
+            <p7:or>
+                <p7:reply message="wired.message.offline_key" count="1" use="required" version="3.0" />
+                <p7:reply message="wired.error" count="1" use="required" version="3.0" />
+            </p7:or>
+        </p7:transaction>
+
+        <p7:transaction message="wired.message.send_offline_message" originator="client" version="3.0">
+            <p7:documentation>
+                [message:wired.error] should be replied with [enum:wired.error.permission_denied]
+                if [field:wired.account.message.send_offline_messages] is not set for the user's account.
+
+                [message:wired.error] should be replied with [enum:wired.error.message_out_of_sequence]
+                if sent before [message:wired.client_info].
+
+                [message:wired.error] should be replied with [enum:wired.error.invalid_message] if the
+                message does not contain all the required parameters.
+
+                Otherwise, [message:wired.okay] should be replied.
+            </p7:documentation>
+            <p7:or>
+                <p7:reply message="wired.okay" count="1" use="required" version="3.0" />
+                <p7:reply message="wired.error" count="1" use="required" version="3.0" />
+            </p7:or>
+        </p7:transaction>
+
+        <p7:transaction message="wired.message.ack_offline_message" originator="client" version="3.0">
+            <p7:documentation>
+                [message:wired.error] should be replied with [enum:wired.error.message_out_of_sequence]
+                if sent before [message:wired.client_info].
+
+                [message:wired.error] should be replied with [enum:wired.error.invalid_message] if the
+                message does not contain all the required parameters.
+
+                Otherwise, [message:wired.okay] should be replied.
+            </p7:documentation>
+            <p7:or>
+                <p7:reply message="wired.okay" count="1" use="required" version="3.0" />
+                <p7:reply message="wired.error" count="1" use="required" version="3.0" />
+            </p7:or>
+        </p7:transaction>
+
         <p7:transaction message="wired.board.get_boards" originator="client" version="2.0">
             <p7:documentation>
                 TBD
@@ -3954,8 +4207,7 @@
 
         <p7:transaction message="wired.file.get_info" originator="client" version="2.0">
             <p7:documentation>
-                [message:wired.error] should be replied with [enum
-                :wired.error.permission_denied]
+                [message:wired.error] should be replied with [enum:wired.error.permission_denied]
                 if [field:wired.account.file.get_info] is not set for the user's account, or if the user
                 does not have applicable permissions for the directory.
                 
@@ -4646,6 +4898,29 @@
             </p7:or>
         </p7:transaction>
 
+        <p7:transaction message="wired.account.lookup_identity" originator="client" version="3.0">
+            <p7:documentation>
+                [message:wired.error] should be replied with [enum:wired.error.permission_denied]
+                if [field:wired.account.account.lookup_identities] is not set for the user's account.
+
+                [message:wired.error] should be replied with [enum:wired.error.message_out_of_sequence]
+                if sent before [message:wired.client_info].
+
+                [message:wired.error] should be replied with [enum:wired.error.invalid_message] if the
+                message does not contain all the required parameters.
+
+                Otherwise, zero or more [message:wired.account.lookup_result] terminated by a
+                single [message:wired.account.lookup_result.done] should be replied.
+            </p7:documentation>
+            <p7:or>
+                <p7:and>
+                    <p7:reply message="wired.account.lookup_result" count="*" use="required" version="3.0" />
+                    <p7:reply message="wired.account.lookup_result.done" count="1" use="required" version="3.0" />
+                </p7:and>
+                <p7:reply message="wired.error" count="1" use="required" version="3.0" />
+            </p7:or>
+        </p7:transaction>
+
         <p7:transaction message="wired.transfer.download_file" originator="client" version="2.0">
             <p7:documentation>
                 TBD
@@ -5128,6 +5403,12 @@
         <p7:broadcast message="wired.message.broadcast" version="2.0">
             <p7:documentation>
                 May be sent at any time from any other user.
+            </p7:documentation>
+        </p7:broadcast>
+
+        <p7:broadcast message="wired.message.offline_message" version="3.0">
+            <p7:documentation>
+                May be sent at any time to deliver pending offline private messages.
             </p7:documentation>
         </p7:broadcast>
 

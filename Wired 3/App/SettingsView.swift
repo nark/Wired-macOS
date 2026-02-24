@@ -42,6 +42,8 @@ struct GeneralSettingsView: View {
     @AppStorage("UserNick") var userNick: String = "Wired Swift"
     @AppStorage("UserStatus") var userStatus = ""
     @AppStorage("UserIcon") var userIcon: String?
+    @AppStorage("CheckActiveConnectionsBeforeClosingWindowTab")
+    var checkActiveConnectionsBeforeClosingWindowTab: Bool = true
 
     @State private var debouncer = Debouncer()
     @State private var showIconImporter = false
@@ -131,6 +133,12 @@ struct GeneralSettingsView: View {
                         notifyUserStatusChange()
                         return .handled
                     }
+            }
+
+            LabeledContent("Window Closing") {
+                Toggle("Check for active connections before closing window/tab",
+                       isOn: $checkActiveConnectionsBeforeClosingWindowTab)
+                .toggleStyle(.checkbox)
             }
 #else
             HStack {

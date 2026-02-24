@@ -53,7 +53,7 @@ struct BookmarkFormView: View {
                 
                 Section {
                     Toggle("Connect At Startup", isOn: $connectAtStartup)
-                    Toggle("Auto-reconnect", isOn: $autoReconnect)
+                    Toggle("Auto-reconnect when disconnected", isOn: $autoReconnect)
                 }
                 
                 Section {
@@ -155,7 +155,11 @@ struct BookmarkFormView: View {
             
         } else {
             let newBookmark = Bookmark(name: name, hostname: hostname, login: login)
+            newBookmark.connectAtStartup = connectAtStartup
+            newBookmark.autoReconnect = autoReconnect
+            newBookmark.cipherRawValue = cipher
             newBookmark.compressionRawValue = compression
+            newBookmark.checksumRawValue = checksum
             
             modelContext.insert(newBookmark)
         }
@@ -227,8 +231,11 @@ struct NewConnectionFormView: View {
             login: login.trimmingCharacters(in: .whitespacesAndNewlines),
             password: password
         )
-        guard let id = connectionController.connectTemporary(normalized) else { return }
-        onConnected(id)
+        guard let id = connectionController.connectTemporary(normalized, requestSelection: false) else { return }
+        connectionController.presentedNewConnection = nil
         dismiss()
+        DispatchQueue.main.async {
+            onConnected(id)
+        }
     }
 }

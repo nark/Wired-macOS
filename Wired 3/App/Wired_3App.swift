@@ -24,6 +24,18 @@ let byteCountFormatter = ByteCountFormatter()
 final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
     weak var transferManager: TransferManager?
 
+    func applicationShouldSaveApplicationState(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldRestoreApplicationState(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        false
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let transferManager else {
             return .terminateNow
@@ -108,10 +120,16 @@ private struct MainAppCommands: Commands {
             }
             .disabled(controller.bookmarkMenuItems().isEmpty)
         }
+
+        CommandGroup(after: .windowArrangement) {
+            Button("Error Log") {
+                openWindow(id: "error-log")
+            }
+            .keyboardShortcut("j", modifiers: [.command, .shift])
+        }
     }
 
     private func openMainTab() {
-        NSWindow.allowsAutomaticWindowTabbing = true
         let sourceWindow = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible }) ?? NSApp.windows.first
         let existingWindows = Set(NSApp.windows.map { ObjectIdentifier($0) })
         openWindow(id: "main")
@@ -147,7 +165,148 @@ private struct MainAppCommands: Commands {
             newWindow.orderOut(nil)
             sourceWindow.addTabbedWindow(newWindow, ordered: .above)
             sourceWindow.tabGroup?.selectedWindow = newWindow
+            sourceWindow.tabbingMode = .disallowed
+            newWindow.tabbingMode = .disallowed
             newWindow.makeKeyAndOrderFront(nil)
+        }
+    }
+}
+#endif
+
+@MainActor
+@Observable
+final class ErrorLogStore {
+    private var modelContext: ModelContext?
+    private let defaults = UserDefaults.standard
+    private let retentionKey = "ErrorLogRetentionDays"
+
+    func attach(modelContext: ModelContext) {
+        guard self.modelContext == nil else { return }
+        self.modelContext = modelContext
+        pruneExpiredEntries()
+    }
+
+    func record(
+        error: Error,
+        source: String,
+        serverName: String?,
+        connectionID: UUID?
+    ) {
+        guard let modelContext else { return }
+
+        let entry = presentableError(from: error)
+        let row = ErrorLogEntry(
+            source: source,
+            serverName: serverName ?? "Unknown server",
+            connectionID: connectionID,
+            title: entry.title,
+            message: entry.message,
+            details: entry.details
+        )
+
+        modelContext.insert(row)
+        try? modelContext.save()
+        pruneExpiredEntries()
+    }
+
+    func clearAll() {
+        guard let modelContext else { return }
+        let descriptor = FetchDescriptor<ErrorLogEntry>()
+        if let entries = try? modelContext.fetch(descriptor) {
+            for entry in entries {
+                modelContext.delete(entry)
+            }
+            try? modelContext.save()
+        }
+    }
+
+    private func retentionDays() -> Int {
+        let raw = defaults.integer(forKey: retentionKey)
+        return raw > 0 ? raw : 30
+    }
+
+    private func pruneExpiredEntries() {
+        guard let modelContext else { return }
+        let cutoff = Calendar.current.date(byAdding: .day, value: -retentionDays(), to: .now) ?? .distantPast
+        let predicate = #Predicate<ErrorLogEntry> { $0.createdAt < cutoff }
+        let descriptor = FetchDescriptor<ErrorLogEntry>(predicate: predicate)
+
+        if let entries = try? modelContext.fetch(descriptor), !entries.isEmpty {
+            for entry in entries {
+                modelContext.delete(entry)
+            }
+            try? modelContext.save()
+        }
+    }
+}
+
+#if os(macOS)
+private struct ErrorLogWindowView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(ErrorLogStore.self) private var errorLogStore
+    @Query(sort: \ErrorLogEntry.createdAt, order: .reverse) private var entries: [ErrorLogEntry]
+    @State private var filterText: String = ""
+
+    private var filteredEntries: [ErrorLogEntry] {
+        let needle = filterText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return entries }
+
+        return entries.filter { entry in
+            entry.title.lowercased().contains(needle)
+                || entry.message.lowercased().contains(needle)
+                || entry.serverName.lowercased().contains(needle)
+                || entry.source.lowercased().contains(needle)
+                || entry.details.lowercased().contains(needle)
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                TextField("Filter errors", text: $filterText)
+                    .textFieldStyle(.roundedBorder)
+                Button("Clear") {
+                    errorLogStore.clearAll()
+                }
+                .disabled(entries.isEmpty)
+            }
+            .padding(12)
+
+            List(filteredEntries) { entry in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(entry.createdAt.formatted(date: .abbreviated, time: .standard))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(entry.serverName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(entry.title)
+                        .font(.headline)
+                    Text(entry.message)
+                        .font(.subheadline)
+                    Text("[\(entry.source)] \(entry.details)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                .padding(.vertical, 4)
+            }
+            .overlay {
+                if filteredEntries.isEmpty {
+                    ContentUnavailableView(
+                        "No Errors",
+                        systemImage: "checkmark.circle",
+                        description: Text("No logged errors for the current filter.")
+                    )
+                }
+            }
+        }
+        .frame(minWidth: 760, minHeight: 460)
+        .onAppear {
+            errorLogStore.attach(modelContext: modelContext)
         }
     }
 }
@@ -159,6 +318,8 @@ struct Wired_3App: App {
     @State private var socketClient = SocketClient()
     @State private var controller: ConnectionController
     @State private var transfers: TransferManager
+    @State private var errorLogStore = ErrorLogStore()
+    @State private var errorToastCenter = ErrorToastCenter()
 #if os(macOS)
     @NSApplicationDelegateAdaptor(AppTerminationDelegate.self) private var appTerminationDelegate
 #endif
@@ -174,11 +335,27 @@ struct Wired_3App: App {
         byteCountFormatter.allowedUnits = [.useAll]
         byteCountFormatter.countStyle = .file
         byteCountFormatter.zeroPadsFractionDigits = true
+#if os(macOS)
+        UserDefaults.standard.register(defaults: ["NSQuitAlwaysKeepsWindows": false])
+        UserDefaults.standard.set(true, forKey: "ApplePersistenceIgnoreState")
+        NSWindow.allowsAutomaticWindowTabbing = false
+        Self.clearSavedWindowState()
+#endif
     }
+
+#if os(macOS)
+    private static func clearSavedWindowState() {
+        let bundleID = Bundle.main.bundleIdentifier ?? "fr.read-write.Wired-3"
+        let path = (NSHomeDirectory() as NSString)
+            .appendingPathComponent("Library/Saved Application State/\(bundleID).savedState")
+        try? FileManager.default.removeItem(atPath: path)
+    }
+#endif
     
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Bookmark.self,
+            ErrorLogEntry.self,
             Transfer.self,
             StoredPrivateConversation.self,
             StoredPrivateMessage.self,
@@ -251,12 +428,24 @@ struct Wired_3App: App {
         WindowGroup("Wired 3", id: "main") {
             AppRootView(appTerminationDelegate: appTerminationDelegate)
                 .environment(controller)
+                .environment(errorLogStore)
+                .environment(errorToastCenter)
                 .environmentObject(transfers)
         }
+#if os(macOS)
+        .restorationBehavior(.disabled)
+#endif
         .modelContainer(sharedModelContainer)
         .commands {
             MainAppCommands(controller: controller)
         }
+
+        Window("Error Log", id: "error-log") {
+            ErrorLogWindowView()
+                .environment(errorLogStore)
+                .environment(errorToastCenter)
+        }
+        .modelContainer(sharedModelContainer)
 
         Settings {
             SettingsView()
@@ -265,6 +454,8 @@ struct Wired_3App: App {
         WindowGroup {
             AppRootView()
                 .environment(controller)
+                .environment(errorLogStore)
+                .environment(errorToastCenter)
                 .environmentObject(transfers)
         }
         .modelContainer(sharedModelContainer)
@@ -277,6 +468,8 @@ struct Wired_3App: App {
 private struct AppRootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(ConnectionController.self) private var connectionController
+    @Environment(ErrorLogStore.self) private var errorLogStore
+    @Environment(ErrorToastCenter.self) private var errorToastCenter
     @EnvironmentObject private var transfers: TransferManager
 #if os(macOS)
     let appTerminationDelegate: AppTerminationDelegate
@@ -284,6 +477,10 @@ private struct AppRootView: View {
 
     var body: some View {
         MainView()
+            .overlay(alignment: .bottomTrailing) {
+                ErrorToastOverlay()
+                    .environment(errorToastCenter)
+            }
 #if os(macOS)
             .background(MainWindowFramePersistenceView(frameKey: "Wired3MainWindowFrame"))
 #endif
@@ -291,6 +488,7 @@ private struct AppRootView: View {
                 // Attach SwiftData once, and restore persisted transfers.
                 transfers.attach(modelContext: modelContext)
                 connectionController.attach(modelContext: modelContext)
+                errorLogStore.attach(modelContext: modelContext)
 
 #if os(macOS)
                 appTerminationDelegate.transferManager = transfers
@@ -396,7 +594,7 @@ private struct MainWindowFramePersistenceView: NSViewRepresentable {
 
     final class Coordinator {
         private let frameKey: String
-        private weak var observedWindow: NSWindow?
+        private var observedWindow: NSWindow?
         private var observers: [NSObjectProtocol] = []
         private var restoredWindowNumber: Int?
 

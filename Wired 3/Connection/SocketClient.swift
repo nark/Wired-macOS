@@ -16,6 +16,7 @@ actor SocketClient {
     @AppStorage("UserNick") var userNick: String = "Wired Swift"
     @AppStorage("UserStatus") var userStatus = ""
     @AppStorage("UserIcon") var userIcon: String?
+    @AppStorage("ConnectionAttemptTimeout") var connectionAttemptTimeout: Double = 12.0
     
     private var connections: [UUID: WiredSwift.AsyncConnection] = [:]
     private var continuations: [UUID: AsyncThrowingStream<SocketEvent, Error>.Continuation] = [:]
@@ -65,8 +66,33 @@ actor SocketClient {
             let compression = configuration.compression
             let checksum    = configuration.checksum
             let password    = configuration.password
+            let timeoutSeconds = max(3.0, connectionAttemptTimeout)
 
             DispatchQueue.global().async {
+                let stateLock = NSLock()
+                var didFinish = false
+
+                func finishOnce(_ error: Error) {
+                    stateLock.lock()
+                    defer { stateLock.unlock() }
+                    guard !didFinish else { return }
+                    didFinish = true
+                    continuation.finish(throwing: error)
+                }
+
+                let timeoutWorkItem = DispatchWorkItem {
+                    connection.disconnect()
+                    finishOnce(NSError(
+                        domain: NSURLErrorDomain,
+                        code: NSURLErrorTimedOut,
+                        userInfo: [NSLocalizedDescriptionKey: "Connection timed out"]
+                    ))
+                }
+                DispatchQueue.global().asyncAfter(
+                    deadline: .now() + timeoutSeconds,
+                    execute: timeoutWorkItem
+                )
+
                 let url = baseURL
                 if let password, !password.isEmpty {
                     url.password = password
@@ -81,12 +107,13 @@ actor SocketClient {
                         compression: compression,
                         checksum: checksum
                     )
+                    stateLock.lock()
+                    didFinish = true
+                    stateLock.unlock()
+                    timeoutWorkItem.cancel()
                 } catch {
-                    print("catch connect error \(error.localizedDescription)")
-                    if let se = error as? SocketSwift.Socket.Error {
-                        print("se \(se)")
-                    }
-                    continuation.finish(throwing: error)
+                    timeoutWorkItem.cancel()
+                    finishOnce(error)
                 }
             }
         }

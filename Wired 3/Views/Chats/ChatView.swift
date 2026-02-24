@@ -27,20 +27,35 @@ struct ChatView: View {
                 
                 ChatMessagesView(chat: chat)
                     .environment(runtime)
-                
-                Divider()
-                ConversationComposer(
-                    text: $chatInput,
-                    placeholder: "Chat here…",
-                    isEnabled: true,
-                    onSend: { text in
-                        do {
-                            _ = try await runtime.sendChatMessage(chat.id, text)
-                        } catch {
-                            runtime.lastError = error
+                                
+                HStack(alignment: .top, spacing: 0) {
+                    ConversationComposer(
+                        text: $chatInput,
+                        placeholder: "Chat here…",
+                        isEnabled: true,
+                        onSend: { text in
+                            do {
+                                _ = try await runtime.sendChatMessage(chat.id, text)
+                            } catch {
+                                runtime.lastError = error
+                            }
                         }
+                    )
+                    
+                    Button {
+#if os(macOS)
+                        NSApp.orderFrontCharacterPalette(nil)
+#endif
+                    } label: {
+                        Image(systemName: "face.smiling")
+                            .font(.title3)
                     }
-                )
+                    .foregroundColor(.gray)
+                    .buttonStyle(.plain)
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
+                }
+                .background(.white)
             }
 #if os(macOS)
             Divider()
@@ -240,7 +255,7 @@ private struct ChatInputField: NSViewRepresentable {
         let scrollView = FocusableInputScrollView(frame: .zero)
         scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
-        scrollView.borderType = .noBorder
+        scrollView.borderType = .lineBorder
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .textBackgroundColor
         scrollView.wantsLayer = true
