@@ -39,7 +39,8 @@ struct TabsView: View {
                             case .messages:
                                 Text("Messages")
                             case .boards:
-                                Text("Boards")
+                                BoardsView()
+                                    .environment(runtime)
                             case .files:
                                 FilesView(bookmark: bookmark, filesViewModel: filesViewModel)
                                     .environment(connectionController)
@@ -243,7 +244,10 @@ struct TabsView: View {
                     }
                     
                     Tab("Boards", systemImage: "newspaper.fill") {
-                        Text("Boards")
+                        if let runtime = connectionController.runtime(for: bookmark.id) {
+                            BoardsView()
+                                .environment(runtime)
+                        }
                     }
                     
                     Tab("Files", systemImage: "folder.fill") {
