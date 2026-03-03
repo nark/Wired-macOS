@@ -113,9 +113,15 @@ final class ConnectionRuntime: Identifiable {
     var serverInfo: P7Message? = nil
     var chats: [Chat] = []
     var private_chats: [Chat] = []
+
     var pendingChatInvitation: ChatInvitation? = nil
     var selectedMessageConversationID: UUID? = nil
     var messageConversations: [MessageConversation] = []
+
+    // Boards
+    var boards: [Board] = []
+    var boardsByPath: [String: Board] = [:]
+    var boardsLoaded: Bool = false
     
     var showInfos: Bool = false
     var showInfosUserID: UInt32 = 0
@@ -265,6 +271,32 @@ final class ConnectionRuntime: Identifiable {
         selectedMessageConversationID = nil
         messageConversations = []
         persistMessages()
+    }
+
+    // MARK: - Board Models
+
+    func resetBoards() {
+        boards = []
+        boardsByPath = [:]
+        boardsLoaded = false
+    }
+
+    func appendBoard(_ board: Board) {
+        let parentPath = board.parentPath
+        if parentPath.isEmpty || parentPath == "/" {
+            boards.append(board)
+        } else if let parent = boardsByPath[parentPath] {
+            if parent.children == nil { parent.children = [] }
+            parent.children!.append(board)
+        }
+        boardsByPath[board.path] = board
+    }
+
+    func thread(uuid: String) -> BoardThread? {
+        for board in boardsByPath.values {
+            if let t = board.threads.first(where: { $0.uuid == uuid }) { return t }
+        }
+        return nil
     }
 
     func appendChat(_ chat: Chat) {
@@ -1035,6 +1067,58 @@ final class ConnectionRuntime: Identifiable {
         return nil
     }
     
+    // MARK: - Board Messages
+
+    func getBoards() async throws {
+        let m = P7Message(withName: "wired.board.get_boards", spec: spec!)
+        try await send(m)
+    }
+
+    func subscribeBoards() async throws {
+        let m = P7Message(withName: "wired.board.subscribe_boards", spec: spec!)
+        try await send(m)
+    }
+
+    func getThreads(forBoard board: Board) async throws {
+        let m = P7Message(withName: "wired.board.get_threads", spec: spec!)
+        m.addParameter(field: "wired.board.board", value: board.path)
+        try await send(m)
+    }
+
+    func getPosts(forThread thread: BoardThread) async throws {
+        let m = P7Message(withName: "wired.board.get_thread", spec: spec!)
+        m.addParameter(field: "wired.board.thread", value: thread.uuid)
+        try await send(m)
+    }
+
+    func addThread(toBoard board: Board, subject: String, text: String) async throws {
+        let m = P7Message(withName: "wired.board.add_thread", spec: spec!)
+        m.addParameter(field: "wired.board.board",   value: board.path)
+        m.addParameter(field: "wired.board.subject", value: subject)
+        m.addParameter(field: "wired.board.text",    value: text)
+        try await send(m)
+    }
+
+    func addPost(toThread thread: BoardThread, text: String) async throws {
+        let m = P7Message(withName: "wired.board.add_post", spec: spec!)
+        m.addParameter(field: "wired.board.thread",  value: thread.uuid)
+        m.addParameter(field: "wired.board.subject", value: thread.subject)
+        m.addParameter(field: "wired.board.text",    value: text)
+        try await send(m)
+    }
+
+    func deleteThread(uuid: String) async throws {
+        let m = P7Message(withName: "wired.board.delete_thread", spec: spec!)
+        m.addParameter(field: "wired.board.thread", value: uuid)
+        try await send(m)
+    }
+
+    func deletePost(uuid: String) async throws {
+        let m = P7Message(withName: "wired.board.delete_post", spec: spec!)
+        m.addParameter(field: "wired.board.post", value: uuid)
+        try await send(m)
+    }
+
     // MARK: - Unreads
     
     public func resetUnreads(_ chat: Chat) {

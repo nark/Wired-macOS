@@ -1018,12 +1018,12 @@ final class ConnectionController {
             await MainActor.run {
                 runtime.userID = message.uint32(forField: "wired.user.id") ?? 0
             }
-            
-            let request = P7Message(
-                withName: "wired.chat.get_chats",
-                spec: spec!
-            )
+
+            let request = P7Message(withName: "wired.chat.get_chats", spec: spec!)
             try? await runtime.send(request)
+
+            try? await runtime.subscribeBoards()
+            try? await runtime.getBoards()
         case "wired.account.privileges":
             var parsedPrivileges: [String: Any] = [:]
 
@@ -1333,6 +1333,190 @@ final class ConnectionController {
                     name: .wiredFileDirectoryDeleted,
                     object: RemoteDirectoryEvent(connectionID: id, path: path)
                 )
+            }
+
+        // MARK: - Board list (initial load)
+
+        case "wired.board.board_list":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            let readable = message.bool(forField: "wired.board.readable") ?? true
+            let writable  = message.bool(forField: "wired.board.writable") ?? false
+            await MainActor.run {
+                let board = Board(path: path, readable: readable, writable: writable)
+                runtime.appendBoard(board)
+            }
+
+        case "wired.board.board_list.done":
+            await MainActor.run { runtime.boardsLoaded = true }
+
+        // MARK: - Thread list
+
+        case "wired.board.thread_list":
+            guard
+                let boardPath = message.string(forField: "wired.board.board"),
+                let uuid      = message.uuid(forField: "wired.board.thread"),
+                let subject   = message.string(forField: "wired.board.subject"),
+                let nick      = message.string(forField: "wired.user.nick"),
+                let postDate  = message.date(forField: "wired.board.post_date")
+            else { break }
+            let replies = Int(message.uint32(forField: "wired.board.replies") ?? 0)
+            let isOwn   = message.bool(forField: "wired.board.own_thread") ?? false
+            let lastReplyDate = message.date(forField: "wired.board.latest_reply_date")
+            await MainActor.run {
+                if let board = runtime.boardsByPath[boardPath] {
+                    let thread = BoardThread(uuid: uuid, boardPath: boardPath,
+                                            subject: subject, nick: nick,
+                                            postDate: postDate, replies: replies, isOwn: isOwn)
+                    thread.lastReplyDate = lastReplyDate
+                    thread.lastReplyUUID = message.uuid(forField: "wired.board.latest_reply")
+                    board.threads.append(thread)
+                }
+            }
+
+        case "wired.board.thread_list.done":
+            break   // view can observe board.threads directly
+
+        // MARK: - Thread content (first post + replies)
+
+        case "wired.board.thread":
+            guard
+                let threadUUID = message.uuid(forField: "wired.board.thread"),
+                let text       = message.string(forField: "wired.board.text")
+            else { break }
+            await MainActor.run {
+                if let thread = runtime.thread(uuid: threadUUID) {
+                    let post = BoardPost(uuid: threadUUID, threadUUID: threadUUID,
+                                        text: text, nick: thread.nick,
+                                        postDate: thread.postDate,
+                                        icon: message.data(forField: "wired.user.icon"))
+                    thread.posts = [post]
+                }
+            }
+
+        case "wired.board.post_list":
+            guard
+                let postUUID   = message.uuid(forField: "wired.board.post"),
+                let threadUUID = message.uuid(forField: "wired.board.thread"),
+                let text       = message.string(forField: "wired.board.text"),
+                let nick       = message.string(forField: "wired.user.nick"),
+                let postDate   = message.date(forField: "wired.board.post_date")
+            else { break }
+            let isOwn = message.bool(forField: "wired.board.own_post") ?? false
+            await MainActor.run {
+                if let thread = runtime.thread(uuid: threadUUID) {
+                    let post = BoardPost(uuid: postUUID, threadUUID: threadUUID,
+                                        text: text, nick: nick, postDate: postDate,
+                                        icon: message.data(forField: "wired.user.icon"),
+                                        isOwn: isOwn)
+                    if let editDate = message.date(forField: "wired.board.edit_date") {
+                        post.editDate = editDate
+                    }
+                    thread.posts.append(post)
+                }
+            }
+
+        case "wired.board.post_list.done":
+            if let threadUUID = message.uuid(forField: "wired.board.thread") {
+                await MainActor.run {
+                    runtime.thread(uuid: threadUUID)?.postsLoaded = true
+                }
+            }
+
+        // MARK: - Live board events
+
+        case "wired.board.board_added":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            let readable = message.bool(forField: "wired.board.readable") ?? true
+            let writable  = message.bool(forField: "wired.board.writable") ?? false
+            await MainActor.run {
+                guard runtime.boardsByPath[path] == nil else { return }
+                let board = Board(path: path, readable: readable, writable: writable)
+                runtime.appendBoard(board)
+            }
+
+        case "wired.board.board_deleted":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            await MainActor.run {
+                runtime.boardsByPath.removeValue(forKey: path)
+                runtime.boards.removeAll { $0.path == path }
+                for board in runtime.boardsByPath.values {
+                    board.children?.removeAll { $0.path == path }
+                }
+            }
+
+        case "wired.board.board_renamed", "wired.board.board_moved":
+            guard
+                let oldPath = message.string(forField: "wired.board.board"),
+                let newPath = message.string(forField: "wired.board.new_board")
+            else { break }
+            await MainActor.run {
+                if let board = runtime.boardsByPath.removeValue(forKey: oldPath) {
+                    board.path = newPath
+                    runtime.boardsByPath[newPath] = board
+                }
+            }
+
+        case "wired.board.board_info":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            await MainActor.run {
+                runtime.boardsByPath[path]?.apply(message)
+            }
+
+        case "wired.board.board_info_changed":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            await MainActor.run {
+                if let board = runtime.boardsByPath[path] {
+                    if let r = message.bool(forField: "wired.board.readable") { board.readable = r }
+                    if let w = message.bool(forField: "wired.board.writable") { board.writable = w }
+                }
+            }
+
+        // MARK: - Live thread events
+
+        case "wired.board.thread_added":
+            guard
+                let boardPath = message.string(forField: "wired.board.board"),
+                let uuid      = message.uuid(forField: "wired.board.thread"),
+                let subject   = message.string(forField: "wired.board.subject"),
+                let nick      = message.string(forField: "wired.user.nick"),
+                let postDate  = message.date(forField: "wired.board.post_date")
+            else { break }
+            await MainActor.run {
+                if let board = runtime.boardsByPath[boardPath] {
+                    guard !board.threads.contains(where: { $0.uuid == uuid }) else { return }
+                    let thread = BoardThread(uuid: uuid, boardPath: boardPath,
+                                            subject: subject, nick: nick,
+                                            postDate: postDate,
+                                            isOwn: message.bool(forField: "wired.board.own_thread") ?? false)
+                    board.threads.append(thread)
+                }
+            }
+
+        case "wired.board.thread_changed":
+            guard let uuid = message.uuid(forField: "wired.board.thread") else { break }
+            await MainActor.run {
+                runtime.thread(uuid: uuid)?.apply(message)
+            }
+
+        case "wired.board.thread_moved":
+            guard
+                let uuid        = message.uuid(forField: "wired.board.thread"),
+                let newBoardPath = message.string(forField: "wired.board.new_board")
+            else { break }
+            await MainActor.run {
+                if let thread = runtime.thread(uuid: uuid) {
+                    runtime.boardsByPath[thread.boardPath]?.threads.removeAll { $0.uuid == uuid }
+                    thread.boardPath = newBoardPath
+                    runtime.boardsByPath[newBoardPath]?.threads.append(thread)
+                }
+            }
+
+        case "wired.board.thread_deleted":
+            guard let uuid = message.uuid(forField: "wired.board.thread") else { break }
+            await MainActor.run {
+                if let thread = runtime.thread(uuid: uuid) {
+                    runtime.boardsByPath[thread.boardPath]?.threads.removeAll { $0.uuid == uuid }
+                }
             }
 
         default:
