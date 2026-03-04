@@ -13,30 +13,118 @@ import AppKit
 #endif
 
 struct SettingsView: View {
+    private enum SettingsPane: Hashable {
+        case general
+        case chat
+        case files
+        case events
+
+#if os(macOS)
+        var contentSize: NSSize {
+            switch self {
+            case .general: return NSSize(width: 560, height: 380)
+            case .chat: return NSSize(width: 460, height: 240)
+            case .files: return NSSize(width: 460, height: 220)
+            case .events: return NSSize(width: 940, height: 620)
+            }
+        }
+#endif
+    }
+
+#if os(macOS)
+    @State private var settingsWindow: NSWindow?
+    @State private var hasAppliedInitialSize = false
+#endif
+    @State private var selectedPane: SettingsPane = .general
+
     var body: some View {
-        TabView {
-            Tab("General", systemImage: "gear") {
+        TabView(selection: $selectedPane) {
+            Tab("General", systemImage: "gear", value: .general) {
                 GeneralSettingsView()
             }
             
-            Tab("Chat", systemImage: "message.fill") {
+            Tab("Chat", systemImage: "message.fill", value: .chat) {
                 ChatSettingsView()
             }
             
-            Tab("Files", systemImage: "folder.fill") {
+            Tab("Files", systemImage: "folder.fill", value: .files) {
                 FilesSettingsView()
             }
 
-            Tab("Events", systemImage: "bell.fill") {
+            Tab("Events", systemImage: "bell.fill", value: .events) {
                 EventsSettingsView()
             }
         }
 #if os(macOS)
+        .background(
+            SettingsWindowAccessor { window in
+                guard let window else { return }
+                if settingsWindow !== window {
+                    settingsWindow = window
+                    hasAppliedInitialSize = false
+                }
+                if !hasAppliedInitialSize {
+                    resizeWindow(for: selectedPane, animated: false)
+                    hasAppliedInitialSize = true
+                }
+            }
+        )
+        .onAppear {
+            if !hasAppliedInitialSize {
+                resizeWindow(for: selectedPane, animated: false)
+                hasAppliedInitialSize = true
+            }
+        }
+        .onChange(of: selectedPane) { _, pane in
+            resizeWindow(for: pane, animated: false)
+        }
         .scenePadding()
-        .frame(minWidth: 620, minHeight: 500)
+        .frame(minWidth: 460, minHeight: 220)
 #endif
     }
+
+#if os(macOS)
+    private func resizeWindow(for pane: SettingsPane, animated: Bool) {
+        guard let window = settingsWindow else { return }
+
+        let targetContentRect = NSRect(origin: .zero, size: pane.contentSize)
+        let targetFrame = window.frameRect(forContentRect: targetContentRect)
+        let currentFrame = window.frame
+
+        guard abs(currentFrame.width - targetFrame.width) > 0.5 ||
+                abs(currentFrame.height - targetFrame.height) > 0.5 else {
+            return
+        }
+
+        let newOrigin = NSPoint(
+            x: currentFrame.midX - (targetFrame.width / 2.0),
+            y: currentFrame.maxY - targetFrame.height
+        )
+        let adjustedFrame = NSRect(origin: newOrigin, size: targetFrame.size)
+        window.setFrame(adjustedFrame, display: true, animate: animated)
+    }
+#endif
 }
+
+#if os(macOS)
+private struct SettingsWindowAccessor: NSViewRepresentable {
+    let onResolve: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async {
+            onResolve(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            onResolve(nsView.window)
+        }
+    }
+}
+#endif
 
 
 extension Notification.Name {
@@ -244,6 +332,29 @@ struct FilesSettingsView: View {
 }
 
 struct EventsSettingsView: View {
+    private struct EventTableRow: Identifiable {
+        enum Kind {
+            case section(String)
+            case event(WiredEventTag)
+        }
+
+        let id: String
+        let kind: Kind
+
+        var tag: WiredEventTag? {
+            if case .event(let tag) = kind { return tag }
+            return nil
+        }
+
+        static func event(_ tag: WiredEventTag) -> EventTableRow {
+            EventTableRow(id: "event-\(tag.rawValue)", kind: .event(tag))
+        }
+
+        static func section(_ title: String) -> EventTableRow {
+            EventTableRow(id: "section-\(title)", kind: .section(title))
+        }
+    }
+
     @AppStorage(WiredEventsStore.volumeKey) private var eventsVolume: Double = 1.0
     @AppStorageCodable(
         key: WiredEventsStore.configurationsKey,
@@ -251,12 +362,15 @@ struct EventsSettingsView: View {
     )
     private var configurations: [WiredEventConfiguration]
 
-    @State private var selectedTag: WiredEventTag = .serverConnected
-
     var body: some View {
-        ScrollView {
-            Form {
-                LabeledContent("Volume") {
+        Group {
+#if os(macOS)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Label("Volume", systemImage: "speaker.wave.2.fill")
+                        .labelStyle(.titleAndIcon)
+                        .frame(width: 90, alignment: .leading)
+
                     Slider(
                         value: Binding(
                             get: { eventsVolume },
@@ -264,69 +378,126 @@ struct EventsSettingsView: View {
                         ),
                         in: 0.0 ... 1.0
                     )
-                    .frame(width: 260)
-                }
+                    .frame(width: 220)
 
-                LabeledContent("Event") {
-                    Picker("Event", selection: $selectedTag) {
-                        ForEach(WiredEventTag.menuOrder) { tag in
-                            Text(eventMenuTitle(for: tag))
-                                .tag(tag)
-                            if tag == .error || tag == .boardPostAdded {
-                                Divider()
+                    Text("\(Int((eventsVolume * 100).rounded()))%")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .frame(width: 44, alignment: .trailing)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
+                Table(tableRows) {
+                    TableColumn("Event") { row in
+                        if let tag = row.tag {
+                            HStack(spacing: 8) {
+                                Image(systemName: eventSymbol(for: tag))
+                                    .frame(width: 14, alignment: .center)
+                                    .foregroundStyle(.secondary)
+                                Text(tag.title)
+                            }
+                            .padding(.leading, 14)
+                        } else {
+                            if case .section(let title) = row.kind {
+                                Text(title.uppercased())
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }
-                    .labelsHidden()
-                    .frame(minWidth: 320)
-                }
+                    .width(min: 220, ideal: 240, max: .infinity)
 
-                Divider()
+                    TableColumn("Sound") { row in
+                        if let tag = row.tag {
+                            HStack(spacing: 6) {
+                                Toggle("", isOn: boolBinding(for: tag, \.playSound))
+                                    .labelsHidden()
+                                    .toggleStyle(.checkbox)
+                                    .onChange(of: configuration(for: tag).playSound) { _, enabled in
+                                        if enabled {
+                                            playPreviewSound(for: tag)
+                                        }
+                                    }
 
-                LabeledContent("Play Sound") {
-                    Toggle("", isOn: binding(\.playSound))
-                        .onChange(of: currentConfiguration.playSound) { _, enabled in
-                            if enabled {
-                                playPreviewSound()
+                                Picker("", selection: soundBinding(for: tag)) {
+                                    ForEach(WiredEventsStore.availableSounds, id: \.self) { sound in
+                                        Text(sound).tag(sound)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .disabled(!configuration(for: tag).playSound)
                             }
-                        }
-                }
-
-                LabeledContent("Sound") {
-                    Picker("Sound", selection: binding(\.sound).nonOptional(defaultValue: WiredEventsStore.defaultSoundName)) {
-                        ForEach(WiredEventsStore.availableSounds, id: \.self) { sound in
-                            Text(sound).tag(sound)
+                        } else {
+                            EmptyView()
                         }
                     }
-                    .labelsHidden()
-                    .disabled(!currentConfiguration.playSound)
-                    .onChange(of: currentConfiguration.sound) { _, _ in
-                        if currentConfiguration.playSound {
-                            playPreviewSound()
+                    .width(140)
+
+                    TableColumn("Bounce in Dock") { row in
+                        if let tag = row.tag {
+                            Toggle("", isOn: boolBinding(for: tag, \.bounceInDock))
+                                .labelsHidden()
+                                .toggleStyle(.checkbox)
+                        } else {
+                            EmptyView()
                         }
                     }
-                }
+                    .width(90)
 
-                LabeledContent("Bounce In Dock") {
-                    Toggle("", isOn: binding(\.bounceInDock))
-                }
+                    TableColumn("Post in Chat") { row in
+                        if let tag = row.tag {
+                            if supportsPostInChat(tag: tag) {
+                                Toggle("", isOn: boolBinding(for: tag, \.postInChat))
+                                    .labelsHidden()
+                                    .toggleStyle(.checkbox)
+                            } else {
+                                Image(systemName: "minus")
+                                    .foregroundStyle(.tertiary)
+                            }
+                        } else {
+                            EmptyView()
+                        }
+                    }
+                    .width(78)
 
-                LabeledContent("Post In Chat") {
-                    Toggle("", isOn: binding(\.postInChat))
-                        .disabled(!supportsPostInChat)
-                }
+                    TableColumn("Alert") { row in
+                        if let tag = row.tag {
+                            if supportsShowAlert(tag: tag) {
+                                // TODO: Hook this toggle to a real in-app alert path once legacy WCEventsShowDialog behavior is restored.
+                                Toggle("", isOn: boolBinding(for: tag, \.showAlert))
+                                    .labelsHidden()
+                                    .toggleStyle(.checkbox)
+                            } else {
+                                Image(systemName: "minus")
+                                    .foregroundStyle(.tertiary)
+                            }
+                        } else {
+                            EmptyView()
+                        }
+                    }
+                    .width(56)
 
-                LabeledContent("Show Alert") {
-                    // TODO: Hook this toggle to a real in-app alert path once legacy WCEventsShowDialog behavior is restored.
-                    Toggle("", isOn: binding(\.showAlert))
-                        .disabled(!supportsShowAlert)
+                    TableColumn("Notification") { row in
+                        if let tag = row.tag {
+                            Toggle("", isOn: boolBinding(for: tag, \.notificationCenter))
+                                .labelsHidden()
+                                .toggleStyle(.checkbox)
+                        } else {
+                            EmptyView()
+                        }
+                    }
+                    .width(84)
                 }
-
-                LabeledContent("Notification Center") {
-                    Toggle("", isOn: binding(\.notificationCenter))
-                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+#else
+            Form {
+                Text("Events settings table is available on macOS.")
+            }
+#endif
         }
         .onAppear {
             eventsVolume = Double(WiredEventsStore.loadVolume())
@@ -340,12 +511,27 @@ struct EventsSettingsView: View {
         }
     }
 
-    private var currentConfiguration: WiredEventConfiguration {
-        configurations.first(where: { $0.tag == selectedTag }) ?? WiredEventConfiguration(tag: selectedTag)
+    private var tableRows: [EventTableRow] {
+        let connection: [WiredEventTag] = [.serverConnected, .serverDisconnected, .error]
+        let activity: [WiredEventTag] = [
+            .userJoined, .userChangedNick, .userChangedStatus, .userLeft,
+            .chatReceived, .chatSent, .highlightedChatReceived, .chatInvitationReceived,
+            .messageReceived, .broadcastReceived, .boardPostAdded
+        ]
+        let transfers: [WiredEventTag] = [.transferStarted, .transferFinished]
+
+        return (
+            [.section("Connection")] +
+            connection.map { .event($0) } +
+            [.section("Activity")] +
+            activity.map { .event($0) } +
+            [.section("Transfers")] +
+            transfers.map { .event($0) }
+        )
     }
 
-    private var supportsPostInChat: Bool {
-        switch selectedTag {
+    private func supportsPostInChat(tag: WiredEventTag) -> Bool {
+        switch tag {
         case .userJoined, .userChangedNick, .userChangedStatus, .userLeft:
             return true
         default:
@@ -353,8 +539,8 @@ struct EventsSettingsView: View {
         }
     }
 
-    private var supportsShowAlert: Bool {
-        switch selectedTag {
+    private func supportsShowAlert(tag: WiredEventTag) -> Bool {
+        switch tag {
         case .messageReceived, .broadcastReceived:
             return true
         default:
@@ -362,21 +548,43 @@ struct EventsSettingsView: View {
         }
     }
 
-    private func binding<Value>(_ keyPath: WritableKeyPath<WiredEventConfiguration, Value>) -> Binding<Value> {
+    private func configuration(for tag: WiredEventTag) -> WiredEventConfiguration {
+        normalized(configurations).first(where: { $0.tag == tag }) ?? WiredEventConfiguration(tag: tag)
+    }
+
+    private func boolBinding(for tag: WiredEventTag, _ keyPath: WritableKeyPath<WiredEventConfiguration, Bool>) -> Binding<Bool> {
         Binding(
-            get: {
-                currentConfiguration[keyPath: keyPath]
-            },
+            get: { configuration(for: tag)[keyPath: keyPath] },
             set: { newValue in
                 var all = normalized(configurations)
-                if let index = all.firstIndex(where: { $0.tag == selectedTag }) {
+                if let index = all.firstIndex(where: { $0.tag == tag }) {
                     all[index][keyPath: keyPath] = newValue
                 } else {
-                    var config = WiredEventConfiguration(tag: selectedTag)
+                    var config = WiredEventConfiguration(tag: tag)
                     config[keyPath: keyPath] = newValue
                     all.append(config)
                 }
                 configurations = normalized(all)
+            }
+        )
+    }
+
+    private func soundBinding(for tag: WiredEventTag) -> Binding<String> {
+        Binding(
+            get: { configuration(for: tag).sound ?? WiredEventsStore.defaultSoundName },
+            set: { newValue in
+                var all = normalized(configurations)
+                if let index = all.firstIndex(where: { $0.tag == tag }) {
+                    all[index].sound = newValue
+                } else {
+                    var config = WiredEventConfiguration(tag: tag)
+                    config.sound = newValue
+                    all.append(config)
+                }
+                configurations = normalized(all)
+                if configuration(for: tag).playSound {
+                    playPreviewSound(for: tag)
+                }
             }
         )
     }
@@ -396,26 +604,33 @@ struct EventsSettingsView: View {
         }
     }
 
-    private func eventMenuTitle(for tag: WiredEventTag) -> String {
-        let hasSound = configurations.first(where: { $0.tag == tag })?.playSound ?? false
-        return hasSound ? "\(tag.title)  🔊" : tag.title
+    private func eventSymbol(for tag: WiredEventTag) -> String {
+        switch tag {
+        case .serverConnected: return "link.badge.plus"
+        case .serverDisconnected: return "xmark.circle"
+        case .error: return "exclamationmark.triangle"
+        case .userJoined: return "person.badge.plus"
+        case .userChangedNick: return "character.cursor.ibeam"
+        case .userChangedStatus: return "person.text.rectangle"
+        case .userLeft: return "person.badge.minus"
+        case .chatReceived: return "message"
+        case .chatSent: return "paperplane"
+        case .highlightedChatReceived: return "text.bubble"
+        case .chatInvitationReceived: return "person.2.badge.plus"
+        case .messageReceived: return "envelope.badge"
+        case .broadcastReceived: return "megaphone"
+        case .boardPostAdded: return "text.page.badge.magnifyingglass"
+        case .transferStarted: return "arrow.down.circle"
+        case .transferFinished: return "checkmark.circle"
+        }
     }
 
-    private func playPreviewSound() {
+    private func playPreviewSound(for tag: WiredEventTag) {
 #if os(macOS)
-        let soundName = currentConfiguration.sound ?? WiredEventsStore.defaultSoundName
+        let soundName = configuration(for: tag).sound ?? WiredEventsStore.defaultSoundName
         guard let sound = NSSound(named: NSSound.Name(soundName)) else { return }
         sound.volume = Float(max(0.0, min(eventsVolume, 1.0)))
         sound.play()
 #endif
-    }
-}
-
-private extension Binding where Value == String? {
-    func nonOptional(defaultValue: String) -> Binding<String> {
-        Binding<String>(
-            get: { wrappedValue ?? defaultValue },
-            set: { wrappedValue = $0 }
-        )
     }
 }
