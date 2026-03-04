@@ -1156,7 +1156,7 @@ struct FilesTreeView: View {
             canUploadToDirectory: canUploadToDirectory,
             canCreateFolderInDirectory: canCreateFolderInDirectory
         )
-        .background(Color.white)
+        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             Task { await filesViewModel.loadTreeRoot() }
             selectedPaths = Set([filesViewModel.treeSelectionPath].compactMap { $0 })
@@ -2072,7 +2072,7 @@ struct FilesColumnsView: View {
                 }
             }
         }
-        .background(Color.white)
+        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             notifySelectionItemsChanged()
         }
@@ -2666,7 +2666,7 @@ private struct FilePreviewColumn: View {
             Spacer()
         }
         .padding(10)
-        .background(Color.white)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     @ViewBuilder

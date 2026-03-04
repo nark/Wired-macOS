@@ -36,19 +36,16 @@ struct NewThreadView: View {
             Divider()
 
             // Form
-            Form {
+            VStack(alignment: .leading, spacing: 10) {
                 TextField("Subject", text: $subject)
 
                 Text("Message")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                TextEditor(text: $text)
-                    .font(.body)
-                    .frame(minHeight: 160)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3)))
+                MarkdownComposer(text: $text, minHeight: 180, autoFocus: true, onOptionEnter: post)
             }
-            .formStyle(.grouped)
+            .padding()
 
             Divider()
 
@@ -64,10 +61,11 @@ struct NewThreadView: View {
             }
             .padding()
         }
-        .frame(width: 520, height: 360)
+        .frame(width: 560, height: 400)
     }
 
     private func post() {
+        guard canPost, !isPosting else { return }
         isPosting = true
         Task {
             try? await runtime.addThread(toBoard: board,

@@ -32,7 +32,14 @@ final class Board: Identifiable, Equatable, Hashable {
     var everyoneWrite: Bool = false
 
     var threads: [BoardThread] = []
+    var threadsLoaded: Bool = false
     var children: [Board]? = nil  // nil = leaf, [] = loaded empty, [...] = sub-boards
+    
+    var unreadPostsCount: Int {
+        let threadsUnread = threads.reduce(0) { $0 + $1.unreadPostsCount }
+        let childrenUnread = (children ?? []).reduce(0) { $0 + $1.unreadPostsCount }
+        return threadsUnread + childrenUnread
+    }
 
     var name: String { (path as NSString).lastPathComponent }
     var parentPath: String { (path as NSString).deletingLastPathComponent }

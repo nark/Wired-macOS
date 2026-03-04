@@ -72,6 +72,7 @@
 		4C95F16C2F56CB7D005CD1BA /* ReplyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C95F16A2F56CB7D005CD1BA /* ReplyView.swift */; };
 		4C95F16D2F56CB7D005CD1BA /* NewThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C95F1692F56CB7D005CD1BA /* NewThreadView.swift */; };
 		4C95F16E2F56CB7D005CD1BA /* BoardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C95F1682F56CB7D005CD1BA /* BoardsView.swift */; };
+		4C95F1712F571884005CD1BA /* wired.xml in Resources */ = {isa = PBXBuildFile; fileRef = 4C95F1702F571884005CD1BA /* wired.xml */; };
 		4CF01A922F20000100213277 /* FileInfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF01A912F20000100213277 /* FileInfoSheet.swift */; };
 		4CF01A942F200A1100213277 /* UploadsBadge.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4CF01A962F200A1100213277 /* UploadsBadge.icns */; };
 		4CF01A952F200A1100213277 /* DropBoxBadge.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4CF01A972F200A1100213277 /* DropBoxBadge.icns */; };
@@ -161,6 +162,7 @@
 		4C95F1682F56CB7D005CD1BA /* BoardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardsView.swift; sourceTree = "<group>"; };
 		4C95F1692F56CB7D005CD1BA /* NewThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewThreadView.swift; sourceTree = "<group>"; };
 		4C95F16A2F56CB7D005CD1BA /* ReplyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyView.swift; sourceTree = "<group>"; };
+		4C95F1702F571884005CD1BA /* wired.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = wired.xml; sourceTree = "<group>"; };
 		4CB1F6E426068DDD00017676 /* SocketSwift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = SocketSwift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4CB1F6E626068DDD00017676 /* WiredSwift.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = WiredSwift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4CF01A912F20000100213277 /* FileInfoSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileInfoSheet.swift; sourceTree = "<group>"; };
@@ -204,6 +206,7 @@
 		4C0C2DE52EF437DE00213277 /* Wired 3 */ = {
 			isa = PBXGroup;
 			children = (
+				4C95F1702F571884005CD1BA /* wired.xml */,
 				4C0C2DE02EF437DE00213277 /* Assets.xcassets */,
 				4CF01A962F200A1100213277 /* UploadsBadge.icns */,
 				4CF01A972F200A1100213277 /* DropBoxBadge.icns */,
@@ -551,6 +554,7 @@
 				4C0C2DE62EF437DE00213277 /* Assets.xcassets in Resources */,
 				4CF01A942F200A1100213277 /* UploadsBadge.icns in Resources */,
 				4CF01A952F200A1100213277 /* DropBoxBadge.icns in Resources */,
+				4C95F1712F571884005CD1BA /* wired.xml in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

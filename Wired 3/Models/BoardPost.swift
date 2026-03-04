@@ -22,6 +22,8 @@ final class BoardPost: Identifiable {
     var editDate: Date?
     var icon: Data?
     var isOwn: Bool
+    var isUnread: Bool = false
+    var isThreadBody: Bool = false
 
     init(uuid: String,
          threadUUID: String,
@@ -29,7 +31,8 @@ final class BoardPost: Identifiable {
          nick: String,
          postDate: Date,
          icon: Data? = nil,
-         isOwn: Bool = false) {
+         isOwn: Bool = false,
+         isThreadBody: Bool = false) {
         self.uuid       = uuid
         self.threadUUID = threadUUID
         self.text       = text
@@ -37,5 +40,6 @@ final class BoardPost: Identifiable {
         self.postDate   = postDate
         self.icon       = icon
         self.isOwn      = isOwn
+        self.isThreadBody = isThreadBody
     }
 }

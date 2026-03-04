@@ -55,7 +55,7 @@ struct ChatView: View {
                     .padding(.top, 8)
                     .padding(.trailing, 8)
                 }
-                .background(.white)
+                .background(.background)
             }
 #if os(macOS)
             Divider()

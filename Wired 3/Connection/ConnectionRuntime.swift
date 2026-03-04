@@ -120,8 +120,13 @@ final class ConnectionRuntime: Identifiable {
 
     // Boards
     var boards: [Board] = []
+    @ObservationIgnored
     var boardsByPath: [String: Board] = [:]
+    @ObservationIgnored
+    private var pendingLocalPostUUIDByThread: [String: String] = [:]
     var boardsLoaded: Bool = false
+    var selectedBoardPath: String?
+    var selectedThreadUUID: String?
     
     var showInfos: Bool = false
     var showInfosUserID: UInt32 = 0
@@ -134,6 +139,14 @@ final class ConnectionRuntime: Identifiable {
     
     var totalUnreadMessages: Int {
         totalUnreadChatMessages + totalUnreadPrivateMessages
+    }
+
+    var totalUnreadBoardPosts: Int {
+        boards.reduce(0) { $0 + $1.unreadPostsCount }
+    }
+
+    var totalUnreadNotifications: Int {
+        totalUnreadMessages + totalUnreadBoardPosts
     }
     
     var totalUnreadChatMessages: Int {
@@ -203,6 +216,7 @@ final class ConnectionRuntime: Identifiable {
         }
         
         resetChats()
+        resetBoards()
     }
 
     func setAutoReconnectState(
@@ -279,6 +293,9 @@ final class ConnectionRuntime: Identifiable {
         boards = []
         boardsByPath = [:]
         boardsLoaded = false
+        selectedBoardPath = nil
+        selectedThreadUUID = nil
+        connectionController.updateNotificationsBadge()
     }
 
     func appendBoard(_ board: Board) {
@@ -291,12 +308,78 @@ final class ConnectionRuntime: Identifiable {
         }
         boardsByPath[board.path] = board
     }
+    
+    func board(path: String) -> Board? {
+        boardsByPath[path]
+    }
 
     func thread(uuid: String) -> BoardThread? {
         for board in boardsByPath.values {
             if let t = board.threads.first(where: { $0.uuid == uuid }) { return t }
         }
         return nil
+    }
+
+    func thread(boardPath: String, uuid: String) -> BoardThread? {
+        board(path: boardPath)?.threads.first(where: { $0.uuid == uuid })
+    }
+
+    func markThreadAsRead(_ thread: BoardThread) {
+        thread.unreadPostsCount = 0
+        thread.lastReadAt = .now
+        for post in thread.posts {
+            post.isUnread = false
+        }
+        connectionController.updateNotificationsBadge()
+    }
+
+    func markThreadAsRead(boardPath: String, threadUUID: String) {
+        guard let thread = thread(boardPath: boardPath, uuid: threadUUID) else { return }
+        markThreadAsRead(thread)
+    }
+
+    func markThreadAsUnread(_ thread: BoardThread) {
+        let anchorDate = thread.lastReplyDate ?? thread.postDate
+        thread.lastReadAt = anchorDate.addingTimeInterval(-1)
+        thread.unreadPostsCount = max(1, thread.unreadPostsCount)
+
+        if thread.postsLoaded {
+            for post in thread.posts {
+                post.isUnread = post.postDate > (thread.lastReadAt ?? .distantPast)
+            }
+
+            if !thread.posts.contains(where: { $0.isUnread }), let lastPost = thread.posts.last {
+                lastPost.isUnread = true
+            }
+        }
+
+        connectionController.updateNotificationsBadge()
+    }
+
+    func markThreadHasUnread(_ thread: BoardThread, increment: Int = 1) {
+        guard increment > 0 else { return }
+        thread.unreadPostsCount += increment
+        connectionController.updateNotificationsBadge()
+    }
+
+    func refreshPostUnreadState(for thread: BoardThread) {
+        guard let lastReadAt = thread.lastReadAt else {
+            for post in thread.posts {
+                post.isUnread = false
+            }
+            return
+        }
+
+        var unreadCount = 0
+        for post in thread.posts {
+            let unread = post.postDate > lastReadAt
+            post.isUnread = unread
+            if unread {
+                unreadCount += 1
+            }
+        }
+        thread.unreadPostsCount = unreadCount
+        connectionController.updateNotificationsBadge()
     }
 
     func appendChat(_ chat: Chat) {
@@ -1080,12 +1163,17 @@ final class ConnectionRuntime: Identifiable {
     }
 
     func getThreads(forBoard board: Board) async throws {
+        board.threadsLoaded = false
+        board.threads.removeAll()
         let m = P7Message(withName: "wired.board.get_threads", spec: spec!)
         m.addParameter(field: "wired.board.board", value: board.path)
         try await send(m)
+        board.threadsLoaded = true
     }
 
     func getPosts(forThread thread: BoardThread) async throws {
+        thread.postsLoaded = false
+        thread.posts.removeAll()
         let m = P7Message(withName: "wired.board.get_thread", spec: spec!)
         m.addParameter(field: "wired.board.thread", value: thread.uuid)
         try await send(m)
@@ -1096,7 +1184,9 @@ final class ConnectionRuntime: Identifiable {
         m.addParameter(field: "wired.board.board",   value: board.path)
         m.addParameter(field: "wired.board.subject", value: subject)
         m.addParameter(field: "wired.board.text",    value: text)
-        try await send(m)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
     }
 
     func addPost(toThread thread: BoardThread, text: String) async throws {
@@ -1104,19 +1194,231 @@ final class ConnectionRuntime: Identifiable {
         m.addParameter(field: "wired.board.thread",  value: thread.uuid)
         m.addParameter(field: "wired.board.subject", value: thread.subject)
         m.addParameter(field: "wired.board.text",    value: text)
-        try await send(m)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+
+        // Optimistic append: avoids full reload when the thread is already loaded.
+        if thread.postsLoaded {
+            let me = onlineUser(withID: userID)
+            let localUUID = "local-\(UUID().uuidString.lowercased())"
+            let post = BoardPost(
+                uuid: localUUID,
+                threadUUID: thread.uuid,
+                text: text,
+                nick: me?.nick ?? (connection?.nick ?? "Me"),
+                postDate: Date(),
+                icon: me?.icon,
+                isOwn: true
+            )
+            post.isUnread = false
+            thread.posts.append(post)
+            pendingLocalPostUUIDByThread[thread.uuid] = localUUID
+        }
+    }
+
+    func pendingLocalPostUUID(forThread threadUUID: String) -> String? {
+        pendingLocalPostUUIDByThread[threadUUID]
+    }
+
+    func clearPendingLocalPostUUID(forThread threadUUID: String) {
+        pendingLocalPostUUIDByThread.removeValue(forKey: threadUUID)
+    }
+
+    func addBoard(
+        path: String,
+        owner: String,
+        ownerRead: Bool,
+        ownerWrite: Bool,
+        group: String,
+        groupRead: Bool,
+        groupWrite: Bool,
+        everyoneRead: Bool,
+        everyoneWrite: Bool
+    ) async throws {
+        let m = P7Message(withName: "wired.board.add_board", spec: spec!)
+        m.addParameter(field: "wired.board.board", value: path)
+        m.addParameter(field: "wired.board.owner", value: owner)
+        m.addParameter(field: "wired.board.owner.read", value: ownerRead)
+        m.addParameter(field: "wired.board.owner.write", value: ownerWrite)
+        m.addParameter(field: "wired.board.group", value: group)
+        m.addParameter(field: "wired.board.group.read", value: groupRead)
+        m.addParameter(field: "wired.board.group.write", value: groupWrite)
+        m.addParameter(field: "wired.board.everyone.read", value: everyoneRead)
+        m.addParameter(field: "wired.board.everyone.write", value: everyoneWrite)
+
+        guard let response = try await send(m) else {
+            throw WiredError(withTitle: "Board", message: "No response from server.")
+        }
+
+        if response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func listAccountUserNames() async throws -> [String] {
+        guard let connection = connection as? AsyncConnection else {
+            throw WiredError(withTitle: "Accounts", message: "Not connected.")
+        }
+
+        let message = P7Message(withName: "wired.account.list_users", spec: spec!)
+        var values: [String] = []
+
+        for try await response in try connection.sendAndWaitMany(message) {
+            if response.name == "wired.error" {
+                throw WiredError(message: response)
+            }
+
+            if response.name == "wired.account.user_list",
+               let name = response.string(forField: "wired.account.name"),
+               !name.isEmpty {
+                values.append(name)
+            }
+        }
+
+        return Array(Set(values)).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
+    func listAccountGroupNames() async throws -> [String] {
+        guard let connection = connection as? AsyncConnection else {
+            throw WiredError(withTitle: "Accounts", message: "Not connected.")
+        }
+
+        let message = P7Message(withName: "wired.account.list_groups", spec: spec!)
+        var values: [String] = []
+
+        for try await response in try connection.sendAndWaitMany(message) {
+            if response.name == "wired.error" {
+                throw WiredError(message: response)
+            }
+
+            if response.name == "wired.account.group_list",
+               let name = response.string(forField: "wired.account.name"),
+               !name.isEmpty {
+                values.append(name)
+            }
+        }
+
+        return Array(Set(values)).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
+    func getBoardInfo(path: String) async throws {
+        let m = P7Message(withName: "wired.board.get_board_info", spec: spec!)
+        m.addParameter(field: "wired.board.board", value: path)
+
+        guard let response = try await send(m) else {
+            throw WiredError(withTitle: "Board", message: "No response from server.")
+        }
+
+        if response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func setBoardInfo(
+        path: String,
+        owner: String,
+        ownerRead: Bool,
+        ownerWrite: Bool,
+        group: String,
+        groupRead: Bool,
+        groupWrite: Bool,
+        everyoneRead: Bool,
+        everyoneWrite: Bool
+    ) async throws {
+        let m = P7Message(withName: "wired.board.set_board_info", spec: spec!)
+        m.addParameter(field: "wired.board.board", value: path)
+        m.addParameter(field: "wired.board.owner", value: owner)
+        m.addParameter(field: "wired.board.owner.read", value: ownerRead)
+        m.addParameter(field: "wired.board.owner.write", value: ownerWrite)
+        m.addParameter(field: "wired.board.group", value: group)
+        m.addParameter(field: "wired.board.group.read", value: groupRead)
+        m.addParameter(field: "wired.board.group.write", value: groupWrite)
+        m.addParameter(field: "wired.board.everyone.read", value: everyoneRead)
+        m.addParameter(field: "wired.board.everyone.write", value: everyoneWrite)
+
+        guard let response = try await send(m) else {
+            throw WiredError(withTitle: "Board", message: "No response from server.")
+        }
+
+        if response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
     }
 
     func deleteThread(uuid: String) async throws {
         let m = P7Message(withName: "wired.board.delete_thread", spec: spec!)
         m.addParameter(field: "wired.board.thread", value: uuid)
-        try await send(m)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
     }
 
     func deletePost(uuid: String) async throws {
         let m = P7Message(withName: "wired.board.delete_post", spec: spec!)
         m.addParameter(field: "wired.board.post", value: uuid)
-        try await send(m)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func deleteBoard(path: String) async throws {
+        let m = P7Message(withName: "wired.board.delete_board", spec: spec!)
+        m.addParameter(field: "wired.board.board", value: path)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func renameBoard(path: String, newPath: String) async throws {
+        let m = P7Message(withName: "wired.board.rename_board", spec: spec!)
+        m.addParameter(field: "wired.board.board", value: path)
+        m.addParameter(field: "wired.board.new_board", value: newPath)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func moveBoard(path: String, newPath: String) async throws {
+        let m = P7Message(withName: "wired.board.move_board", spec: spec!)
+        m.addParameter(field: "wired.board.board", value: path)
+        m.addParameter(field: "wired.board.new_board", value: newPath)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func editThread(uuid: String, subject: String, text: String) async throws {
+        let m = P7Message(withName: "wired.board.edit_thread", spec: spec!)
+        m.addParameter(field: "wired.board.thread", value: uuid)
+        m.addParameter(field: "wired.board.subject", value: subject)
+        m.addParameter(field: "wired.board.text", value: text)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func moveThread(uuid: String, newBoardPath: String) async throws {
+        let m = P7Message(withName: "wired.board.move_thread", spec: spec!)
+        m.addParameter(field: "wired.board.thread", value: uuid)
+        m.addParameter(field: "wired.board.new_board", value: newBoardPath)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    func editPost(uuid: String, subject: String, text: String) async throws {
+        let m = P7Message(withName: "wired.board.edit_post", spec: spec!)
+        m.addParameter(field: "wired.board.post", value: uuid)
+        m.addParameter(field: "wired.board.subject", value: subject)
+        m.addParameter(field: "wired.board.text", value: text)
+        if let response = try await send(m), response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
     }
 
     // MARK: - Unreads

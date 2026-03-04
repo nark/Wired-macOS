@@ -59,7 +59,7 @@ struct MessageConversationDetailView: View {
                 .padding(.top, 8)
                 .padding(.trailing, 8)
             }
-            .background(.white)
+            .background(.background)
         }
         .onAppear {
             runtime.resetUnreads(conversation)

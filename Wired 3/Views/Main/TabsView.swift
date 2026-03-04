@@ -214,8 +214,20 @@ struct TabsView: View {
                         runtime.selectedTab = .boards
                     } label: {
                         VStack {
-                            Image(systemName: "newspaper")
-                                .frame(minHeight: 18)
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "newspaper")
+                                    .frame(minHeight: 18)
+
+                                if runtime.totalUnreadBoardPosts > 0 {
+                                    Text(runtime.totalUnreadBoardPosts > 99 ? "99+" : "\(runtime.totalUnreadBoardPosts)")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(.red))
+                                        .offset(x: 12, y: -8)
+                                }
+                            }
 
                             Text("Boards").font(.subheadline)
                         }

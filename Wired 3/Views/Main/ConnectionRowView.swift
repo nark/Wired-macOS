@@ -14,6 +14,10 @@ struct ConnectionRowView: View {
     var connectionID: UUID
     var name: String
 
+    private var unreadCount: Int {
+        connectionController.runtime(for: connectionID)?.totalUnreadNotifications ?? 0
+    }
+
     private var iconColor: Color {
         if let runtime = connectionController.runtime(for: connectionID) {
             if runtime.status == .connecting || runtime.isAutoReconnectScheduled {
@@ -34,6 +38,7 @@ struct ConnectionRowView: View {
 
     var body: some View {
         let _ = connectionController.connectionIssueRevision
+        let _ = connectionController.notificationsRevision
 
         HStack {
             Image(systemName: "network")
@@ -42,7 +47,15 @@ struct ConnectionRowView: View {
             Text(name)
             
             Spacer()
+
+            if unreadCount > 0 {
+                Text(unreadCount > 99 ? "99+" : "\(unreadCount)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.accentColor))
+            }
         }
-        .badge(connectionController.runtime(for: connectionID)?.totalUnreadMessages ?? 0)
     }
 }

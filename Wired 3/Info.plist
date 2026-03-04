@@ -47,6 +47,36 @@
 				<string>application/vnd.read-write.wired-user</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Wired Board Drag Payload</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.read-write.wired.board</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.mime-type</key>
+				<string>application/vnd.read-write.wired-board</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Wired Board Thread Drag Payload</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.read-write.wired.board-thread</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.mime-type</key>
+				<string>application/vnd.read-write.wired-board-thread</string>
+			</dict>
+		</dict>
 	</array>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
