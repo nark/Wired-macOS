@@ -54,11 +54,18 @@ struct MessagesView: View {
                 Divider()
 
                 HStack {
+                    Button {
+                        
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.plain)
+                    
                     Spacer()
                 }
                 .padding(.horizontal, 10)
-                .padding(.top, 9)
-                .padding(.bottom, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 7)
             }
             .frame(width: 260)
 
