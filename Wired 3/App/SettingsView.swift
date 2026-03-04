@@ -13,118 +13,93 @@ import AppKit
 #endif
 
 struct SettingsView: View {
-    private enum SettingsPane: Hashable {
+    private enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case general
         case chat
         case files
         case events
 
-#if os(macOS)
-        var contentSize: NSSize {
+        var id: String { rawValue }
+
+        var title: String {
             switch self {
-            case .general: return NSSize(width: 560, height: 380)
-            case .chat: return NSSize(width: 460, height: 240)
-            case .files: return NSSize(width: 460, height: 220)
-            case .events: return NSSize(width: 940, height: 620)
+            case .general: return "General"
+            case .chat: return "Chat"
+            case .files: return "Files"
+            case .events: return "Events"
             }
         }
-#endif
+
+        var symbolName: String {
+            switch self {
+            case .general: return "gearshape"
+            case .chat: return "message"
+            case .files: return "folder"
+            case .events: return "bell"
+            }
+        }
     }
 
-#if os(macOS)
-    @State private var settingsWindow: NSWindow?
-    @State private var hasAppliedInitialSize = false
-#endif
     @State private var selectedPane: SettingsPane = .general
 
     var body: some View {
-        TabView(selection: $selectedPane) {
-            Tab("General", systemImage: "gear", value: .general) {
-                GeneralSettingsView()
-            }
-            
-            Tab("Chat", systemImage: "message.fill", value: .chat) {
-                ChatSettingsView()
-            }
-            
-            Tab("Files", systemImage: "folder.fill", value: .files) {
-                FilesSettingsView()
-            }
-
-            Tab("Events", systemImage: "bell.fill", value: .events) {
-                EventsSettingsView()
-            }
-        }
+        Group {
 #if os(macOS)
-        .background(
-            SettingsWindowAccessor { window in
-                guard let window else { return }
-                if settingsWindow !== window {
-                    settingsWindow = window
-                    hasAppliedInitialSize = false
+            NavigationSplitView(columnVisibility: .constant(.all)) {
+                List(SettingsPane.allCases, selection: $selectedPane) { pane in
+                    Label(pane.title, systemImage: pane.symbolName)
+                        .tag(pane)
                 }
-                if !hasAppliedInitialSize {
-                    resizeWindow(for: selectedPane, animated: false)
-                    hasAppliedInitialSize = true
+                .listStyle(.sidebar)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
+                .toolbar(removing: .sidebarToggle)
+            }
+            detail: {
+                detailView(for: selectedPane)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .navigationSplitViewStyle(.balanced)
+            .frame(minWidth: 980, minHeight: 640)
+#else
+            TabView {
+                Tab("General", systemImage: "gear") {
+                    GeneralSettingsView()
+                }
+
+                Tab("Chat", systemImage: "message.fill") {
+                    ChatSettingsView()
+                }
+
+                Tab("Files", systemImage: "folder.fill") {
+                    FilesSettingsView()
+                }
+
+                Tab("Events", systemImage: "bell.fill") {
+                    EventsSettingsView()
                 }
             }
-        )
-        .onAppear {
-            if !hasAppliedInitialSize {
-                resizeWindow(for: selectedPane, animated: false)
-                hasAppliedInitialSize = true
-            }
-        }
-        .onChange(of: selectedPane) { _, pane in
-            resizeWindow(for: pane, animated: false)
-        }
-        .scenePadding()
-        .frame(minWidth: 460, minHeight: 220)
 #endif
+        }
     }
 
 #if os(macOS)
-    private func resizeWindow(for pane: SettingsPane, animated: Bool) {
-        guard let window = settingsWindow else { return }
-
-        let targetContentRect = NSRect(origin: .zero, size: pane.contentSize)
-        let targetFrame = window.frameRect(forContentRect: targetContentRect)
-        let currentFrame = window.frame
-
-        guard abs(currentFrame.width - targetFrame.width) > 0.5 ||
-                abs(currentFrame.height - targetFrame.height) > 0.5 else {
-            return
+    @ViewBuilder
+    private func detailView(for pane: SettingsPane) -> some View {
+        switch pane {
+        case .general:
+            GeneralSettingsView()
+        case .chat:
+            ChatSettingsView()
+        case .files:
+            FilesSettingsView()
+        case .events:
+            EventsSettingsView()
         }
-
-        let newOrigin = NSPoint(
-            x: currentFrame.midX - (targetFrame.width / 2.0),
-            y: currentFrame.maxY - targetFrame.height
-        )
-        let adjustedFrame = NSRect(origin: newOrigin, size: targetFrame.size)
-        window.setFrame(adjustedFrame, display: true, animate: animated)
     }
 #endif
 }
-
-#if os(macOS)
-private struct SettingsWindowAccessor: NSViewRepresentable {
-    let onResolve: (NSWindow?) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        DispatchQueue.main.async {
-            onResolve(view.window)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            onResolve(nsView.window)
-        }
-    }
-}
-#endif
 
 
 extension Notification.Name {
