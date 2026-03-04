@@ -1061,6 +1061,7 @@ struct FilesTreeView: View {
     let connectionID: UUID
     @ObservedObject var filesViewModel: FilesViewModel
     @EnvironmentObject private var transfers: TransferManager
+    @Environment(\.colorScheme) private var colorScheme
 
     let onRequestCreateFolder: (FileItem) -> Void
     let onPrimarySelectionChange: (String?) -> Void
@@ -1156,7 +1157,7 @@ struct FilesTreeView: View {
             canUploadToDirectory: canUploadToDirectory,
             canCreateFolderInDirectory: canCreateFolderInDirectory
         )
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(colorScheme == .light ? Color.white : Color(nsColor: .windowBackgroundColor))
         .onAppear {
             Task { await filesViewModel.loadTreeRoot() }
             selectedPaths = Set([filesViewModel.treeSelectionPath].compactMap { $0 })
@@ -2021,6 +2022,7 @@ struct FilesColumnsView: View {
 
     @ObservedObject var filesViewModel: FilesViewModel
     @EnvironmentObject private var transfers: TransferManager
+    @Environment(\.colorScheme) private var colorScheme
 
     let onRequestCreateFolder: (FileItem) -> Void
     let onPrimarySelectionChange: (String?) -> Void
@@ -2072,7 +2074,7 @@ struct FilesColumnsView: View {
                 }
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(colorScheme == .light ? Color.white : Color(nsColor: .windowBackgroundColor))
         .onAppear {
             notifySelectionItemsChanged()
         }
@@ -2624,6 +2626,7 @@ private struct ColumnResizeHandle: View {
 
 private struct FilePreviewColumn: View {
     let selectedItem: FileItem?
+    @Environment(\.colorScheme) private var colorScheme
 
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -2666,7 +2669,7 @@ private struct FilePreviewColumn: View {
             Spacer()
         }
         .padding(10)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(colorScheme == .light ? Color.white : Color(nsColor: .windowBackgroundColor))
     }
 
     @ViewBuilder

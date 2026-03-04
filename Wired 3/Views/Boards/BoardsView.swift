@@ -46,9 +46,11 @@ private struct FlattenedBoardRow: Identifiable {
     let board: Board
     let depth: Int
     let boardPath: String
+    let parentPath: String?
 
     var id: String { boardPath }
 }
+
 
 // MARK: - BoardsView
 
@@ -197,18 +199,82 @@ struct BoardsView: View {
     }
 
     private var visibleBoardRows: [FlattenedBoardRow] {
-        func flatten(_ boards: [Board], depth: Int) -> [FlattenedBoardRow] {
+        func sortedBoards(_ boards: [Board]) -> [Board] {
+            boards.sorted { $0.path < $1.path }
+        }
+
+        func flatten(_ boards: [Board], depth: Int, parentPath: String?) -> [FlattenedBoardRow] {
             var rows: [FlattenedBoardRow] = []
-            for board in boards {
-                rows.append(FlattenedBoardRow(board: board, depth: depth, boardPath: board.path))
+            let orderedBoards = sortedBoards(boards)
+            for board in orderedBoards {
+                rows.append(FlattenedBoardRow(
+                    board: board,
+                    depth: depth,
+                    boardPath: board.path,
+                    parentPath: parentPath
+                ))
                 if isBoardExpanded(board), let children = board.children {
-                    rows.append(contentsOf: flatten(children, depth: depth + 1))
+                    rows.append(contentsOf: flatten(children, depth: depth + 1, parentPath: board.path))
                 }
             }
             return rows
         }
 
-        return flatten(runtime.boards, depth: 0)
+        return flatten(runtime.boards, depth: 0, parentPath: nil)
+    }
+
+    private func canDropBoardAtRoot(_ sourceBoardPath: String) -> Bool {
+        guard runtime.hasPrivilege("wired.account.board.move_boards") else { return false }
+        return sourceBoardPath.contains("/")
+    }
+
+    private func handleBoardDropAtRoot(_ sourceBoardPath: String) -> Bool {
+        guard canDropBoardAtRoot(sourceBoardPath) else { return false }
+
+        let boardName = (sourceBoardPath as NSString).lastPathComponent
+        let newPath = boardName
+        guard newPath != sourceBoardPath else { return false }
+
+        Task {
+            do {
+                try await runtime.moveBoard(path: sourceBoardPath, newPath: newPath)
+                await MainActor.run {
+                    preserveUIStateForMovedBoard(oldPath: sourceBoardPath, newPath: newPath, destinationParentPath: nil)
+                    runtime.resetBoards()
+                }
+                try await runtime.getBoards()
+            } catch {
+                await MainActor.run {
+                    runtime.lastError = error
+                }
+            }
+        }
+        return true
+    }
+
+    private func remapPath(_ path: String, from oldPath: String, to newPath: String) -> String {
+        if path == oldPath {
+            return newPath
+        }
+        let prefix = oldPath + "/"
+        guard path.hasPrefix(prefix) else { return path }
+        let suffix = String(path.dropFirst(prefix.count))
+        return newPath + "/" + suffix
+    }
+
+    private func preserveUIStateForMovedBoard(oldPath: String, newPath: String, destinationParentPath: String?) {
+        var remappedExpandedPaths: Set<String> = []
+        for path in expandedBoardPaths {
+            remappedExpandedPaths.insert(remapPath(path, from: oldPath, to: newPath))
+        }
+        if let destinationParentPath {
+            remappedExpandedPaths.insert(destinationParentPath)
+        }
+        expandedBoardPaths = remappedExpandedPaths
+
+        if let selectedBoardPath {
+            self.selectedBoardPath = remapPath(selectedBoardPath, from: oldPath, to: newPath)
+        }
     }
 
     private func boardsForSmartBoard(_ smartBoard: SmartBoardDefinition) -> [Board] {
@@ -306,24 +372,6 @@ struct BoardsView: View {
         return visibleThreads.first(where: { $0.uuid == uuid }) ?? runtime.thread(uuid: uuid)
     }
 
-    private func threadDragValue(_ threadUUID: String) -> String {
-        "thread:\(threadUUID)"
-    }
-
-    private func boardDragValue(_ boardPath: String) -> String {
-        "board:\(boardPath)"
-    }
-
-    private func parseDraggedThreadUUID(_ draggedValue: String) -> String? {
-        guard draggedValue.hasPrefix("thread:") else { return nil }
-        return String(draggedValue.dropFirst("thread:".count))
-    }
-
-    private func parseDraggedBoardPath(_ draggedValue: String) -> String? {
-        guard draggedValue.hasPrefix("board:") else { return nil }
-        return String(draggedValue.dropFirst("board:".count))
-    }
-
     private func canDropThread(_ threadUUID: String, into destinationBoard: Board) -> Bool {
         guard runtime.hasPrivilege("wired.account.board.move_threads") else { return false }
         guard let sourceThread = runtime.thread(uuid: threadUUID) else { return false }
@@ -365,34 +413,7 @@ struct BoardsView: View {
             do {
                 try await runtime.moveBoard(path: sourceBoardPath, newPath: newPath)
                 await MainActor.run {
-                    runtime.resetBoards()
-                }
-                try await runtime.getBoards()
-            } catch {
-                await MainActor.run {
-                    runtime.lastError = error
-                }
-            }
-        }
-        return true
-    }
-
-    private func canDropBoardAtRoot(_ sourceBoardPath: String) -> Bool {
-        guard runtime.hasPrivilege("wired.account.board.move_boards") else { return false }
-        return sourceBoardPath.contains("/")
-    }
-
-    private func handleBoardDropAtRoot(_ sourceBoardPath: String) -> Bool {
-        guard canDropBoardAtRoot(sourceBoardPath) else { return false }
-
-        let boardName = (sourceBoardPath as NSString).lastPathComponent
-        let newPath = boardName
-        guard newPath != sourceBoardPath else { return false }
-
-        Task {
-            do {
-                try await runtime.moveBoard(path: sourceBoardPath, newPath: newPath)
-                await MainActor.run {
+                    preserveUIStateForMovedBoard(oldPath: sourceBoardPath, newPath: newPath, destinationParentPath: destinationBoard.path)
                     runtime.resetBoards()
                 }
                 try await runtime.getBoards()
@@ -599,37 +620,41 @@ struct BoardsView: View {
                                                 .frame(width: 12, height: 12)
                                         }
                                         .buttonStyle(.plain)
-                                        .padding(.leading, CGFloat(row.depth) * 14)
+                                        .padding(.leading, CGFloat(row.depth) * 10)
                                     } else {
                                         Color.clear
                                             .frame(width: 12, height: 12)
-                                            .padding(.leading, CGFloat(row.depth) * 14)
+                                            .padding(.leading, CGFloat(row.depth) * 10)
                                     }
 
                                     BoardRowView(board: board)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
+                                .tag(board.path)
+                                .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 6))
+                                .draggable(BoardDropItem.board(path: board.path))
+                                .dropDestination(for: BoardDropItem.self) { items, _ in
+                                    guard let item = items.first else { return false }
+                                    switch item.kind {
+                                    case "board":
+                                        return handleBoardDrop(item.identifier, into: board)
+                                    case "thread":
+                                        return handleThreadDrop(item.identifier, into: board)
+                                    default:
+                                        return false
+                                    }
+                                } isTargeted: { isTargeted in
+                                    boardDropTargetPath = isTargeted ? board.path : (boardDropTargetPath == board.path ? nil : boardDropTargetPath)
+                                }
                                 .overlay {
                                     if boardDropTargetPath == board.path {
                                         RoundedRectangle(cornerRadius: 6)
                                             .stroke(Color.accentColor, lineWidth: 2)
                                             .padding(.vertical, -2)
                                     }
-                                }
-                                .tag(board.path)
-                                .draggable(boardDragValue(board.path))
-                                .dropDestination(for: String.self) { items, _ in
-                                    guard let draggedValue = items.first else { return false }
-                                    if let threadUUID = parseDraggedThreadUUID(draggedValue) {
-                                        return handleThreadDrop(threadUUID, into: board)
-                                    }
-                                    if let sourceBoardPath = parseDraggedBoardPath(draggedValue) {
-                                        return handleBoardDrop(sourceBoardPath, into: board)
-                                    }
-                                    return false
-                                } isTargeted: { isTargeted in
-                                    boardDropTargetPath = isTargeted ? board.path : (boardDropTargetPath == board.path ? nil : boardDropTargetPath)
                                 }
                                 .contextMenu {
                                     if runtime.hasPrivilege("wired.account.board.set_board_info") {
@@ -646,26 +671,30 @@ struct BoardsView: View {
                                     }
                                 }
                             }
+
+                            if runtime.hasPrivilege("wired.account.board.move_boards") {
+                                Color.clear
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 26)
+                                    .contentShape(Rectangle())
+                                    .dropDestination(for: BoardDropItem.self) { items, _ in
+                                        guard let item = items.first else { return false }
+                                        guard item.kind == "board" else { return false }
+                                        return handleBoardDropAtRoot(item.identifier)
+                                    } isTargeted: { isTargeted in
+                                        isRootBoardDropTargeted = isTargeted
+                                    }
+                                    .overlay {
+                                        if isRootBoardDropTargeted {
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(Color.accentColor, lineWidth: 2)
+                                                .padding(.horizontal, 4)
+                                        }
+                                    }
+                            }
                         }
-                    }
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let draggedValue = items.first,
-                              let sourceBoardPath = parseDraggedBoardPath(draggedValue) else { return false }
-                        return handleBoardDropAtRoot(sourceBoardPath)
-                    } isTargeted: { isTargeted in
-                        isRootBoardDropTargeted = isTargeted
                     }
                     .scrollContentBackground(.hidden)
-                    .overlay(alignment: .bottomLeading) {
-                        if isRootBoardDropTargeted {
-                            Text("Drop ici pour deplacer a la racine")
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .padding(8)
-                        }
-                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -880,7 +909,7 @@ struct BoardsView: View {
                                 .tag(thread.uuid)
                                 .listRowInsets(EdgeInsets(top: 5, leading: 6, bottom: 5, trailing: 10))
                                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                                .draggable(threadDragValue(thread.uuid))
+                                .draggable(BoardDropItem.thread(uuid: thread.uuid))
                         }
                         .contextMenu(forSelectionType: String.self) { selection in
                             if let thread = threadFromSelection(selection) {
@@ -920,7 +949,7 @@ struct BoardsView: View {
                                 .tag(thread.uuid)
                                 .listRowInsets(EdgeInsets(top: 5, leading: 6, bottom: 5, trailing: 10))
                                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                                .draggable(threadDragValue(thread.uuid))
+                                .draggable(BoardDropItem.thread(uuid: thread.uuid))
                         }
                         .contextMenu(forSelectionType: String.self) { selection in
                             if let thread = threadFromSelection(selection) {

@@ -77,6 +77,25 @@
 				<string>application/vnd.read-write.wired-board-thread</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Wired Board/Thread Drag Payload</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.read-write.wired.board-item-v2</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>wboarditem</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/vnd.read-write.wired.board-item-v2+json</string>
+			</dict>
+		</dict>
 	</array>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
