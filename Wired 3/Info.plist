@@ -80,7 +80,7 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>public.json</string>
+				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
 			<string>Wired Board/Thread Drag Payload</string>
@@ -88,12 +88,8 @@
 			<string>com.read-write.wired.board-item-v2</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>wboarditem</string>
-				</array>
 				<key>public.mime-type</key>
-				<string>application/vnd.read-write.wired.board-item-v2+json</string>
+				<string>application/vnd.read-write.wired.board-item-v2</string>
 			</dict>
 		</dict>
 	</array>

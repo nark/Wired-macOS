@@ -1495,12 +1495,8 @@ final class ConnectionController {
                 let oldPath = message.string(forField: "wired.board.board"),
                 let newPath = message.string(forField: "wired.board.new_board")
             else { break }
-            let _ = oldPath
-            let _ = newPath
-            // Path-only mutation is not enough for nested trees; re-sync full hierarchy.
-            Task { @MainActor in
-                runtime.resetBoards()
-                try? await runtime.getBoards()
+            await MainActor.run {
+                runtime.moveBoardInTree(from: oldPath, to: newPath)
             }
 
         case "wired.board.board_info":

@@ -32,7 +32,7 @@ private enum ThreadSortCriterion: String, CaseIterable, Identifiable {
     }
 }
 
-private struct SmartBoardDefinition: Identifiable, Codable, Hashable {
+private struct SmartBoardDefinition: Identifiable, Codable, Hashable, Transferable {
     var id: String = UUID().uuidString
     var name: String
     var discussionPath: String = ""
@@ -40,6 +40,18 @@ private struct SmartBoardDefinition: Identifiable, Codable, Hashable {
     var replyContains: String = ""
     var nickContains: String = ""
     var unreadOnly: Bool = false
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation { item in
+            "smartboard:" + item.id
+        } importing: { string in
+            guard string.hasPrefix("smartboard:") else {
+                throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Not a smart board drag"))
+            }
+            let id = String(string.dropFirst("smartboard:".count))
+            return SmartBoardDefinition(id: id, name: "")
+        }
+    }
 }
 
 private struct FlattenedBoardRow: Identifiable {
@@ -82,6 +94,7 @@ struct BoardsView: View {
     @State private var hasLoadedBoardExpansionState = false
     @State private var boardDropTargetPath: String?
     @State private var isRootBoardDropTargeted = false
+    @State private var smartBoardDropTargetID: String?
 
     private var boardListSelection: Binding<String?> {
         Binding(
@@ -180,7 +193,34 @@ struct BoardsView: View {
         UserDefaults.standard.set(Array(expandedBoardPaths).sorted(), forKey: boardExpansionStorageKey)
     }
 
+    private func applyPendingBoardPathRemaps() {
+        guard !runtime.pendingBoardPathRemaps.isEmpty else { return }
+
+        var updated = expandedBoardPaths
+        for remap in runtime.pendingBoardPathRemaps {
+            if updated.remove(remap.from) != nil {
+                updated.insert(remap.to)
+            }
+        }
+        expandedBoardPaths = updated
+
+        if let selectedBoardPath {
+            for remap in runtime.pendingBoardPathRemaps {
+                if selectedBoardPath == remap.from {
+                    self.selectedBoardPath = remap.to
+                    break
+                }
+            }
+        }
+
+        runtime.pendingBoardPathRemaps = []
+    }
+
     private func sanitizeExpandedBoardPathsAfterBoardsUpdate() {
+        // Skip sanitization while the tree is being rebuilt (e.g. after resetBoards + getBoards).
+        // Intermediate states would incorrectly wipe the expansion set.
+        guard runtime.boardsLoaded else { return }
+
         let expandablePaths = Set(allBoardsFlat().filter(boardHasChildren).map(\.path))
         let sanitized = expandedBoardPaths.intersection(expandablePaths)
 
@@ -238,11 +278,6 @@ struct BoardsView: View {
         Task {
             do {
                 try await runtime.moveBoard(path: sourceBoardPath, newPath: newPath)
-                await MainActor.run {
-                    preserveUIStateForMovedBoard(oldPath: sourceBoardPath, newPath: newPath, destinationParentPath: nil)
-                    runtime.resetBoards()
-                }
-                try await runtime.getBoards()
             } catch {
                 await MainActor.run {
                     runtime.lastError = error
@@ -409,14 +444,12 @@ struct BoardsView: View {
         let newPath = destinationBoard.path + "/" + boardName
         guard newPath != sourceBoardPath else { return false }
 
+        // Pre-expand destination so the moved board will be visible
+        expandedBoardPaths.insert(destinationBoard.path)
+
         Task {
             do {
                 try await runtime.moveBoard(path: sourceBoardPath, newPath: newPath)
-                await MainActor.run {
-                    preserveUIStateForMovedBoard(oldPath: sourceBoardPath, newPath: newPath, destinationParentPath: destinationBoard.path)
-                    runtime.resetBoards()
-                }
-                try await runtime.getBoards()
             } catch {
                 await MainActor.run {
                     runtime.lastError = error
@@ -545,7 +578,6 @@ struct BoardsView: View {
         } else {
             smartBoards.append(value)
         }
-        smartBoards.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         persistSmartBoards()
     }
 
@@ -597,6 +629,29 @@ struct BoardsView: View {
                                 ForEach(smartBoards) { smartBoard in
                                     Label(smartBoard.name, systemImage: "line.3.horizontal.decrease.circle")
                                         .tag("smart:\(smartBoard.id)")
+                                        .draggable(smartBoard)
+                                        .dropDestination(for: SmartBoardDefinition.self) { items, _ in
+                                            guard let source = items.first,
+                                                  let fromIndex = smartBoards.firstIndex(where: { $0.id == source.id }),
+                                                  let toIndex = smartBoards.firstIndex(where: { $0.id == smartBoard.id }),
+                                                  fromIndex != toIndex
+                                            else { return false }
+                                            withAnimation {
+                                                smartBoards.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+                                                persistSmartBoards()
+                                            }
+                                            return true
+                                        } isTargeted: { targeted in
+                                            smartBoardDropTargetID = targeted ? smartBoard.id : (smartBoardDropTargetID == smartBoard.id ? nil : smartBoardDropTargetID)
+                                        }
+                                        .overlay(alignment: .bottom) {
+                                            if smartBoardDropTargetID == smartBoard.id {
+                                                Rectangle()
+                                                    .fill(Color.accentColor)
+                                                    .frame(height: 2)
+                                                    .offset(y: 1)
+                                            }
+                                        }
                                         .contextMenu {
                                             Button("Edit Smart Board") { smartBoardToEdit = smartBoard }
                                             Button("Delete Smart Board", role: .destructive) { smartBoardToDelete = smartBoard }
@@ -620,8 +675,8 @@ struct BoardsView: View {
                                                 .frame(width: 12, height: 12)
                                         }
                                         .buttonStyle(.plain)
-                                        .padding(.leading, CGFloat(row.depth) * 10)
-                                    } else {
+                                        .padding(.leading, row.depth > 0 ? CGFloat(row.depth) * 10 : 0)
+                                    } else if row.depth > 0 {
                                         Color.clear
                                             .frame(width: 12, height: 12)
                                             .padding(.leading, CGFloat(row.depth) * 10)
@@ -634,7 +689,7 @@ struct BoardsView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                                 .tag(board.path)
-                                .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 6))
+                                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 6))
                                 .draggable(BoardDropItem.board(path: board.path))
                                 .dropDestination(for: BoardDropItem.self) { items, _ in
                                     guard let item = items.first else { return false }
@@ -672,29 +727,23 @@ struct BoardsView: View {
                                 }
                             }
 
-                            if runtime.hasPrivilege("wired.account.board.move_boards") {
-                                Color.clear
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 26)
-                                    .contentShape(Rectangle())
-                                    .dropDestination(for: BoardDropItem.self) { items, _ in
-                                        guard let item = items.first else { return false }
-                                        guard item.kind == "board" else { return false }
-                                        return handleBoardDropAtRoot(item.identifier)
-                                    } isTargeted: { isTargeted in
-                                        isRootBoardDropTargeted = isTargeted
-                                    }
-                                    .overlay {
-                                        if isRootBoardDropTargeted {
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .stroke(Color.accentColor, lineWidth: 2)
-                                                .padding(.horizontal, 4)
-                                        }
-                                    }
-                            }
+                        }
+                        .dropDestination(for: BoardDropItem.self) { items, _ in
+                            guard runtime.hasPrivilege("wired.account.board.move_boards") else { return false }
+                            guard let item = items.first, item.kind == "board" else { return false }
+                            return handleBoardDropAtRoot(item.identifier)
+                        } isTargeted: { targeted in
+                            isRootBoardDropTargeted = targeted
                         }
                     }
                     .scrollContentBackground(.hidden)
+                    .overlay {
+                        if isRootBoardDropTargeted {
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.accentColor, lineWidth: 2)
+                                .padding(4)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -873,6 +922,7 @@ struct BoardsView: View {
             restoreBoardExpansionState()
         }
         .onChange(of: allBoardPathsSignature) { _, _ in
+            applyPendingBoardPathRemaps()
             sanitizeExpandedBoardPathsAfterBoardsUpdate()
         }
         .onChange(of: expandedBoardPaths) { _, _ in

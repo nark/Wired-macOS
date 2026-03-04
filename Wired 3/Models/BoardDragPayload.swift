@@ -8,7 +8,7 @@ import CoreTransferable
 import UniformTypeIdentifiers
 
 extension UTType {
-    static let wiredBoardItem = UTType(exportedAs: "com.read-write.wired.board-item-v2", conformingTo: .json)
+    static let wiredBoardItem = UTType(exportedAs: "com.read-write.wired.board-item-v2", conformingTo: .data)
 }
 
 struct BoardDropItem: Codable, Transferable {
@@ -24,20 +24,10 @@ struct BoardDropItem: Codable, Transferable {
     }
 
     static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(exportedContentType: .wiredBoardItem) { item in
-            let url = try makeTemporaryFile(for: item)
-            return SentTransferredFile(url, allowAccessingOriginalFile: true)
+        ProxyRepresentation { item in
+            String(data: try JSONEncoder().encode(item), encoding: .utf8)!
+        } importing: { string in
+            try JSONDecoder().decode(BoardDropItem.self, from: Data(string.utf8))
         }
-
-        CodableRepresentation(contentType: .wiredBoardItem)
-    }
-
-    private static func makeTemporaryFile(for item: BoardDropItem) throws -> URL {
-        let fileURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("wired-board-item-\(UUID().uuidString)")
-            .appendingPathExtension("wboarditem")
-        let data = try JSONEncoder().encode(item)
-        try data.write(to: fileURL, options: .atomic)
-        return fileURL
     }
 }

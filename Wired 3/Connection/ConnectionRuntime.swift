@@ -309,6 +309,73 @@ final class ConnectionRuntime: Identifiable {
         boardsByPath[board.path] = board
     }
     
+    /// Pending path remaps from in-place board moves/renames.
+    /// The view reads and clears these to update expansion state.
+    @ObservationIgnored
+    var pendingBoardPathRemaps: [(from: String, to: String)] = []
+
+    /// Move or rename a board in-place without tearing down the tree.
+    func moveBoardInTree(from oldPath: String, to newPath: String) {
+        guard oldPath != newPath else { return }
+
+        // If the board was already moved (e.g. child notification after parent),
+        // check if it's already at the new path — nothing to do.
+        guard let board = boardsByPath[oldPath] else {
+            if boardsByPath[newPath] != nil { return } // already processed
+            // Board not found at old or new path — full re-sync needed
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.resetBoards()
+                try? await self.getBoards()
+            }
+            return
+        }
+
+        let oldParentPath = (oldPath as NSString).deletingLastPathComponent
+        let newParentPath = (newPath as NSString).deletingLastPathComponent
+
+        // Collect all boards in the subtree (root + descendants)
+        let affectedPaths = boardsByPath.keys
+            .filter { $0 == oldPath || $0.hasPrefix(oldPath + "/") }
+            .sorted()
+
+        // 1. Remove from old parent
+        if oldParentPath.isEmpty || oldParentPath == "/" {
+            boards.removeAll { $0.path == oldPath }
+        } else {
+            boardsByPath[oldParentPath]?.children?.removeAll { $0.path == oldPath }
+        }
+
+        // 2. Update paths for the moved board and all its descendants
+        for affectedPath in affectedPaths {
+            guard let affectedBoard = boardsByPath[affectedPath] else { continue }
+            let suffix = String(affectedPath.dropFirst(oldPath.count))
+            let updatedPath = newPath + suffix
+
+            boardsByPath.removeValue(forKey: affectedPath)
+            affectedBoard.path = updatedPath
+            boardsByPath[updatedPath] = affectedBoard
+
+            for thread in affectedBoard.threads {
+                thread.boardPath = updatedPath
+            }
+
+            pendingBoardPathRemaps.append((from: affectedPath, to: updatedPath))
+        }
+
+        // 3. Add to new parent (with fallback to root if parent not found)
+        if newParentPath.isEmpty || newParentPath == "/" {
+            boards.append(board)
+        } else if let newParent = boardsByPath[newParentPath] {
+            if newParent.children == nil { newParent.children = [] }
+            newParent.children!.append(board)
+        } else {
+            // New parent not yet in tree (out-of-order notification) — park at root
+            // so the board stays visible; a subsequent move will place it correctly.
+            boards.append(board)
+        }
+    }
+
     func board(path: String) -> Board? {
         boardsByPath[path]
     }
