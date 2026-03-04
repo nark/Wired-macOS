@@ -18,6 +18,160 @@ extension Notification.Name {
     static let wiredAccountAccountsChanged = Notification.Name("wiredAccountAccountsChanged")
 }
 
+enum WiredEventTag: Int, CaseIterable, Codable, Identifiable {
+    case serverConnected = 1
+    case serverDisconnected = 2
+    case error = 3
+    case userJoined = 4
+    case userChangedNick = 5
+    case userChangedStatus = 13
+    case userLeft = 6
+    case chatReceived = 7
+    case chatSent = 16
+    case highlightedChatReceived = 14
+    case chatInvitationReceived = 15
+    case messageReceived = 8
+    case broadcastReceived = 10
+    case boardPostAdded = 9
+    case transferStarted = 11
+    case transferFinished = 12
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .serverConnected: return "Server Connected"
+        case .serverDisconnected: return "Server Disconnected"
+        case .error: return "Error"
+        case .userJoined: return "User Joined"
+        case .userChangedNick: return "User Changed Nick"
+        case .userLeft: return "User Left"
+        case .chatReceived: return "Chat Received"
+        case .messageReceived: return "Message Received"
+        case .boardPostAdded: return "Board Post Added"
+        case .broadcastReceived: return "Broadcast Received"
+        case .transferStarted: return "Transfer Started"
+        case .transferFinished: return "Transfer Finished"
+        case .userChangedStatus: return "User Changed Status"
+        case .highlightedChatReceived: return "Highlighted Chat Received"
+        case .chatInvitationReceived: return "Private Chat Invitation Received"
+        case .chatSent: return "Chat Sent"
+        }
+    }
+
+    static let menuOrder: [WiredEventTag] = [
+        .serverConnected,
+        .serverDisconnected,
+        .error,
+        .userJoined,
+        .userChangedNick,
+        .userChangedStatus,
+        .userLeft,
+        .chatReceived,
+        .chatSent,
+        .highlightedChatReceived,
+        .chatInvitationReceived,
+        .messageReceived,
+        .broadcastReceived,
+        .boardPostAdded,
+        .transferStarted,
+        .transferFinished,
+    ]
+}
+
+struct WiredEventConfiguration: Codable, Sendable, Equatable {
+    var tag: WiredEventTag
+    var playSound: Bool
+    var sound: String?
+    var bounceInDock: Bool
+    var postInChat: Bool
+    var showAlert: Bool
+    var notificationCenter: Bool
+
+    init(
+        tag: WiredEventTag,
+        playSound: Bool = false,
+        sound: String? = nil,
+        bounceInDock: Bool = false,
+        postInChat: Bool = false,
+        showAlert: Bool = false,
+        notificationCenter: Bool = false
+    ) {
+        self.tag = tag
+        self.playSound = playSound
+        self.sound = sound
+        self.bounceInDock = bounceInDock
+        self.postInChat = postInChat
+        self.showAlert = showAlert
+        self.notificationCenter = notificationCenter
+    }
+}
+
+enum WiredEventsStore {
+    static let configurationsKey = "WiredEventsConfigurations"
+    static let volumeKey = "WiredEventsVolume"
+    static let defaultSoundName = "Basso"
+    static let availableSounds: [String] = [
+        "Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero", "Morse",
+        "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink"
+    ]
+
+    static func defaultConfigurations() -> [WiredEventConfiguration] {
+        WiredEventTag.menuOrder.map { tag in
+            switch tag {
+            case .userJoined, .userChangedNick, .userLeft:
+                return WiredEventConfiguration(tag: tag, postInChat: true)
+            case .userChangedStatus:
+                return WiredEventConfiguration(tag: tag, postInChat: false)
+            default:
+                return WiredEventConfiguration(tag: tag)
+            }
+        }
+    }
+
+    static func loadConfigurations(defaults: UserDefaults = .standard) -> [WiredEventConfiguration] {
+        guard let data = defaults.data(forKey: configurationsKey),
+              let decoded = try? JSONDecoder().decode([WiredEventConfiguration].self, from: data) else {
+            return defaultConfigurations()
+        }
+
+        var byTag = Dictionary(uniqueKeysWithValues: defaultConfigurations().map { ($0.tag, $0) })
+        for config in decoded {
+            byTag[config.tag] = config
+        }
+        return WiredEventTag.menuOrder.compactMap { byTag[$0] }
+    }
+
+    static func saveConfigurations(_ configurations: [WiredEventConfiguration], defaults: UserDefaults = .standard) {
+        guard let data = try? JSONEncoder().encode(configurations) else { return }
+        defaults.set(data, forKey: configurationsKey)
+    }
+
+    static func configuration(for tag: WiredEventTag, defaults: UserDefaults = .standard) -> WiredEventConfiguration {
+        loadConfigurations(defaults: defaults).first(where: { $0.tag == tag }) ?? WiredEventConfiguration(tag: tag)
+    }
+
+    static func saveConfiguration(_ configuration: WiredEventConfiguration, defaults: UserDefaults = .standard) {
+        var all = loadConfigurations(defaults: defaults)
+        if let index = all.firstIndex(where: { $0.tag == configuration.tag }) {
+            all[index] = configuration
+        } else {
+            all.append(configuration)
+        }
+        saveConfigurations(all, defaults: defaults)
+    }
+
+    static func loadVolume(defaults: UserDefaults = .standard) -> Float {
+        guard defaults.object(forKey: volumeKey) != nil else { return 1.0 }
+        let value = defaults.float(forKey: volumeKey)
+        return min(max(value, 0.0), 1.0)
+    }
+
+    static func saveVolume(_ volume: Float, defaults: UserDefaults = .standard) {
+        defaults.set(min(max(volume, 0.0), 1.0), forKey: volumeKey)
+    }
+}
+
 enum SocketEvent {
     case connected(UUID, Connection)
     case received(UUID, Connection, P7Message)
@@ -766,6 +920,8 @@ final class ConnectionController {
                 if let runtime = self.runtimeStores.first(where: { $0.id == id }) {
                     runtime.resetAutoReconnectState()
                     runtime.connected(connection)
+                    let serverName = self.runtimeDisplayName(runtime)
+                    self.triggerEvent(.serverConnected, runtime: runtime, subtitle: serverName, body: "\(serverName) connected.", chatText: "\(serverName) connected.")
                 }
             }
             cancelAutoReconnect(for: id, clearUI: false)
@@ -783,6 +939,11 @@ final class ConnectionController {
                     self.setConnectionIssue(id, isIssue: true)
                 }
                 if let runtime = self.runtimeStores.first(where: { $0.id == id }) {
+                    let serverName = self.runtimeDisplayName(runtime)
+                    self.triggerEvent(.serverDisconnected, runtime: runtime, subtitle: serverName, body: "\(serverName) disconnected.", chatText: "\(serverName) disconnected.")
+                    if let error, !shouldSuppressError {
+                        self.triggerEvent(.error, runtime: runtime, subtitle: serverName, body: error.localizedDescription, chatText: "Error: \(error.localizedDescription)")
+                    }
                     runtime.disconnect(error: shouldSuppressError ? nil : error)
                 }
             }
@@ -985,6 +1146,16 @@ final class ConnectionController {
                     autoReconnectBlockedReasons[id] = reason
                 }
             }
+            let errorText = message.string(forField: "wired.error.string") ?? "Unknown server error"
+            await MainActor.run {
+                self.triggerEvent(
+                    .error,
+                    runtime: runtime,
+                    subtitle: self.runtimeDisplayName(runtime),
+                    body: errorText,
+                    chatText: "Error: \(errorText)"
+                )
+            }
 
         case "wired.chat.user_kick":
             let runtimeUserID = await MainActor.run { runtime.userID }
@@ -1120,6 +1291,14 @@ final class ConnectionController {
                         inviterUserID: inviterUserID,
                         inviterNick: inviterNick
                     )
+                    let inviter = inviterNick ?? "User"
+                    self.triggerEvent(
+                        .chatInvitationReceived,
+                        runtime: runtime,
+                        subtitle: inviter,
+                        body: "Invitation to a private chat.",
+                        chatText: "\(inviter) invited you to a private chat."
+                    )
                 }
             }
             
@@ -1181,7 +1360,16 @@ final class ConnectionController {
                         await MainActor.run {
                             let wasInserted = self.upsertUser(user, in: chat)
                             if wasInserted {
-                                chat.messages.append(ChatEvent(chat: chat, user: user, type: .join, text: ""))
+                                //chat.messages.append(ChatEvent(chat: chat, user: user, type: .join, text: ""))
+                                if user.id != runtime.userID {
+                                    self.triggerEvent(
+                                        .userJoined,
+                                        runtime: runtime,
+                                        subtitle: user.nick,
+                                        body: "\(user.nick) joined \(chat.name).",
+                                        chatText: "\(user.nick) joined \(chat.name)."
+                                    )
+                                }
                             }
                             runtime.refreshPrivateChatName(chat)
                         }
@@ -1195,8 +1383,18 @@ final class ConnectionController {
                 if let chat = await runtime.chat(withID: chatID) {
                     await MainActor.run {
                         if let user = chat.users.first(where: { $0.id == userID }) {
-                            chat.messages.append(ChatEvent(chat: chat, user: user, type: .leave, text: ""))
+                            let nick = user.nick
+                            //chat.messages.append(ChatEvent(chat: chat, user: user, type: .leave, text: ""))
                             chat.users.removeAll { $0.id == user.id }
+                            if userID != runtime.userID {
+                                self.triggerEvent(
+                                    .userLeft,
+                                    runtime: runtime,
+                                    subtitle: nick,
+                                    body: "\(nick) left \(chat.name).",
+                                    chatText: "\(nick) left \(chat.name)."
+                                )
+                            }
                         }
                         runtime.refreshPrivateChatName(chat)
 
@@ -1227,6 +1425,8 @@ final class ConnectionController {
         case "wired.chat.user_status":
             if let userID = message.uint32(forField: "wired.user.id") {
                 let targetChatID = message.uint32(forField: "wired.chat.id")
+                let incomingNick = message.string(forField: "wired.user.nick")
+                let incomingStatus = message.string(forField: "wired.user.status")
 
                 await MainActor.run {
                     let targetChats: [Chat]
@@ -1238,6 +1438,8 @@ final class ConnectionController {
 
                     for chat in targetChats {
                         guard let user = chat.users.first(where: { $0.id == userID }) else { continue }
+                        let previousNick = user.nick
+                        let previousStatus = user.status
                         user.nick = message.string(forField: "wired.user.nick") ?? user.nick
                         user.status = message.string(forField: "wired.user.status")
                         user.icon = message.data(forField: "wired.user.icon") ?? user.icon
@@ -1246,6 +1448,28 @@ final class ConnectionController {
                             ?? message.uint32(forField: "wired.account.color")
                             ?? user.color
                         runtime.refreshPrivateChatName(chat)
+
+                        guard user.id != runtime.userID else { continue }
+
+                        if let incomingNick, incomingNick != previousNick {
+                            self.triggerEvent(
+                                .userChangedNick,
+                                runtime: runtime,
+                                subtitle: previousNick,
+                                body: "\(previousNick) is now \(incomingNick).",
+                                chatText: "\(previousNick) is now \(incomingNick)."
+                            )
+                        }
+
+                        if incomingStatus != previousStatus {
+                            self.triggerEvent(
+                                .userChangedStatus,
+                                runtime: runtime,
+                                subtitle: user.nick,
+                                body: "\(user.nick) changed status.",
+                                chatText: "\(user.nick) changed status."
+                            )
+                        }
                     }
                 }
             }
@@ -1262,7 +1486,31 @@ final class ConnectionController {
                                         chat.unreadMessagesCount += 1
                                         
                                         updateNotificationsBadge()
-                                        sendChatNotification(from: user.nick, text: say)
+                                        self.triggerEvent(
+                                            .chatReceived,
+                                            runtime: runtime,
+                                            subtitle: user.nick,
+                                            body: say,
+                                            chatText: "[\(chat.name)] <\(user.nick)> \(say)"
+                                        )
+                                        if self.isHighlightedChat(text: say, runtime: runtime) {
+                                            // TODO: Match legacy Wired highlight rules (keywords/regexes) once highlight settings are ported.
+                                            self.triggerEvent(
+                                                .highlightedChatReceived,
+                                                runtime: runtime,
+                                                subtitle: user.nick,
+                                                body: say,
+                                                chatText: "[\(chat.name)] Highlighted chat from \(user.nick): \(say)"
+                                            )
+                                        }
+                                    } else {
+                                        self.triggerEvent(
+                                            .chatSent,
+                                            runtime: runtime,
+                                            subtitle: user.nick,
+                                            body: say,
+                                            chatText: "[\(chat.name)] <\(user.nick)> \(say)"
+                                        )
                                     }
                                 }
                             }
@@ -1283,7 +1531,31 @@ final class ConnectionController {
                                         chat.unreadMessagesCount += 1
                                         
                                         updateNotificationsBadge()
-                                        sendChatNotification(from: user.nick, text: say)
+                                        self.triggerEvent(
+                                            .chatReceived,
+                                            runtime: runtime,
+                                            subtitle: user.nick,
+                                            body: say,
+                                            chatText: "[\(chat.name)] * \(user.nick) \(say)"
+                                        )
+                                        if self.isHighlightedChat(text: say, runtime: runtime) {
+                                            // TODO: Match legacy Wired highlight rules (keywords/regexes) once highlight settings are ported.
+                                            self.triggerEvent(
+                                                .highlightedChatReceived,
+                                                runtime: runtime,
+                                                subtitle: user.nick,
+                                                body: say,
+                                                chatText: "[\(chat.name)] Highlighted chat from \(user.nick): \(say)"
+                                            )
+                                        }
+                                    } else {
+                                        self.triggerEvent(
+                                            .chatSent,
+                                            runtime: runtime,
+                                            subtitle: user.nick,
+                                            body: say,
+                                            chatText: "[\(chat.name)] * \(user.nick) \(say)"
+                                        )
                                     }
                                 }
                             }
@@ -1297,16 +1569,16 @@ final class ConnectionController {
                 await MainActor.run {
                     guard senderUserID != runtime.userID else { return }
                     runtime.receivePrivateMessage(from: senderUserID, text: body)
-
-                    if runtime.selectedTab != .messages {
-                        self.sendMessageNotification(
-                            title: "New Private Message",
-                            from: runtime.messageConversations.first(where: {
-                                $0.kind == .direct && $0.participantUserID == senderUserID
-                            })?.title ?? "User",
-                            text: body
-                        )
-                    }
+                    let sender = runtime.messageConversations.first(where: {
+                        $0.kind == .direct && $0.participantUserID == senderUserID
+                    })?.title ?? "User"
+                    self.triggerEvent(
+                        .messageReceived,
+                        runtime: runtime,
+                        subtitle: sender,
+                        body: body,
+                        chatText: "Private message from \(sender): \(body)"
+                    )
                 }
             }
         case "wired.message.broadcast":
@@ -1323,11 +1595,12 @@ final class ConnectionController {
                             .messages
                             .last(where: { $0.senderUserID == senderUserID })?
                             .senderNick ?? "User"
-
-                        self.sendMessageNotification(
-                            title: "New Broadcast",
-                            from: nick,
-                            text: body
+                        self.triggerEvent(
+                            .broadcastReceived,
+                            runtime: runtime,
+                            subtitle: nick,
+                            body: body,
+                            chatText: "Broadcast from \(nick): \(body)"
                         )
                     }
                 }
@@ -1540,6 +1813,13 @@ final class ConnectionController {
                                             isOwn: ownThread)
                     if !ownThread {
                         runtime.markThreadHasUnread(thread, increment: 1)
+                        self.triggerEvent(
+                            .boardPostAdded,
+                            runtime: runtime,
+                            subtitle: nick,
+                            body: "\(subject) (\(boardPath))",
+                            chatText: "Board post added in \(boardPath): \(subject) by \(nick)"
+                        )
                     }
                     board.threads.append(thread)
                 }
@@ -1568,6 +1848,14 @@ final class ConnectionController {
                     } else if !isOwnPostEvent {
                         // Any remote thread change (reply, thread edit, post edit/delete) is unread.
                         runtime.markThreadHasUnread(thread, increment: 1)
+                        let boardPath = message.string(forField: "wired.board.board") ?? thread.boardPath
+                        self.triggerEvent(
+                            .boardPostAdded,
+                            runtime: runtime,
+                            subtitle: message.string(forField: "wired.user.nick") ?? thread.nick,
+                            body: "\(thread.subject) (\(boardPath))",
+                            chatText: "Board activity in \(boardPath): \(thread.subject)"
+                        )
                     }
 
                     if thread.postsLoaded, latestReplyChanged {
@@ -1833,24 +2121,121 @@ final class ConnectionController {
     
     // MARK: -
     
-    private func sendChatNotification(from nick: String, text:String) {
-        sendMessageNotification(title: "New message", from: nick, text: text)
+    @MainActor
+    func triggerTransferStartedEvent(for transfer: Transfer) {
+        let name = transfer.name
+        let associatedRuntime: ConnectionRuntime?
+        if let connectionID = transfer.connectionID {
+            associatedRuntime = runtime(for: connectionID)
+        } else {
+            associatedRuntime = nil
+        }
+        triggerEvent(
+            .transferStarted,
+            runtime: associatedRuntime,
+            subtitle: name,
+            body: "Transfer started.",
+            chatText: "Transfer started: \(name)"
+        )
     }
 
-    private func sendMessageNotification(title: String, from nick: String, text: String) {
+    @MainActor
+    func triggerTransferFinishedEvent(for transfer: Transfer) {
+        let name = transfer.name
+        let associatedRuntime: ConnectionRuntime?
+        if let connectionID = transfer.connectionID {
+            associatedRuntime = runtime(for: connectionID)
+        } else {
+            associatedRuntime = nil
+        }
+        triggerEvent(
+            .transferFinished,
+            runtime: associatedRuntime,
+            subtitle: name,
+            body: "Transfer finished.",
+            chatText: "Transfer finished: \(name)"
+        )
+    }
+
+    @MainActor
+    private func triggerEvent(
+        _ tag: WiredEventTag,
+        runtime: ConnectionRuntime?,
+        subtitle: String? = nil,
+        body: String? = nil,
+        chatText: String? = nil
+    ) {
+        let config = WiredEventsStore.configuration(for: tag)
+        let effectiveSubtitle = subtitle ?? runtimeDisplayName(runtime)
+        let effectiveBody = body ?? tag.title
+        let volume = WiredEventsStore.loadVolume()
+
+        if config.playSound {
+            playConfiguredSound(name: config.sound, volume: volume)
+        }
+
+#if os(macOS)
+        if config.bounceInDock {
+            NSApp.requestUserAttention(.informationalRequest)
+        }
+#endif
+
+        if config.notificationCenter {
+            sendNotification(title: tag.title, subtitle: effectiveSubtitle, text: effectiveBody)
+        }
+
+        if config.postInChat, let runtime, let chatText {
+            postEventInChat(text: chatText, runtime: runtime)
+        }
+
+        if config.showAlert {
+            // TODO: Implement per-event in-app alert dialog behavior equivalent to legacy WiredClient WCEventsShowDialog.
+        }
+    }
+
+    @MainActor
+    private func isHighlightedChat(text: String, runtime: ConnectionRuntime) -> Bool {
+        guard let nick = runtime.currentNick, !nick.isEmpty else { return false }
+        return text.range(of: nick, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    }
+
+    @MainActor
+    private func postEventInChat(text: String, runtime: ConnectionRuntime) {
+        guard let chat = runtime.chat(withID: 1) else { return }
+        let user = User(id: 0, nick: "Events", icon: Data(), idle: false)
+        chat.messages.append(ChatEvent(chat: chat, user: user, type: .event, text: text))
+    }
+
+    private func playConfiguredSound(name: String?, volume: Float) {
+#if os(macOS)
+        let soundName = name ?? WiredEventsStore.defaultSoundName
+        guard let sound = NSSound(named: NSSound.Name(soundName)) else { return }
+        sound.volume = volume
+        sound.play()
+#endif
+    }
+
+    private func sendNotification(title: String, subtitle: String, text: String) {
         let content = UNMutableNotificationContent()
-            content.title = title
-            content.subtitle = nick
-            content.body = text
-            content.sound = .default
+        content.title = title
+        content.subtitle = subtitle
+        content.body = text
+        content.sound = .default
 
-            let request = UNNotificationRequest(
-                identifier: UUID().uuidString,
-                content: content,
-                trigger: nil // immédiat
-            )
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
 
-            UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    private func runtimeDisplayName(_ runtime: ConnectionRuntime?) -> String {
+        guard let runtime else { return "Server" }
+        return withStateLock {
+            configurationsByID[runtime.id]?.name ?? "Server"
+        }
     }
     
     @MainActor public func updateNotificationsBadge() {

@@ -9,7 +9,7 @@
 import SwiftUI
 
 public enum ChatEventType {
-case say, me, join, leave
+case say, me, join, leave, event
 }
 
 @Observable

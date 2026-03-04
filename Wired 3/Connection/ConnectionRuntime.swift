@@ -156,6 +156,13 @@ final class ConnectionRuntime: Identifiable {
     var totalUnreadPrivateMessages: Int {
         messageConversations.reduce(0) { $0 + $1.unreadMessagesCount }
     }
+
+    var currentNick: String? {
+        (chats + private_chats)
+            .flatMap(\.users)
+            .first(where: { $0.id == userID })?
+            .nick
+    }
     
     enum Status {
         case disconnected

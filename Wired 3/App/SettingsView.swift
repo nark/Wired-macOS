@@ -8,6 +8,9 @@
 
 import SwiftUI
 import DebouncedOnChange
+#if os(macOS)
+import AppKit
+#endif
 
 struct SettingsView: View {
     var body: some View {
@@ -23,10 +26,14 @@ struct SettingsView: View {
             Tab("Files", systemImage: "folder.fill") {
                 FilesSettingsView()
             }
+
+            Tab("Events", systemImage: "bell.fill") {
+                EventsSettingsView()
+            }
         }
 #if os(macOS)
         .scenePadding()
-        .frame(maxWidth: 350, minHeight: 150)
+        .frame(minWidth: 620, minHeight: 500)
 #endif
     }
 }
@@ -233,5 +240,182 @@ struct FilesSettingsView: View {
     
     var body: some View {
         Text(downloadPath)
+    }
+}
+
+struct EventsSettingsView: View {
+    @AppStorage(WiredEventsStore.volumeKey) private var eventsVolume: Double = 1.0
+    @AppStorageCodable(
+        key: WiredEventsStore.configurationsKey,
+        defaultValue: WiredEventsStore.defaultConfigurations()
+    )
+    private var configurations: [WiredEventConfiguration]
+
+    @State private var selectedTag: WiredEventTag = .serverConnected
+
+    var body: some View {
+        ScrollView {
+            Form {
+                LabeledContent("Volume") {
+                    Slider(
+                        value: Binding(
+                            get: { eventsVolume },
+                            set: { eventsVolume = $0 }
+                        ),
+                        in: 0.0 ... 1.0
+                    )
+                    .frame(width: 260)
+                }
+
+                LabeledContent("Event") {
+                    Picker("Event", selection: $selectedTag) {
+                        ForEach(WiredEventTag.menuOrder) { tag in
+                            Text(eventMenuTitle(for: tag))
+                                .tag(tag)
+                            if tag == .error || tag == .boardPostAdded {
+                                Divider()
+                            }
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(minWidth: 320)
+                }
+
+                Divider()
+
+                LabeledContent("Play Sound") {
+                    Toggle("", isOn: binding(\.playSound))
+                        .onChange(of: currentConfiguration.playSound) { _, enabled in
+                            if enabled {
+                                playPreviewSound()
+                            }
+                        }
+                }
+
+                LabeledContent("Sound") {
+                    Picker("Sound", selection: binding(\.sound).nonOptional(defaultValue: WiredEventsStore.defaultSoundName)) {
+                        ForEach(WiredEventsStore.availableSounds, id: \.self) { sound in
+                            Text(sound).tag(sound)
+                        }
+                    }
+                    .labelsHidden()
+                    .disabled(!currentConfiguration.playSound)
+                    .onChange(of: currentConfiguration.sound) { _, _ in
+                        if currentConfiguration.playSound {
+                            playPreviewSound()
+                        }
+                    }
+                }
+
+                LabeledContent("Bounce In Dock") {
+                    Toggle("", isOn: binding(\.bounceInDock))
+                }
+
+                LabeledContent("Post In Chat") {
+                    Toggle("", isOn: binding(\.postInChat))
+                        .disabled(!supportsPostInChat)
+                }
+
+                LabeledContent("Show Alert") {
+                    // TODO: Hook this toggle to a real in-app alert path once legacy WCEventsShowDialog behavior is restored.
+                    Toggle("", isOn: binding(\.showAlert))
+                        .disabled(!supportsShowAlert)
+                }
+
+                LabeledContent("Notification Center") {
+                    Toggle("", isOn: binding(\.notificationCenter))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .onAppear {
+            eventsVolume = Double(WiredEventsStore.loadVolume())
+            configurations = normalized(configurations)
+        }
+        .onChange(of: eventsVolume) { _, value in
+            WiredEventsStore.saveVolume(Float(value))
+        }
+        .onChange(of: configurations) { _, value in
+            WiredEventsStore.saveConfigurations(normalized(value))
+        }
+    }
+
+    private var currentConfiguration: WiredEventConfiguration {
+        configurations.first(where: { $0.tag == selectedTag }) ?? WiredEventConfiguration(tag: selectedTag)
+    }
+
+    private var supportsPostInChat: Bool {
+        switch selectedTag {
+        case .userJoined, .userChangedNick, .userChangedStatus, .userLeft:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var supportsShowAlert: Bool {
+        switch selectedTag {
+        case .messageReceived, .broadcastReceived:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func binding<Value>(_ keyPath: WritableKeyPath<WiredEventConfiguration, Value>) -> Binding<Value> {
+        Binding(
+            get: {
+                currentConfiguration[keyPath: keyPath]
+            },
+            set: { newValue in
+                var all = normalized(configurations)
+                if let index = all.firstIndex(where: { $0.tag == selectedTag }) {
+                    all[index][keyPath: keyPath] = newValue
+                } else {
+                    var config = WiredEventConfiguration(tag: selectedTag)
+                    config[keyPath: keyPath] = newValue
+                    all.append(config)
+                }
+                configurations = normalized(all)
+            }
+        )
+    }
+
+    private func normalized(_ values: [WiredEventConfiguration]) -> [WiredEventConfiguration] {
+        var byTag = Dictionary(uniqueKeysWithValues: WiredEventsStore.defaultConfigurations().map { ($0.tag, $0) })
+        for config in values {
+            byTag[config.tag] = config
+        }
+
+        return WiredEventTag.menuOrder.compactMap { tag in
+            guard var config = byTag[tag] else { return nil }
+            if config.sound == nil || config.sound?.isEmpty == true {
+                config.sound = WiredEventsStore.defaultSoundName
+            }
+            return config
+        }
+    }
+
+    private func eventMenuTitle(for tag: WiredEventTag) -> String {
+        let hasSound = configurations.first(where: { $0.tag == tag })?.playSound ?? false
+        return hasSound ? "\(tag.title)  🔊" : tag.title
+    }
+
+    private func playPreviewSound() {
+#if os(macOS)
+        let soundName = currentConfiguration.sound ?? WiredEventsStore.defaultSoundName
+        guard let sound = NSSound(named: NSSound.Name(soundName)) else { return }
+        sound.volume = Float(max(0.0, min(eventsVolume, 1.0)))
+        sound.play()
+#endif
+    }
+}
+
+private extension Binding where Value == String? {
+    func nonOptional(defaultValue: String) -> Binding<String> {
+        Binding<String>(
+            get: { wrappedValue ?? defaultValue },
+            set: { wrappedValue = $0 }
+        )
     }
 }
