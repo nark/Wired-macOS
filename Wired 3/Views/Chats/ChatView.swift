@@ -324,6 +324,7 @@ private struct ChatInputField: NSViewRepresentable {
             }
         }
         context.coordinator.recomputeHeight()
+        context.coordinator.onSubmit = onSubmit
         context.coordinator.onHistoryUp = onHistoryUp
         context.coordinator.onHistoryDown = onHistoryDown
     }
@@ -331,7 +332,7 @@ private struct ChatInputField: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: String
         @Binding var dynamicHeight: CGFloat
-        let onSubmit: () -> Void
+        var onSubmit: () -> Void
         var onHistoryUp: (() -> Void)?
         var onHistoryDown: (() -> Void)?
         weak var textView: NSTextView?

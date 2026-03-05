@@ -1,5 +1,5 @@
 {
-  "originHash" : "3b70e22e93e96094108272c1edcdffa141aab97e36d505e01cb042bbe2b2b35d",
+  "originHash" : "a1e97ef85da37a4309a552c61a82b46305737b4d1b80aac30dc3c03f84ddb625",
   "pins" : [
     {
       "identity" : "aexml",
@@ -26,15 +26,6 @@
       "state" : {
         "revision" : "6f3615ccf2ac3c2ae0c8087d527546e9544a43dd",
         "version" : "1.21.0"
-      }
-    },
-    {
-      "identity" : "bitbytedata",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tsolomko/BitByteData",
-      "state" : {
-        "revision" : "cdcdc5177ad536cfb11b95c620f926a81014b7fe",
-        "version" : "2.0.4"
       }
     },
     {
@@ -191,15 +182,6 @@
       }
     },
     {
-      "identity" : "socket.swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/BiAtoms/Socket.swift.git",
-      "state" : {
-        "revision" : "36911c13adfe12859ed43dcba878052b1897fcd3",
-        "version" : "2.4.0"
-      }
-    },
-    {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
@@ -233,15 +215,6 @@
       "state" : {
         "revision" : "2ab61385b70da8ed74958ce62fa9ebf0359cb08b",
         "version" : "1.12.2"
-      }
-    },
-    {
-      "identity" : "swcompression",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tsolomko/SWCompression.git",
-      "state" : {
-        "revision" : "390e0b0af8dd19a600005a242a89e570ff482e09",
-        "version" : "4.8.6"
       }
     },
     {

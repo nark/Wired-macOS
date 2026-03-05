@@ -1459,6 +1459,14 @@ final class ConnectionController {
                                 body: "\(previousNick) is now \(incomingNick).",
                                 chatText: "\(previousNick) is now \(incomingNick)."
                             )
+
+                            // Propagate nick change to any open direct message conversation
+                            if let conv = runtime.messageConversations.first(where: {
+                                $0.kind == .direct && $0.participantUserID == userID
+                            }) {
+                                conv.participantNick = incomingNick
+                                conv.title = incomingNick
+                            }
                         }
 
                         if incomingStatus != previousStatus {
@@ -1582,18 +1590,22 @@ final class ConnectionController {
                 }
             }
         case "wired.message.broadcast":
-            if let senderUserID = message.uint32(forField: "wired.user.id"),
-               let body = message.string(forField: "wired.message.broadcast") {
+            if let body = message.string(forField: "wired.message.broadcast") {
+                let senderUserID = message.uint32(forField: "wired.user.id")
                 await MainActor.run {
-                    guard senderUserID != runtime.userID else { return }
-                    runtime.receiveBroadcastMessage(from: senderUserID, text: body)
+                    // Filter own echo: skip only if senderUserID is clearly our own ID.
+                    // Some servers put the recipient's ID in wired.user.id (not the sender's),
+                    // so we only skip when senderUserID == runtime.userID AND runtime.userID != 0.
+                    if let sid = senderUserID, sid == runtime.userID, runtime.userID != 0 { return }
+                    runtime.receiveBroadcastMessage(from: senderUserID ?? 0, text: body)
 
                     if runtime.selectedTab != .messages {
+                        let resolvedSenderID = senderUserID ?? 0
                         let nick =
                             runtime.messageConversations
                             .first(where: { $0.kind == .broadcast })?
                             .messages
-                            .last(where: { $0.senderUserID == senderUserID })?
+                            .last(where: { $0.senderUserID == resolvedSenderID })?
                             .senderNick ?? "User"
                         self.triggerEvent(
                             .broadcastReceived,

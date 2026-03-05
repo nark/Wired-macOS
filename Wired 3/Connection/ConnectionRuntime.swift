@@ -519,15 +519,28 @@ final class ConnectionRuntime: Identifiable {
         nick: String,
         userID: UInt32?
     ) -> MessageConversation {
-        if let conversation = messageConversations.first(where: {
-            $0.kind == .direct && $0.participantNick == nick
+        // 1. Match by userID (most reliable — survives nick changes)
+        if let userID, let conversation = messageConversations.first(where: {
+            $0.kind == .direct && $0.participantUserID == userID
         }) {
-            if let userID {
-                conversation.participantUserID = userID
+            // Only update nick if it's a real name, not a "User #X" fallback placeholder
+            let isPlaceholderNick = nick.hasPrefix("User #")
+            if !isPlaceholderNick && conversation.participantNick != nick {
+                conversation.participantNick = nick
+                conversation.title = nick
             }
             return conversation
         }
 
+        // 2. Fallback: match by nick
+        if let conversation = messageConversations.first(where: {
+            $0.kind == .direct && $0.participantNick == nick
+        }) {
+            if let userID { conversation.participantUserID = userID }
+            return conversation
+        }
+
+        // 3. Create new
         let conversation = MessageConversation(
             kind: .direct,
             title: nick,
@@ -666,7 +679,9 @@ final class ConnectionRuntime: Identifiable {
                 isFromCurrentUser: true
             )
         )
-        selectedMessageConversationID = conversation.id
+        if selectedMessageConversationID == nil || selectedMessageConversationID == conversation.id {
+            selectedMessageConversationID = conversation.id
+        }
         resetUnreads(conversation)
         sortMessageConversations()
         if selectedTab != .messages && !isBroadcast {
@@ -915,8 +930,7 @@ final class ConnectionRuntime: Identifiable {
         guard let nick = conversation.participantNick else { return nil }
 
         if let knownID = conversation.participantUserID,
-           let user = onlineUser(withID: knownID),
-           user.nick == nick {
+           onlineUser(withID: knownID) != nil {
             return knownID
         }
 
