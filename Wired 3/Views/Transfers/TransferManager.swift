@@ -539,6 +539,10 @@ final class TransferManager: ObservableObject {
             transfer.state = .waiting
         }
 
+        // TODO: Trigger "Transfer Started" from the exact protocol point where data stream begins.
+        // Current behavior matches legacy intent but fires when transfer enters the worker pipeline.
+        connectionController.triggerTransferStartedEvent(for: transfer)
+
         persist()
 
         let id = transfer.id
@@ -561,6 +565,9 @@ final class TransferManager: ObservableObject {
                 self.tasks[id] = nil
                 self.runTerminalHookIfNeeded(for: transfer)
                 self.runFinishHookIfNeeded(for: transfer)
+                if transfer.state == .finished {
+                    self.connectionController.triggerTransferFinishedEvent(for: transfer)
+                }
                 self.persist()
                 if let uri = transfer.uri {
                     self.requestNextTransfer(forURI: uri)

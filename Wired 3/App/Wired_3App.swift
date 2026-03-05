@@ -141,6 +141,13 @@ private struct MainAppCommands: Commands {
             }
             .keyboardShortcut("j", modifiers: [.command, .shift])
         }
+
+        CommandGroup(replacing: .appSettings) {
+            Button("Settings…") {
+                openWindow(id: "preferences")
+            }
+            .keyboardShortcut(",", modifiers: [.command])
+        }
     }
 
     private func openMainTab() {
@@ -461,9 +468,11 @@ struct Wired_3App: App {
         }
         .modelContainer(sharedModelContainer)
 
-        Settings {
+        Window("Settings", id: "preferences") {
             SettingsView()
         }
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unified)
 #else
         WindowGroup {
             AppRootView()

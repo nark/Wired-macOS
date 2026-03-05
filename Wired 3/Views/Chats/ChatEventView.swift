@@ -27,6 +27,12 @@ struct ChatEventView: View {
                     .frame(maxWidth: .infinity)
                     .foregroundStyle(.gray)
                     .font(.caption)
+            } else if message.type == .event {
+                Text(message.text)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(.gray)
+                    .font(.caption)
             }
         }
         .listRowSeparator(.hidden)

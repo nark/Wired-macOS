@@ -25,7 +25,7 @@ struct ChatMessagesView: View {
                         ChatMeMessageView(message: message)
                             .environment(runtime)
                     }
-                    else if message.type == .join || message.type == .leave {
+                    else if message.type == .join || message.type == .leave || message.type == .event {
                         ChatEventView(message: message)
                             .environment(runtime)
                     }
