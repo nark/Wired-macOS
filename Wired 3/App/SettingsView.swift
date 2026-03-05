@@ -55,10 +55,20 @@ struct SettingsView: View {
                 .toolbar(removing: .sidebarToggle)
             }
             detail: {
-                detailView(for: selectedPane)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                Group {
+                    if selectedPane == .events {
+                        detailView(for: selectedPane)
+                            .padding(20)
+                    } else {
+                        ScrollView {
+                            detailView(for: selectedPane)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                                .padding(20)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                //.background(Color(nsColor: .underPageBackgroundColor))
             }
             .navigationSplitViewStyle(.balanced)
             .frame(minWidth: 980, minHeight: 640)
@@ -121,7 +131,7 @@ struct GeneralSettingsView: View {
     private func notifyUserStatusChange() {
         NotificationCenter.default.post(name: .wiredUserStatusDidChange, object: userStatus)
     }
-    
+
     var userIconImage: Image {
         if let base64 = userIcon,
            let image = AppImageCodec.image(fromBase64: base64) {
@@ -130,20 +140,20 @@ struct GeneralSettingsView: View {
 
         return Image("DefaultIcon")
     }
-    
+
     var body: some View {
-        Form {
 #if os(macOS)
-            LabeledContent("Icon") {
-                userIconImage.resizable()
-                    .frame(width: 32, height: 32)
-                
-                Spacer()
-                
-                Button("Select Icon") {
-                    showIconImporter.toggle()
-                }
-                .fileImporter(
+        VStack(alignment: .leading, spacing: 20) {
+            SettingsSection(title: "Identity") {
+                SettingsRow("Icon") {
+                    HStack(spacing: 8) {
+                        userIconImage.resizable()
+                            .frame(width: 32, height: 32)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        Button("Choose...") {
+                            showIconImporter.toggle()
+                        }
+                        .fileImporter(
                             isPresented: $showIconImporter,
                             allowedContentTypes: [.image],
                             allowsMultipleSelection: false
@@ -157,31 +167,63 @@ struct GeneralSettingsView: View {
                                 print("Import error:", error)
                             }
                         }
-                .controlSize(.small)
+                        .controlSize(.small)
+                    }
+                }
+                SettingsDivider()
+                SettingsRow("Nickname") {
+                    TextField("Nickname", text: $userNick)
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 200)
+                        .onChange(of: userNick, debounceTime: .milliseconds(800), debouncer: $debouncer) {
+                            NotificationCenter.default.post(name: .wiredUserNickDidChange, object: userNick)
+                        }
+                        .onKeyPress(.return) {
+                            debouncer.cancel()
+                            NotificationCenter.default.post(name: .wiredUserNickDidChange, object: userNick)
+                            return .handled
+                        }
+                }
+                SettingsDivider()
+                SettingsRow("Status") {
+                    TextField("Status", text: $userStatus)
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 200)
+                        .onChange(of: userStatus, debounceTime: .milliseconds(800), debouncer: $debouncer) {
+                            notifyUserStatusChange()
+                        }
+                        .onKeyPress(.return) {
+                            debouncer.cancel()
+                            notifyUserStatusChange()
+                            return .handled
+                        }
+                }
             }
-            
-            Divider()
-#elseif os(iOS)
+
+            SettingsSection(title: "Behavior") {
+                SettingsRow("Window Closing") {
+                    Toggle("Check for active connections before closing",
+                           isOn: $checkActiveConnectionsBeforeClosingWindowTab)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .onDisappear {
+            debouncer.cancel()
+            notifyUserStatusChange()
+        }
+        .onChange(of: userIcon) { oldValue, newValue in
+            NotificationCenter.default.post(name: .wiredUserIconDidChange, object: userIcon)
+        }
+#else
+        Form {
             LabeledContent("Icon") {
                 userIconImage.resizable()
                     .frame(width: 32, height: 32)
             }
-#endif
-            
-#if os(macOS)
-            LabeledContent("Nickname") {
-                TextField("Nickname", text: $userNick)
-                    .labelsHidden()
-                    .onChange(of: userNick, debounceTime: .milliseconds(800), debouncer: $debouncer) {
-                        NotificationCenter.default.post(name: .wiredUserNickDidChange, object: userNick)
-                    }
-                    .onKeyPress(.return) {
-                        debouncer.cancel()
-                        NotificationCenter.default.post(name: .wiredUserNickDidChange, object: userNick)
-                        return .handled
-                    }
-            }
-#else
             HStack {
                 Text("Nickname")
                 Spacer()
@@ -189,28 +231,6 @@ struct GeneralSettingsView: View {
                     .multilineTextAlignment(.trailing)
                     .bold()
             }
-#endif
-            
-#if os(macOS)
-            LabeledContent("Status") {
-                TextField("Status", text: $userStatus)
-                    .labelsHidden()
-                    .onChange(of: userStatus, debounceTime: .milliseconds(800), debouncer: $debouncer) {
-                        notifyUserStatusChange()
-                    }
-                    .onKeyPress(.return) {
-                        debouncer.cancel()
-                        notifyUserStatusChange()
-                        return .handled
-                    }
-            }
-
-            LabeledContent("Window Closing") {
-                Toggle("Check for active connections before closing window/tab",
-                       isOn: $checkActiveConnectionsBeforeClosingWindowTab)
-                .toggleStyle(.checkbox)
-            }
-#else
             HStack {
                 Text("Status")
                 Spacer()
@@ -218,18 +238,17 @@ struct GeneralSettingsView: View {
                     .multilineTextAlignment(.trailing)
                     .bold()
             }
-#endif
         }
         .onDisappear {
-            // Ensure an empty status is propagated even if the debounce has not fired yet.
             debouncer.cancel()
             notifyUserStatusChange()
         }
         .onChange(of: userIcon) { oldValue, newValue in
             NotificationCenter.default.post(name: .wiredUserIconDidChange, object: userIcon)
         }
+#endif
     }
-    
+
 #if os(macOS)
     func handleImage(_ url: URL) {
         Task.detached {
@@ -238,7 +257,7 @@ struct GeneralSettingsView: View {
 
             let data = try Data(contentsOf: url)
             let image = NSImage(data: data)
-            
+
             let resized = image?.resized(to: CGSize(width: 32, height: 32))
 
             await MainActor.run {
@@ -277,7 +296,7 @@ struct AppStorageCodable<T: Codable>: DynamicProperty {
 
 struct ChatSettingsView: View {
     @AppStorage("SubstituteEmoji") var substituteEmoji: Bool = true
-    
+
     @AppStorageCodable(key: "EmojiSubstitutions", defaultValue: [
         ":-)": "😊",
         ":)":  "😊",
@@ -290,20 +309,68 @@ struct ChatSettingsView: View {
     ])
     var emojiSubstitutions: [String: String]
 
-    
+
     var body: some View {
+#if os(macOS)
+        VStack(alignment: .leading, spacing: 20) {
+            SettingsSection(title: "Messages") {
+                SettingsRow("Substitute Emoji") {
+                    Toggle("", isOn: $substituteEmoji)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+            }
+        }
+#else
         LabeledContent("Substitute Emoji") {
             Toggle("", isOn: $substituteEmoji)
         }
+#endif
     }
 }
 
 struct FilesSettingsView: View {
     @AppStorage("DownloadPath") var downloadPath: String = NSHomeDirectory().stringByAppendingPathComponent(path: "Downloads")
-    
+
     var body: some View {
+#if os(macOS)
+        VStack(alignment: .leading, spacing: 20) {
+            SettingsSection(title: "Downloads") {
+                SettingsRow("Download Folder") {
+                    HStack(spacing: 8) {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: downloadPath))
+                            .resizable()
+                            .frame(width: 16, height: 16)
+                        Text((downloadPath as NSString).lastPathComponent)
+                            .lineLimit(1)
+                            .foregroundStyle(.primary)
+                        Button("Change...") {
+                            showFolderPicker()
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+        }
+#else
         Text(downloadPath)
+#endif
     }
+
+#if os(macOS)
+    private func showFolderPicker() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: downloadPath)
+
+        if panel.runModal() == .OK, let url = panel.url {
+            downloadPath = url.path
+        }
+    }
+#endif
 }
 
 struct EventsSettingsView: View {
@@ -340,133 +407,136 @@ struct EventsSettingsView: View {
     var body: some View {
         Group {
 #if os(macOS)
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
-                    Label("Volume", systemImage: "speaker.wave.2.fill")
-                        .labelStyle(.titleAndIcon)
-                        .frame(width: 90, alignment: .leading)
+            VStack(alignment: .leading, spacing: 16) {
+                SettingsSection(title: "Volume") {
+                    SettingsRow("Volume", icon: "speaker.wave.2.fill") {
+                        HStack(spacing: 10) {
+                            Slider(
+                                value: Binding(
+                                    get: { eventsVolume },
+                                    set: { eventsVolume = $0 }
+                                ),
+                                in: 0.0 ... 1.0
+                            )
+                            .frame(width: 200)
 
-                    Slider(
-                        value: Binding(
-                            get: { eventsVolume },
-                            set: { eventsVolume = $0 }
-                        ),
-                        in: 0.0 ... 1.0
-                    )
-                    .frame(width: 220)
-
-                    Text("\(Int((eventsVolume * 100).rounded()))%")
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .frame(width: 44, alignment: .trailing)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-
-                Table(tableRows) {
-                    TableColumn("Event") { row in
-                        if let tag = row.tag {
-                            HStack(spacing: 8) {
-                                Image(systemName: eventSymbol(for: tag))
-                                    .frame(width: 14, alignment: .center)
-                                    .foregroundStyle(.secondary)
-                                Text(tag.title)
-                            }
-                            .padding(.leading, 14)
-                        } else {
-                            if case .section(let title) = row.kind {
-                                Text(title.uppercased())
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
+                            Text("\(Int((eventsVolume * 100).rounded()))%")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .frame(width: 44, alignment: .trailing)
                         }
                     }
-                    .width(min: 220, ideal: 240, max: .infinity)
+                }
 
-                    TableColumn("Sound") { row in
-                        if let tag = row.tag {
-                            HStack(spacing: 6) {
-                                Toggle("", isOn: boolBinding(for: tag, \.playSound))
-                                    .labelsHidden()
-                                    .toggleStyle(.checkbox)
-                                    .onChange(of: configuration(for: tag).playSound) { _, enabled in
-                                        if enabled {
-                                            playPreviewSound(for: tag)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Event Configuration")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+
+                    Table(tableRows) {
+                        TableColumn("Event") { row in
+                            if let tag = row.tag {
+                                HStack(spacing: 8) {
+                                    Image(systemName: eventSymbol(for: tag))
+                                        .frame(width: 14, alignment: .center)
+                                        .foregroundStyle(.secondary)
+                                    Text(tag.title)
+                                }
+                                .padding(.leading, 14)
+                            } else {
+                                if case .section(let title) = row.kind {
+                                    Text(title.uppercased())
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .width(min: 220, ideal: 240, max: .infinity)
+
+                        TableColumn("Sound") { row in
+                            if let tag = row.tag {
+                                HStack(spacing: 6) {
+                                    Toggle("", isOn: boolBinding(for: tag, \.playSound))
+                                        .labelsHidden()
+                                        .toggleStyle(.checkbox)
+                                        .onChange(of: configuration(for: tag).playSound) { _, enabled in
+                                            if enabled {
+                                                playPreviewSound(for: tag)
+                                            }
+                                        }
+
+                                    Picker("", selection: soundBinding(for: tag)) {
+                                        ForEach(WiredEventsStore.availableSounds, id: \.self) { sound in
+                                            Text(sound).tag(sound)
                                         }
                                     }
-
-                                Picker("", selection: soundBinding(for: tag)) {
-                                    ForEach(WiredEventsStore.availableSounds, id: \.self) { sound in
-                                        Text(sound).tag(sound)
-                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .disabled(!configuration(for: tag).playSound)
                                 }
-                                .labelsHidden()
-                                .pickerStyle(.menu)
-                                .disabled(!configuration(for: tag).playSound)
+                            } else {
+                                EmptyView()
                             }
-                        } else {
-                            EmptyView()
                         }
-                    }
-                    .width(140)
+                        .width(140)
 
-                    TableColumn("Bounce in Dock") { row in
-                        if let tag = row.tag {
-                            Toggle("", isOn: boolBinding(for: tag, \.bounceInDock))
-                                .labelsHidden()
-                                .toggleStyle(.checkbox)
-                        } else {
-                            EmptyView()
-                        }
-                    }
-                    .width(90)
-
-                    TableColumn("Post in Chat") { row in
-                        if let tag = row.tag {
-                            if supportsPostInChat(tag: tag) {
-                                Toggle("", isOn: boolBinding(for: tag, \.postInChat))
+                        TableColumn("Bounce in Dock") { row in
+                            if let tag = row.tag {
+                                Toggle("", isOn: boolBinding(for: tag, \.bounceInDock))
                                     .labelsHidden()
                                     .toggleStyle(.checkbox)
                             } else {
-                                Image(systemName: "minus")
-                                    .foregroundStyle(.tertiary)
+                                EmptyView()
                             }
-                        } else {
-                            EmptyView()
                         }
-                    }
-                    .width(78)
+                        .width(90)
 
-                    TableColumn("Alert") { row in
-                        if let tag = row.tag {
-                            if supportsShowAlert(tag: tag) {
-                                // TODO: Hook this toggle to a real in-app alert path once legacy WCEventsShowDialog behavior is restored.
-                                Toggle("", isOn: boolBinding(for: tag, \.showAlert))
+                        TableColumn("Post in Chat") { row in
+                            if let tag = row.tag {
+                                if supportsPostInChat(tag: tag) {
+                                    Toggle("", isOn: boolBinding(for: tag, \.postInChat))
+                                        .labelsHidden()
+                                        .toggleStyle(.checkbox)
+                                } else {
+                                    Image(systemName: "minus")
+                                        .foregroundStyle(.tertiary)
+                                }
+                            } else {
+                                EmptyView()
+                            }
+                        }
+                        .width(78)
+
+                        TableColumn("Alert") { row in
+                            if let tag = row.tag {
+                                if supportsShowAlert(tag: tag) {
+                                    // TODO: Hook this toggle to a real in-app alert path once legacy WCEventsShowDialog behavior is restored.
+                                    Toggle("", isOn: boolBinding(for: tag, \.showAlert))
+                                        .labelsHidden()
+                                        .toggleStyle(.checkbox)
+                                } else {
+                                    Image(systemName: "minus")
+                                        .foregroundStyle(.tertiary)
+                                }
+                            } else {
+                                EmptyView()
+                            }
+                        }
+                        .width(56)
+
+                        TableColumn("Notification") { row in
+                            if let tag = row.tag {
+                                Toggle("", isOn: boolBinding(for: tag, \.notificationCenter))
                                     .labelsHidden()
                                     .toggleStyle(.checkbox)
                             } else {
-                                Image(systemName: "minus")
-                                    .foregroundStyle(.tertiary)
+                                EmptyView()
                             }
-                        } else {
-                            EmptyView()
                         }
+                        .width(84)
                     }
-                    .width(56)
-
-                    TableColumn("Notification") { row in
-                        if let tag = row.tag {
-                            Toggle("", isOn: boolBinding(for: tag, \.notificationCenter))
-                                .labelsHidden()
-                                .toggleStyle(.checkbox)
-                        } else {
-                            EmptyView()
-                        }
-                    }
-                    .width(84)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
             }
 #else
             Form {
@@ -609,3 +679,81 @@ struct EventsSettingsView: View {
 #endif
     }
 }
+
+
+// MARK: - macOS System Settings-style reusable components
+
+#if os(macOS)
+
+/// A rounded-rect card container with an optional header title,
+/// matching the macOS Ventura+ System Settings appearance.
+struct SettingsSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    init(title: String = "", @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !title.isEmpty {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 0) {
+                content
+            }
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.7))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+}
+
+/// A single row inside a SettingsSection: label on the left, controls on the right.
+struct SettingsRow<Content: View>: View {
+    let label: String
+    let icon: String?
+    let alignment: VerticalAlignment
+    @ViewBuilder let content: Content
+
+    init(
+        _ label: String,
+        icon: String? = nil,
+        alignment: VerticalAlignment = .center,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.label = label
+        self.icon = icon
+        self.alignment = alignment
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: alignment) {
+            if let icon {
+                Image(systemName: icon)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20)
+            }
+            Text(label)
+            Spacer(minLength: 8)
+            content
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+/// A thin divider inset from the leading edge, matching Apple's in-card divider style.
+struct SettingsDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 16)
+    }
+}
+
+#endif
