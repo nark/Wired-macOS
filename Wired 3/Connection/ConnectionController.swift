@@ -1946,6 +1946,13 @@ final class ConnectionController {
                         runtime.markThreadAsRead(thread)
                     } else if !isOwnPostEvent {
                         runtime.markThreadHasUnread(thread, increment: 1)
+                        self.triggerEvent(
+                            .boardPostAdded,
+                            runtime: runtime,
+                            subtitle: nick,
+                            body: "\(subject) (\(boardPath))",
+                            chatText: "Board activity in \(boardPath): \(subject)"
+                        )
                     }
                 }
             }

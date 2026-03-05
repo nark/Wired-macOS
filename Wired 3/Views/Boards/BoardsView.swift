@@ -275,9 +275,17 @@ struct BoardsView: View {
         let newPath = boardName
         guard newPath != sourceBoardPath else { return false }
 
+        // Server is flat: each board path must be renamed individually.
+        let allPaths = runtime.boardsByPath.keys
+            .filter { $0 == sourceBoardPath || $0.hasPrefix(sourceBoardPath + "/") }
+            .sorted()
+
         Task {
             do {
-                try await runtime.moveBoard(path: sourceBoardPath, newPath: newPath)
+                for path in allPaths {
+                    let suffix = String(path.dropFirst(sourceBoardPath.count))
+                    try await runtime.moveBoard(path: path, newPath: newPath + suffix)
+                }
             } catch {
                 await MainActor.run {
                     runtime.lastError = error
@@ -447,9 +455,19 @@ struct BoardsView: View {
         // Pre-expand destination so the moved board will be visible
         expandedBoardPaths.insert(destinationBoard.path)
 
+        // Server is flat: each board path must be renamed individually.
+        // Parent first so the client-side moveBoardInTree handles the subtree
+        // in one shot; subsequent server notifications are no-ops.
+        let allPaths = runtime.boardsByPath.keys
+            .filter { $0 == sourceBoardPath || $0.hasPrefix(sourceBoardPath + "/") }
+            .sorted()
+
         Task {
             do {
-                try await runtime.moveBoard(path: sourceBoardPath, newPath: newPath)
+                for path in allPaths {
+                    let suffix = String(path.dropFirst(sourceBoardPath.count))
+                    try await runtime.moveBoard(path: path, newPath: newPath + suffix)
+                }
             } catch {
                 await MainActor.run {
                     runtime.lastError = error
@@ -675,8 +693,8 @@ struct BoardsView: View {
                                                 .frame(width: 12, height: 12)
                                         }
                                         .buttonStyle(.plain)
-                                        .padding(.leading, row.depth > 0 ? CGFloat(row.depth) * 10 : 0)
-                                    } else if row.depth > 0 {
+                                        .padding(.leading, CGFloat(row.depth) * 10)
+                                    } else {
                                         Color.clear
                                             .frame(width: 12, height: 12)
                                             .padding(.leading, CGFloat(row.depth) * 10)
