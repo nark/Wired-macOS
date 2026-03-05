@@ -30,6 +30,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>WiredGitCommit</key>
+	<string>$(WIRED_GIT_COMMIT)</string>
+	<key>WiredBuildMetadata</key>
+	<string>$(MARKETING_VERSION) ($(CURRENT_PROJECT_VERSION)+$(WIRED_GIT_COMMIT))</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
