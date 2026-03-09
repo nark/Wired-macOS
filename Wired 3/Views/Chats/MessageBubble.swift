@@ -91,9 +91,14 @@ struct MessageBubble: Shape {
 struct MessageBubbleStyle: ViewModifier {
     let isFromYou: Bool
     let shouldSendInTheFuture: Bool
+    let customFillColor: Color?
+    let customForegroundColor: Color?
+
     var messageFillColor: Color {
         if shouldSendInTheFuture {
             return Color.clear
+        } else if let customFillColor {
+            return customFillColor
         } else if isFromYou {
             return Color.blue
         } else {
@@ -103,6 +108,8 @@ struct MessageBubbleStyle: ViewModifier {
     var forgroundColor: Color {
         if shouldSendInTheFuture {
             return Color.blue
+        } else if let customForegroundColor {
+            return customForegroundColor
         } else if isFromYou {
             return Color.white
         } else {
@@ -126,7 +133,19 @@ struct MessageBubbleStyle: ViewModifier {
 }
 
 extension View {
-    func messageBubbleStyle(isFromYou: Bool, shouldSendInTheFuture: Bool = false) -> some View {
-        modifier(MessageBubbleStyle(isFromYou: isFromYou, shouldSendInTheFuture: shouldSendInTheFuture))
+    func messageBubbleStyle(
+        isFromYou: Bool,
+        shouldSendInTheFuture: Bool = false,
+        customFillColor: Color? = nil,
+        customForegroundColor: Color? = nil
+    ) -> some View {
+        modifier(
+            MessageBubbleStyle(
+                isFromYou: isFromYou,
+                shouldSendInTheFuture: shouldSendInTheFuture,
+                customFillColor: customFillColor,
+                customForegroundColor: customForegroundColor
+            )
+        )
     }
 }

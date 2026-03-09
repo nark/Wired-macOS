@@ -11,6 +11,9 @@ import DebouncedOnChange
 #if os(macOS)
 import AppKit
 #endif
+#if os(iOS)
+import UIKit
+#endif
 
 struct SettingsView: View {
     private enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
@@ -55,18 +58,22 @@ struct SettingsView: View {
                 .toolbar(removing: .sidebarToggle)
             }
             detail: {
-                Group {
-                    if selectedPane == .events {
-                        detailView(for: selectedPane)
-                            .padding(20)
-                    } else {
-                        ScrollView {
+                NavigationStack {
+                    Group {
+                        if selectedPane == .events {
                             detailView(for: selectedPane)
-                                .frame(maxWidth: .infinity, alignment: .topLeading)
                                 .padding(20)
+                        } else {
+                            ScrollView {
+                                detailView(for: selectedPane)
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                                    .padding(20)
+                            }
                         }
                     }
+                    .navigationTitle(selectedPane.title)
                 }
+                .id(selectedPane)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 //.background(Color(nsColor: .underPageBackgroundColor))
             }
@@ -292,6 +299,76 @@ struct AppStorageCodable<T: Codable>: DynamicProperty {
             data = (try? JSONEncoder().encode(newValue)) ?? Data()
         }
     }
+
+    var projectedValue: Binding<T> {
+        Binding(
+            get: { wrappedValue },
+            set: { wrappedValue = $0 }
+        )
+    }
+}
+
+struct CodableColor: Codable, Equatable {
+    var red: Double
+    var green: Double
+    var blue: Double
+    var alpha: Double
+
+    init(red: Double, green: Double, blue: Double, alpha: Double = 1.0) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
+    }
+
+    init(swiftUIColor: Color) {
+#if os(macOS)
+        let nativeColor = NSColor(swiftUIColor).usingColorSpace(.sRGB) ?? NSColor.white
+        self.red = Double(nativeColor.redComponent)
+        self.green = Double(nativeColor.greenComponent)
+        self.blue = Double(nativeColor.blueComponent)
+        self.alpha = Double(nativeColor.alphaComponent)
+#else
+        let nativeColor = UIColor(swiftUIColor)
+        var red: CGFloat = 1
+        var green: CGFloat = 1
+        var blue: CGFloat = 1
+        var alpha: CGFloat = 1
+        nativeColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        self.red = Double(red)
+        self.green = Double(green)
+        self.blue = Double(blue)
+        self.alpha = Double(alpha)
+#endif
+    }
+
+    var swiftUIColor: Color {
+        Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+
+    var contrastTextColor: Color {
+        let luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+        return luminance > 0.6 ? .black : .white
+    }
+}
+
+struct ChatHighlightRule: Identifiable, Codable, Equatable {
+    var id: UUID
+    var keyword: String
+    var color: CodableColor
+
+    init(id: UUID = UUID(), keyword: String, color: CodableColor) {
+        self.id = id
+        self.keyword = keyword
+        self.color = color
+    }
+
+    static var defaultRule: ChatHighlightRule {
+        ChatHighlightRule(
+            keyword: "",
+            color: CodableColor(red: 0.98, green: 0.89, blue: 0.18)
+        )
+    }
 }
 
 struct ChatSettingsView: View {
@@ -309,6 +386,8 @@ struct ChatSettingsView: View {
     ])
     var emojiSubstitutions: [String: String]
 
+    @AppStorageCodable(key: "ChatHighlightRules", defaultValue: [])
+    var highlightRules: [ChatHighlightRule]
 
     var body: some View {
 #if os(macOS)
@@ -321,12 +400,147 @@ struct ChatSettingsView: View {
                         .controlSize(.small)
                 }
             }
+
+            SettingsSection(title: "Highlights") {
+                SettingsNavigationRow("Hightlights") {
+                    HStack(spacing: 8) {
+                        if !highlightRules.isEmpty {
+                            Text("\(highlightRules.count)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                } destination: {
+                    ChatHighlightsSettingsView(highlightRules: $highlightRules)
+                }
+            }
         }
 #else
-        LabeledContent("Substitute Emoji") {
-            Toggle("", isOn: $substituteEmoji)
+        Form {
+            LabeledContent("Substitute Emoji") {
+                Toggle("", isOn: $substituteEmoji)
+            }
+
+            NavigationLink("Hightlights") {
+                ChatHighlightsSettingsView(highlightRules: $highlightRules)
+            }
         }
 #endif
+    }
+}
+
+struct ChatHighlightsSettingsView: View {
+    @Binding var highlightRules: [ChatHighlightRule]
+    @State private var pendingDeleteRuleID: UUID? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            List {
+                if highlightRules.isEmpty {
+                    Text("No highlights yet.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach($highlightRules) { $rule in
+                        HStack(spacing: 10) {
+                            TextField("Keyword", text: $rule.keyword)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 180)
+
+                            ColorPicker(
+                                "",
+                                selection: Binding(
+                                    get: { rule.color.swiftUIColor },
+                                    set: { rule.color = CodableColor(swiftUIColor: $0) }
+                                ),
+                                supportsOpacity: true
+                            )
+                            .labelsHidden()
+                            .frame(width: 42)
+
+                            Spacer(minLength: 8)
+
+                            HStack(spacing: 10) {
+                                Text(previewText(for: rule.keyword))
+                                    .lineLimit(1)
+                                    .messageBubbleStyle(
+                                        isFromYou: false,
+                                        customFillColor: rule.color.swiftUIColor,
+                                        customForegroundColor: rule.color.contrastTextColor
+                                    )
+                                    .frame(maxWidth: 360, alignment: .trailing)
+
+                                Button(role: .destructive) {
+                                    pendingDeleteRuleID = rule.id
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 12)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                        .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+                            dimensions.width
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+        }
+        .navigationTitle("Hightlights")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    highlightRules.append(.defaultRule)
+                } label: {
+                    Label("Add Highlight", systemImage: "plus")
+                }
+            }
+        }
+        .confirmationDialog(
+            "Delete Highlight?",
+            isPresented: Binding(
+                get: { pendingDeleteRuleID != nil },
+                set: { if !$0 { pendingDeleteRuleID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let id = pendingDeleteRuleID {
+                    removeRule(withID: id)
+                }
+                pendingDeleteRuleID = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteRuleID = nil
+            }
+        } message: {
+            if let id = pendingDeleteRuleID,
+               let rule = highlightRules.first(where: { $0.id == id })
+            {
+                let keyword = rule.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+                if keyword.isEmpty {
+                    Text("This highlight has no keyword. Do you want to delete it?")
+                } else {
+                    Text("Do you want to delete the highlight for \"\(keyword)\"?")
+                }
+            } else {
+                Text("Do you want to delete this highlight?")
+            }
+        }
+    }
+
+    private func removeRule(withID id: UUID) {
+        highlightRules.removeAll { $0.id == id }
+    }
+
+    private func previewText(for keyword: String) -> AttributedString {
+        let value = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sample = value.isEmpty ? "keyword" : value
+        return AttributedString("Preview: this chat message contains \(sample).")
     }
 }
 
@@ -745,6 +959,43 @@ struct SettingsRow<Content: View>: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+}
+
+/// A reusable "push" row for nested settings pages in the detail NavigationStack.
+struct SettingsNavigationRow<Trailing: View, Destination: View>: View {
+    let title: String
+    @ViewBuilder let trailing: Trailing
+    @ViewBuilder let destination: Destination
+
+    init(
+        _ title: String,
+        @ViewBuilder trailing: () -> Trailing = { EmptyView() },
+        @ViewBuilder destination: () -> Destination
+    ) {
+        self.title = title
+        self.trailing = trailing()
+        self.destination = destination()
+    }
+
+    var body: some View {
+        NavigationLink {
+            destination
+        } label: {
+            HStack {
+                Text(title)
+                    .foregroundStyle(.primary)
+                Spacer()
+                trailing
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
     }
 }
 

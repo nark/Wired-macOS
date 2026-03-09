@@ -10,6 +10,8 @@ import SwiftUI
 
 struct ChatSayMessageView: View {
     @Environment(ConnectionRuntime.self) private var runtime
+    @AppStorageCodable(key: "ChatHighlightRules", defaultValue: [])
+    private var highlightRules: [ChatHighlightRule]
     
     var message: ChatEvent
     var showNickname: Bool = true
@@ -18,6 +20,11 @@ struct ChatSayMessageView: View {
     
     var body: some View {
         let isFromYou = message.user.id == runtime.userID
+        let matchedRule = matchedHighlightRule(in: message.text)
+        let bubbleFillColor = matchedRule?.color.swiftUIColor
+        let bubbleTextColor = matchedRule?.color.contrastTextColor
+        let linkColor = bubbleTextColor ?? (isFromYou ? .white : .blue)
+
         HStack(alignment: .bottom) {
             if isFromYou {
                 Spacer()
@@ -28,8 +35,12 @@ struct ChatSayMessageView: View {
                             .foregroundStyle(.gray)
                             .padding(.trailing, 10)
                     }
-                    Text(message.text.attributedWithDetectedLinks(linkColor: .white))
-                        .messageBubbleStyle(isFromYou: isFromYou)
+                    Text(message.text.attributedWithDetectedLinks(linkColor: linkColor))
+                        .messageBubbleStyle(
+                            isFromYou: isFromYou,
+                            customFillColor: bubbleFillColor,
+                            customForegroundColor: bubbleTextColor
+                        )
                 }
                 .padding(.bottom, isGroupedWithNext ? 2 : 8)
                 avatarView
@@ -42,8 +53,12 @@ struct ChatSayMessageView: View {
                             .foregroundStyle(.gray)
                             .padding(.leading, 10)
                     }
-                    Text(message.text.attributedWithDetectedLinks(linkColor: .blue))
-                        .messageBubbleStyle(isFromYou: isFromYou)
+                    Text(message.text.attributedWithDetectedLinks(linkColor: linkColor))
+                        .messageBubbleStyle(
+                            isFromYou: isFromYou,
+                            customFillColor: bubbleFillColor,
+                            customForegroundColor: bubbleTextColor
+                        )
                 }
                 .padding(.bottom, isGroupedWithNext ? 2 : 8)
                 Spacer()
@@ -52,6 +67,15 @@ struct ChatSayMessageView: View {
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         .id(message.id)
+    }
+
+    private func matchedHighlightRule(in text: String) -> ChatHighlightRule? {
+        let loweredText = text.lowercased()
+        return highlightRules.first { rule in
+            let keyword = rule.keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !keyword.isEmpty else { return false }
+            return loweredText.contains(keyword)
+        }
     }
 
     @ViewBuilder
