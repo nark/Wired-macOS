@@ -42,6 +42,7 @@ struct ChatMessagesView: View {
                 }
             }
             .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 1)
             .textSelection(.enabled)
             .frame(maxHeight: .infinity)
             .onChange(of: chat.messages.count) {

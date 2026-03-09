@@ -31,7 +31,7 @@ struct ChatSayMessageView: View {
                     Text(message.text.attributedWithDetectedLinks(linkColor: .white))
                         .messageBubbleStyle(isFromYou: isFromYou)
                 }
-                .padding(.bottom, isGroupedWithNext ? 2 : 10)
+                .padding(.bottom, isGroupedWithNext ? 2 : 8)
                 avatarView
             } else {
                 avatarView
@@ -45,11 +45,12 @@ struct ChatSayMessageView: View {
                     Text(message.text.attributedWithDetectedLinks(linkColor: .blue))
                         .messageBubbleStyle(isFromYou: isFromYou)
                 }
-                .padding(.bottom, isGroupedWithNext ? 2 : 10)
+                .padding(.bottom, isGroupedWithNext ? 2 : 8)
                 Spacer()
             }
         }
         .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         .id(message.id)
     }
 

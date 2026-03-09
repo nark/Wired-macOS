@@ -29,6 +29,7 @@ struct MessageConversationMessagesView: View {
                 }
             }
             .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 1)
             .textSelection(.enabled)
             .frame(maxHeight: .infinity)
             .onChange(of: conversation.messages.count) {
@@ -85,7 +86,7 @@ private struct MessageBubbleRow: View {
                     Text(message.text.attributedWithDetectedLinks(linkColor: .white))
                         .messageBubbleStyle(isFromYou: true)
                 }
-                .padding(.bottom, isGroupedWithNext ? 2 : 10)
+                .padding(.bottom, isGroupedWithNext ? 2 : 8)
                 avatarView
             } else {
                 avatarView
@@ -99,11 +100,12 @@ private struct MessageBubbleRow: View {
                     Text(message.text.attributedWithDetectedLinks(linkColor: .blue))
                         .messageBubbleStyle(isFromYou: false)
                 }
-                .padding(.bottom, isGroupedWithNext ? 2 : 10)
+                .padding(.bottom, isGroupedWithNext ? 2 : 8)
                 Spacer()
             }
         }
         .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
     }
 
     @ViewBuilder
