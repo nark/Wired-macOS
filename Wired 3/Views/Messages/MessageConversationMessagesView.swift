@@ -12,8 +12,19 @@ struct MessageConversationMessagesView: View {
     var body: some View {
         ScrollViewReader { proxy in
             List {
-                ForEach(conversation.messages) { message in
-                    MessageBubbleRow(message: message, currentUserID: runtime.userID)
+                ForEach(Array(conversation.messages.enumerated()), id: \.element.id) { index, message in
+                    let previous = index > 0 ? conversation.messages[index - 1] : nil
+                    let next = index < (conversation.messages.count - 1) ? conversation.messages[index + 1] : nil
+                    let sameAsPrevious = previous.map { isSameSender($0, as: message) } ?? false
+                    let sameAsNext = next.map { isSameSender($0, as: message) } ?? false
+
+                    MessageBubbleRow(
+                        message: message,
+                        currentUserID: runtime.userID,
+                        showNickname: !sameAsPrevious,
+                        showAvatar: !sameAsNext,
+                        isGroupedWithNext: sameAsNext
+                    )
                         .id(message.id)
                 }
             }
@@ -36,11 +47,28 @@ struct MessageConversationMessagesView: View {
             }
         }
     }
+
+    private func senderKey(for message: MessageEvent) -> String {
+        if message.isFromCurrentUser || message.senderUserID == runtime.userID {
+            return "me"
+        }
+        if let senderUserID = message.senderUserID {
+            return "id:\(senderUserID)"
+        }
+        return "nick:\(message.senderNick)"
+    }
+
+    private func isSameSender(_ lhs: MessageEvent, as rhs: MessageEvent) -> Bool {
+        senderKey(for: lhs) == senderKey(for: rhs)
+    }
 }
 
 private struct MessageBubbleRow: View {
     let message: MessageEvent
     let currentUserID: UInt32
+    let showNickname: Bool
+    let showAvatar: Bool
+    let isGroupedWithNext: Bool
 
     var body: some View {
         let isFromYou = message.isFromCurrentUser || message.senderUserID == currentUserID
@@ -48,26 +76,30 @@ private struct MessageBubbleRow: View {
             if isFromYou {
                 Spacer()
                 VStack(alignment: .trailing) {
-                    Text(message.senderNick)
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                        .padding(.trailing, 10)
+                    if showNickname {
+                        Text(message.senderNick)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .padding(.trailing, 10)
+                    }
                     Text(message.text.attributedWithDetectedLinks(linkColor: .white))
                         .messageBubbleStyle(isFromYou: true)
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, isGroupedWithNext ? 2 : 10)
                 avatarView
             } else {
                 avatarView
                 VStack(alignment: .leading) {
-                    Text(message.senderNick)
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                        .padding(.leading, 10)
+                    if showNickname {
+                        Text(message.senderNick)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .padding(.leading, 10)
+                    }
                     Text(message.text.attributedWithDetectedLinks(linkColor: .blue))
                         .messageBubbleStyle(isFromYou: false)
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, isGroupedWithNext ? 2 : 10)
                 Spacer()
             }
         }
@@ -76,15 +108,20 @@ private struct MessageBubbleRow: View {
 
     @ViewBuilder
     private var avatarView: some View {
-        if let icon = message.senderIcon, let image = Image(data: icon) {
-            image
-                .resizable()
-                .frame(width: 32, height: 32)
+        if showAvatar {
+            if let icon = message.senderIcon, let image = Image(data: icon) {
+                image
+                    .resizable()
+                    .frame(width: 32, height: 32)
+            } else {
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable()
+                    .frame(width: 32, height: 32)
+                    .foregroundStyle(.secondary)
+            }
         } else {
-            Image(systemName: "person.crop.circle.fill")
-                .resizable()
+            Color.clear
                 .frame(width: 32, height: 32)
-                .foregroundStyle(.secondary)
         }
     }
 }

@@ -16,9 +16,19 @@ struct ChatMessagesView: View {
     var body: some View {
         ScrollViewReader { proxy in
             List {
-                ForEach(chat.messages, id: \.id) { message in
+                ForEach(Array(chat.messages.enumerated()), id: \.element.id) { index, message in
                     if message.type == .say {
-                        ChatSayMessageView(message: message)
+                        let previous = index > 0 ? chat.messages[index - 1] : nil
+                        let next = index < (chat.messages.count - 1) ? chat.messages[index + 1] : nil
+                        let sameAsPrevious = previous?.type == .say && previous?.user.id == message.user.id
+                        let sameAsNext = next?.type == .say && next?.user.id == message.user.id
+
+                        ChatSayMessageView(
+                            message: message,
+                            showNickname: !sameAsPrevious,
+                            showAvatar: !sameAsNext,
+                            isGroupedWithNext: sameAsNext
+                        )
                             .environment(runtime)
                     }
                     else if message.type == .me {
