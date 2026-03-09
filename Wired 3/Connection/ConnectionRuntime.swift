@@ -457,6 +457,7 @@ final class ConnectionRuntime: Identifiable {
     }
 
     func appendChat(_ chat: Chat) {
+        guard !chats.contains(where: { $0.id == chat.id }) else { return }
         chats.append(chat)
     }
 
