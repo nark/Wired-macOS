@@ -126,7 +126,7 @@ struct MessageBubbleStyle: ViewModifier {
                 .background(
                     MessageBubble()
                         .fill(messageFillColor)
-                        .stroke(Color.blue, style: StrokeStyle(dash: shouldSendInTheFuture ? [6] : []))
+                        .stroke(Color.blue, style: StrokeStyle(dash: [6]), lineWidth: shouldSendInTheFuture ? 1 : 0)
                         .rotation3DEffect(isFromYou ? .degrees(0) : .degrees(180), axis: (x: 0, y: 1, z: 0))
                 )
     }
