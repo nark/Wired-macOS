@@ -596,7 +596,7 @@ struct AccountsSettingsView: View {
     let runtime: ConnectionRuntime
 
     var body: some View {
-        NavigationSplitView {
+        HSplitView {
             VStack(spacing: 8) {
                 Picker("Type", selection: $viewModel.selectedFilter) {
                     ForEach(AccountFilter.allCases) { filter in
@@ -638,9 +638,11 @@ struct AccountsSettingsView: View {
                 .padding(.horizontal, 8)
                 .padding(.bottom, 8)
             }
-            .navigationSplitViewColumnWidth(min: 230, ideal: 260)
-        } detail: {
+            .frame(minWidth: 230, idealWidth: 280, maxWidth: 360)
+
             detailView
+                .frame(minWidth: 540, idealWidth: 840, maxWidth: .infinity)
+                .layoutPriority(1)
         }
         .overlay {
             if viewModel.isLoading {

@@ -47,15 +47,17 @@ struct ServerSettingsView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        HSplitView {
             List(ServerSettingsCategory.allCases, selection: $selectedCategory) { category in
                 Label(category.title, systemImage: category.iconName)
                     .tag(category)
             }
             .navigationTitle("Settings")
-            .navigationSplitViewColumnWidth(min: 180, ideal: 210)
-        } detail: {
+            .frame(minWidth: 180, idealWidth: 210, maxWidth: 280)
+
             detailContent
+                .frame(minWidth: 560, idealWidth: 860, maxWidth: .infinity)
+                .layoutPriority(1)
         }
     }
 
