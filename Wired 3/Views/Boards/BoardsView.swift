@@ -547,17 +547,19 @@ struct BoardsView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        HSplitView {
             // ── Left column: hierarchical boards list ──────────────────────
             boardsList
+                .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
 
-        } content: {
             // ── Middle column: threads in selected board ───────────────────
             threadsList
+                .frame(minWidth: 280, idealWidth: 360, maxWidth: 520)
 
-        } detail: {
             // ── Right column: posts in selected thread ─────────────────────
             postsDetail
+                .frame(minWidth: 320, idealWidth: 520, maxWidth: .infinity)
+                .layoutPriority(1)
         }
         .task {
             loadSmartBoards()
