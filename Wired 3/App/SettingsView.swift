@@ -401,6 +401,20 @@ struct ChatSettingsView: View {
                 }
             }
 
+            SettingsSection(title: "Emoji") {
+                SettingsNavigationRow("Emoji Substitutions") {
+                    HStack(spacing: 8) {
+                        if !emojiSubstitutions.isEmpty {
+                            Text("\(emojiSubstitutions.count)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                } destination: {
+                    ChatEmojiSubstitutionsSettingsView(substitutions: $emojiSubstitutions)
+                }
+            }
+
             SettingsSection(title: "Highlights") {
                 SettingsNavigationRow("Hightlights") {
                     HStack(spacing: 8) {
@@ -419,6 +433,10 @@ struct ChatSettingsView: View {
         Form {
             LabeledContent("Substitute Emoji") {
                 Toggle("", isOn: $substituteEmoji)
+            }
+
+            NavigationLink("Emoji Substitutions") {
+                ChatEmojiSubstitutionsSettingsView(substitutions: $emojiSubstitutions)
             }
 
             NavigationLink("Hightlights") {
@@ -542,6 +560,162 @@ struct ChatHighlightsSettingsView: View {
         let sample = value.isEmpty ? "keyword" : value
         return AttributedString("Preview: this chat message contains \(sample).")
     }
+}
+
+struct ChatEmojiSubstitutionsSettingsView: View {
+    @Binding var substitutions: [String: String]
+    @State private var rules: [Rule] = []
+    @State private var pendingDeleteRuleID: UUID? = nil
+    @FocusState private var focusedEmojiRuleID: UUID?
+
+    private struct Rule: Identifiable, Equatable {
+        var id: UUID
+        var code: String
+        var emoji: String
+
+        init(id: UUID = UUID(), code: String, emoji: String) {
+            self.id = id
+            self.code = code
+            self.emoji = emoji
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            List {
+                if rules.isEmpty {
+                    Text("No emoji substitutions yet.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach($rules) { $rule in
+                        HStack(spacing: 10) {
+                            TextField("Code", text: $rule.code)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 180)
+
+                            HStack(spacing: 6) {
+                                TextField("Emoji", text: $rule.emoji)
+                                    .textFieldStyle(.roundedBorder)
+                                    .multilineTextAlignment(.center)
+                                    .frame(width: 56)
+                                    .focused($focusedEmojiRuleID, equals: rule.id)
+#if os(macOS)
+                                Button {
+                                    openEmojiPicker(for: rule.id)
+                                } label: {
+                                    Image(systemName: "face.smiling")
+                                }
+                                .buttonStyle(.borderless)
+#endif
+                            }
+
+                            Spacer(minLength: 8)
+
+                            HStack(spacing: 10) {
+                                Text(previewText(code: rule.code, emoji: rule.emoji))
+                                    .lineLimit(1)
+                                    .frame(maxWidth: 320, alignment: .trailing)
+                                    .foregroundStyle(.secondary)
+
+                                Button(role: .destructive) {
+                                    pendingDeleteRuleID = rule.id
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 12)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                        .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+                            dimensions.width
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+        }
+        .navigationTitle("Emoji Substitutions")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    rules.append(Rule(code: "", emoji: "😊"))
+                    saveRules()
+                } label: {
+                    Label("Add Substitution", systemImage: "plus")
+                }
+            }
+        }
+        .confirmationDialog(
+            "Delete Emoji Substitution?",
+            isPresented: Binding(
+                get: { pendingDeleteRuleID != nil },
+                set: { if !$0 { pendingDeleteRuleID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let id = pendingDeleteRuleID {
+                    rules.removeAll { $0.id == id }
+                    saveRules()
+                }
+                pendingDeleteRuleID = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteRuleID = nil
+            }
+        } message: {
+            Text("Do you want to delete this emoji substitution?")
+        }
+        .onAppear {
+            loadRules()
+        }
+        .onChange(of: rules) { _, _ in
+            saveRules()
+        }
+    }
+
+    private func loadRules() {
+        rules = substitutions
+            .map { Rule(code: $0.key, emoji: $0.value) }
+            .sorted { $0.code.localizedCaseInsensitiveCompare($1.code) == .orderedAscending }
+    }
+
+    private func saveRules() {
+        var mapped: [String: String] = [:]
+        for rule in rules {
+            let code = rule.code.trimmingCharacters(in: .whitespacesAndNewlines)
+            let emoji = rule.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !code.isEmpty, !emoji.isEmpty else { continue }
+            mapped[code] = emoji
+        }
+        substitutions = mapped
+    }
+
+    private func previewText(code: String, emoji: String) -> String {
+        let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEmoji = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeCode = trimmedCode.isEmpty ? "code" : trimmedCode
+        let safeEmoji = trimmedEmoji.isEmpty ? "🙂" : trimmedEmoji
+        return "\(safeCode) → \(safeEmoji)"
+    }
+
+#if os(macOS)
+    private func openEmojiPicker(for id: UUID) {
+        focusedEmojiRuleID = id
+        DispatchQueue.main.async {
+            let action = NSSelectorFromString("orderFrontCharacterPalette:")
+            _ = NSApp.sendAction(
+                action,
+                to: nil,
+                from: nil
+            )
+        }
+    }
+#endif
 }
 
 struct FilesSettingsView: View {

@@ -56,6 +56,7 @@
 		4C39DEBB2F1AB4BC009D54B1 /* FileFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C39DEBA2F1AB4B3009D54B1 /* FileFormView.swift */; };
 		4C7E10042F21000100213277 /* ServerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7E10012F21000100213277 /* ServerSettingsView.swift */; };
 		4C7E10052F21000100213277 /* AccountsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7E10022F21000100213277 /* AccountsSettingsView.swift */; };
+		4C8A826B2F5ED07200C271A8 /* MessageConversationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8A826A2F5ED07100C271A8 /* MessageConversationDetailView.swift */; };
 		4C8D11012F30000100213277 /* StoredPrivateConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11112F30000100213277 /* StoredPrivateConversation.swift */; };
 		4C8D11022F30000100213277 /* StoredPrivateMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11122F30000100213277 /* StoredPrivateMessage.swift */; };
 		4C8D11032F30000100213277 /* StoredBroadcastConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11132F30000100213277 /* StoredBroadcastConversation.swift */; };
@@ -63,7 +64,6 @@
 		4C8D11052F30000100213277 /* StoredMessageSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D11152F30000100213277 /* StoredMessageSelection.swift */; };
 		4C8D12012F30000200213277 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D12112F30000200213277 /* MessagesView.swift */; };
 		4C8D12022F30000200213277 /* MessageConversationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D12122F30000200213277 /* MessageConversationRow.swift */; };
-		4C8D12032F30000200213277 /* MessageConversationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D12132F30000200213277 /* MessageConversationDetailView.swift */; };
 		4C8D12042F30000200213277 /* MessageConversationMessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D12142F30000200213277 /* MessageConversationMessagesView.swift */; };
 		4C8D13012F30000300213277 /* UserDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C8D13112F30000300213277 /* UserDragPayload.swift */; };
 		4C95F1642F56CB5F005CD1BA /* Board.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C95F1612F56CB5F005CD1BA /* Board.swift */; };
@@ -147,6 +147,7 @@
 		4C39DEBA2F1AB4B3009D54B1 /* FileFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileFormView.swift; sourceTree = "<group>"; };
 		4C7E10012F21000100213277 /* ServerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSettingsView.swift; sourceTree = "<group>"; };
 		4C7E10022F21000100213277 /* AccountsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsView.swift; sourceTree = "<group>"; };
+		4C8A826A2F5ED07100C271A8 /* MessageConversationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageConversationDetailView.swift; sourceTree = "<group>"; };
 		4C8D11112F30000100213277 /* StoredPrivateConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredPrivateConversation.swift; sourceTree = "<group>"; };
 		4C8D11122F30000100213277 /* StoredPrivateMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredPrivateMessage.swift; sourceTree = "<group>"; };
 		4C8D11132F30000100213277 /* StoredBroadcastConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredBroadcastConversation.swift; sourceTree = "<group>"; };
@@ -154,7 +155,6 @@
 		4C8D11152F30000100213277 /* StoredMessageSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredMessageSelection.swift; sourceTree = "<group>"; };
 		4C8D12112F30000200213277 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
 		4C8D12122F30000200213277 /* MessageConversationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageConversationRow.swift; sourceTree = "<group>"; };
-		4C8D12132F30000200213277 /* MessageConversationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageConversationDetailView.swift; sourceTree = "<group>"; };
 		4C8D12142F30000200213277 /* MessageConversationMessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageConversationMessagesView.swift; sourceTree = "<group>"; };
 		4C8D13112F30000300213277 /* UserDragPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDragPayload.swift; sourceTree = "<group>"; };
 		4C95F1612F56CB5F005CD1BA /* Board.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Board.swift; sourceTree = "<group>"; };
@@ -397,7 +397,7 @@
 			children = (
 				4C8D12112F30000200213277 /* MessagesView.swift */,
 				4C8D12122F30000200213277 /* MessageConversationRow.swift */,
-				4C8D12132F30000200213277 /* MessageConversationDetailView.swift */,
+				4C8A826A2F5ED07100C271A8 /* MessageConversationDetailView.swift */,
 				4C8D12142F30000200213277 /* MessageConversationMessagesView.swift */,
 			);
 			path = Messages;
@@ -626,7 +626,6 @@
 				4C0C2DE82EF437DE00213277 /* Bookmark.swift in Sources */,
 				4C8D12012F30000200213277 /* MessagesView.swift in Sources */,
 				4C8D12022F30000200213277 /* MessageConversationRow.swift in Sources */,
-				4C8D12032F30000200213277 /* MessageConversationDetailView.swift in Sources */,
 				4C8D12042F30000200213277 /* MessageConversationMessagesView.swift in Sources */,
 				4C8D11012F30000100213277 /* StoredPrivateConversation.swift in Sources */,
 				4C8D11022F30000100213277 /* StoredPrivateMessage.swift in Sources */,
@@ -635,6 +634,7 @@
 				4C8D11052F30000100213277 /* StoredMessageSelection.swift in Sources */,
 				4C0C2E072EF5C84000213277 /* ConnectionRuntime.swift in Sources */,
 				4C0C2E1E2EFD7C6300213277 /* ChatSayMessageView.swift in Sources */,
+				4C8A826B2F5ED07200C271A8 /* MessageConversationDetailView.swift in Sources */,
 				4C0C2E482F07F6EF00213277 /* View.swift in Sources */,
 				4C0C2E332EFDBA9E00213277 /* ChatMeMessageView.swift in Sources */,
 				4C0C2E562F1192EE00213277 /* Transfer.swift in Sources */,
@@ -687,10 +687,14 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CODE_SIGN_ENTITLEMENTS = "Wired 3/Wired_3.entitlements";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 4;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = JSVJHJ78QE;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 7KTXA5Y36K;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 7KTXA5Y36K;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -714,8 +718,11 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "fr.read-write.Wired-3";
+				PRODUCT_BUNDLE_IDENTIFIER = "fr.read-write.Wired3";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Wired 3";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "Wired 3";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
@@ -736,10 +743,14 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CODE_SIGN_ENTITLEMENTS = "Wired 3/Wired_3.entitlements";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 4;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = JSVJHJ78QE;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 7KTXA5Y36K;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 7KTXA5Y36K;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -763,8 +774,11 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "fr.read-write.Wired-3";
+				PRODUCT_BUNDLE_IDENTIFIER = "fr.read-write.Wired3";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Wired 3";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "Wired 3";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";

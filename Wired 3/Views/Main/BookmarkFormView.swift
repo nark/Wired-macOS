@@ -189,7 +189,9 @@ struct BookmarkFormView: View {
             modelContext.insert(newBookmark)
         }
         
-        keychain.set(password, forKey: "\(login)@\(hostname)")
+        if !password.isEmpty {
+            keychain.set(password, forKey: "\(login)@\(hostname)")
+        }
         
         dismiss()
     }
