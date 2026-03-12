@@ -8,6 +8,8 @@ import SwiftUI
 struct MessageConversationMessagesView: View {
     @Environment(ConnectionRuntime.self) private var runtime
     let conversation: MessageConversation
+    @State private var animatedNewMessageID: UUID?
+    @State private var revealNewMessage = true
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -25,6 +27,8 @@ struct MessageConversationMessagesView: View {
                         showAvatar: !sameAsNext,
                         isGroupedWithNext: sameAsNext
                     )
+                        .scaleEffect(message.id == animatedNewMessageID ? (revealNewMessage ? 1 : 0.94) : 1)
+                        .opacity(message.id == animatedNewMessageID ? (revealNewMessage ? 1 : 0) : 1)
                         .id(message.id)
                 }
             }
@@ -35,6 +39,18 @@ struct MessageConversationMessagesView: View {
             .onChange(of: conversation.messages.count) {
                 DispatchQueue.main.async {
                     if let lastID = conversation.messages.last?.id {
+                        animatedNewMessageID = lastID
+                        revealNewMessage = false
+                        DispatchQueue.main.async {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                revealNewMessage = true
+                            }
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            if animatedNewMessageID == lastID {
+                                animatedNewMessageID = nil
+                            }
+                        }
                         proxy.scrollTo(lastID, anchor: .bottom)
                     }
                 }
@@ -84,7 +100,14 @@ private struct MessageBubbleRow: View {
                             .padding(.trailing, 10)
                     }
                     Text(message.text.attributedWithDetectedLinks(linkColor: .white))
-                        .messageBubbleStyle(isFromYou: true)
+                        .messageBubbleStyle(isFromYou: true, showsTail: !isGroupedWithNext)
+                        .containerRelativeFrame(
+                            .horizontal,
+                            count: 4,
+                            span: 3,
+                            spacing: 0,
+                            alignment: .trailing
+                        )
                 }
                 .padding(.bottom, isGroupedWithNext ? 2 : 8)
                 avatarView
@@ -98,7 +121,14 @@ private struct MessageBubbleRow: View {
                             .padding(.leading, 10)
                     }
                     Text(message.text.attributedWithDetectedLinks(linkColor: .blue))
-                        .messageBubbleStyle(isFromYou: false)
+                        .messageBubbleStyle(isFromYou: false, showsTail: !isGroupedWithNext)
+                        .containerRelativeFrame(
+                            .horizontal,
+                            count: 4,
+                            span: 3,
+                            spacing: 0,
+                            alignment: .leading
+                        )
                 }
                 .padding(.bottom, isGroupedWithNext ? 2 : 8)
                 Spacer()

@@ -9,10 +9,28 @@
 import SwiftUI
 
 struct MessageBubble: Shape {
+    let showsTail: Bool
+    private let cornerRadius: Double = 10
+    private let tailWidth: Double = 8
+
+    init(showsTail: Bool = true) {
+        self.showsTail = showsTail
+    }
+
     func path(in rect: CGRect) -> Path {
+        if !showsTail {
+            return Path(
+                roundedRect: CGRect(
+                    x: rect.minX,
+                    y: rect.minY,
+                    width: rect.width - tailWidth,
+                    height: rect.height
+                ),
+                cornerRadius: cornerRadius
+            )
+        }
+
         let path = Path { path in
-            let cornerRadius: Double = 10
-            let tailWidth: Double = 8
             let tailHeight = cornerRadius
             let bubbleWidth = rect.width - tailWidth
 
@@ -93,6 +111,7 @@ struct MessageBubbleStyle: ViewModifier {
     let shouldSendInTheFuture: Bool
     let customFillColor: Color?
     let customForegroundColor: Color?
+    let showsTail: Bool
 
     var messageFillColor: Color {
         if shouldSendInTheFuture {
@@ -122,9 +141,9 @@ struct MessageBubbleStyle: ViewModifier {
                 .foregroundStyle(forgroundColor)
                 .padding(.vertical, 8)
                 .padding(.horizontal, 20)
-                .padding(isFromYou ? .trailing : .leading, 8) // 8 is the tail width
+                .padding(isFromYou ? .trailing : .leading, 8) // keep alignment with and without tail
                 .background(
-                    MessageBubble()
+                    MessageBubble(showsTail: showsTail)
                         .fill(messageFillColor)
                         .stroke(Color.blue, style: StrokeStyle(lineWidth: shouldSendInTheFuture ? 1 : 0, dash: [6]))
                         .rotation3DEffect(isFromYou ? .degrees(0) : .degrees(180), axis: (x: 0, y: 1, z: 0))
@@ -137,14 +156,16 @@ extension View {
         isFromYou: Bool,
         shouldSendInTheFuture: Bool = false,
         customFillColor: Color? = nil,
-        customForegroundColor: Color? = nil
+        customForegroundColor: Color? = nil,
+        showsTail: Bool = true
     ) -> some View {
         modifier(
             MessageBubbleStyle(
                 isFromYou: isFromYou,
                 shouldSendInTheFuture: shouldSendInTheFuture,
                 customFillColor: customFillColor,
-                customForegroundColor: customForegroundColor
+                customForegroundColor: customForegroundColor,
+                showsTail: showsTail
             )
         )
     }

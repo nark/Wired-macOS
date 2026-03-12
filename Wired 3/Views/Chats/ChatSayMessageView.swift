@@ -39,7 +39,15 @@ struct ChatSayMessageView: View {
                         .messageBubbleStyle(
                             isFromYou: isFromYou,
                             customFillColor: bubbleFillColor,
-                            customForegroundColor: bubbleTextColor
+                            customForegroundColor: bubbleTextColor,
+                            showsTail: !isGroupedWithNext
+                        )
+                        .containerRelativeFrame(
+                            .horizontal,
+                            count: 4,
+                            span: 3,
+                            spacing: 0,
+                            alignment: .trailing
                         )
                 }
                 .padding(.bottom, isGroupedWithNext ? 2 : 8)
@@ -57,7 +65,15 @@ struct ChatSayMessageView: View {
                         .messageBubbleStyle(
                             isFromYou: isFromYou,
                             customFillColor: bubbleFillColor,
-                            customForegroundColor: bubbleTextColor
+                            customForegroundColor: bubbleTextColor,
+                            showsTail: !isGroupedWithNext
+                        )
+                        .containerRelativeFrame(
+                            .horizontal,
+                            count: 4,
+                            span: 3,
+                            spacing: 0,
+                            alignment: .leading
                         )
                 }
                 .padding(.bottom, isGroupedWithNext ? 2 : 8)

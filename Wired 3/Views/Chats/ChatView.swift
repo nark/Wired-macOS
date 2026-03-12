@@ -25,7 +25,12 @@ struct ChatView: View {
                 
                 Divider()
                 
-                ChatMessagesView(chat: chat)
+                ChatMessagesView(
+                    chat: chat,
+                    onUserInteraction: {
+                        markCurrentChatAsReadIfNeeded()
+                    }
+                )
                     .environment(runtime)
                                 
                 HStack(alignment: .top, spacing: 0) {
@@ -69,7 +74,7 @@ struct ChatView: View {
 #endif
         }
         .onAppear {
-            runtime.resetUnreads(chat)
+            markCurrentChatAsReadIfNeeded()
             
 #if os(iOS)
             if chat.joined == false {
@@ -79,6 +84,17 @@ struct ChatView: View {
             }
 #endif
         }
+        .onChange(of: chatInput) { _, newValue in
+            guard !newValue.isEmpty else { return }
+            markCurrentChatAsReadIfNeeded()
+        }
+#if os(macOS)
+        .background(
+            ChatWindowInteractionObserver {
+                markCurrentChatAsReadIfNeeded()
+            }
+        )
+#endif
         .toolbar {
 #if os(iOS)
             ToolbarItem(placement: .topBarTrailing) {
@@ -94,6 +110,13 @@ struct ChatView: View {
             
 #endif
         }
+    }
+
+    private func markCurrentChatAsReadIfNeeded() {
+        guard runtime.selectedTab == .chats else { return }
+        guard runtime.selectedChatID == chat.id else { return }
+        guard chat.unreadMessagesCount > 0 else { return }
+        runtime.resetUnreads(chat)
     }
 }
 
@@ -228,6 +251,75 @@ struct ConversationComposer: View {
 }
 
 #if os(macOS)
+private struct ChatWindowInteractionObserver: NSViewRepresentable {
+    let onWindowBecameKey: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onWindowBecameKey: onWindowBecameKey)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onWindowBecameKey = onWindowBecameKey
+        context.coordinator.attach(to: nsView)
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        var onWindowBecameKey: () -> Void
+        private weak var observedWindow: NSWindow?
+        private weak var attachedView: NSView?
+        private var observer: NSObjectProtocol?
+
+        init(onWindowBecameKey: @escaping () -> Void) {
+            self.onWindowBecameKey = onWindowBecameKey
+        }
+
+        func attach(to view: NSView) {
+            attachedView = view
+            DispatchQueue.main.async { [weak self] in
+                self?.refreshObserverIfNeeded()
+            }
+        }
+
+        func detach() {
+            if let observer {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            observer = nil
+            observedWindow = nil
+            attachedView = nil
+        }
+
+        private func refreshObserverIfNeeded() {
+            guard let window = attachedView?.window else { return }
+            guard window !== observedWindow else { return }
+
+            if let observer {
+                NotificationCenter.default.removeObserver(observer)
+                self.observer = nil
+            }
+
+            observedWindow = window
+            observer = NotificationCenter.default.addObserver(
+                forName: NSWindow.didBecomeKeyNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                self?.onWindowBecameKey()
+            }
+        }
+    }
+}
+
 private final class FocusableInputScrollView: NSScrollView {
     weak var focusTarget: NSTextView?
 

@@ -1418,7 +1418,10 @@ final class ConnectionController {
                let chat = await runtime.chat(withID: chatID) {
                 await MainActor.run {
                     if let user = chat.users.first(where: { $0.id == userID }) {
-                        chat.messages.append(ChatEvent(chat: chat, user: user, type: .leave, text: ""))
+                        appendChatMessage(
+                            ChatEvent(chat: chat, user: user, type: .leave, text: ""),
+                            to: chat
+                        )
                     }
                 }
             }
@@ -1488,7 +1491,10 @@ final class ConnectionController {
                         if let user = await chat.users.first(where: { $0.id == userID }) {
                             if let say = message.string(forField: "wired.chat.say") {
                                 await MainActor.run {
-                                    chat.messages.append(ChatEvent(chat: chat, user: user, type: .say, text: say))
+                                    appendChatMessage(
+                                        ChatEvent(chat: chat, user: user, type: .say, text: say),
+                                        to: chat
+                                    )
                                     
                                     if userID != runtime.userID {
                                         chat.unreadMessagesCount += 1
@@ -1533,7 +1539,10 @@ final class ConnectionController {
                         if let user = await chat.users.first(where: { $0.id == userID }) {
                             if let say = message.string(forField: "wired.chat.me") {
                                 await MainActor.run {
-                                    chat.messages.append(ChatEvent(chat: chat, user: user, type: .me, text: say))
+                                    appendChatMessage(
+                                        ChatEvent(chat: chat, user: user, type: .me, text: say),
+                                        to: chat
+                                    )
                                     
                                     if userID != runtime.userID {
                                         chat.unreadMessagesCount += 1
@@ -2222,7 +2231,15 @@ final class ConnectionController {
     private func postEventInChat(text: String, runtime: ConnectionRuntime) {
         guard let chat = runtime.chat(withID: 1) else { return }
         let user = User(id: 0, nick: "Events", icon: Data(), idle: false)
-        chat.messages.append(ChatEvent(chat: chat, user: user, type: .event, text: text))
+        appendChatMessage(
+            ChatEvent(chat: chat, user: user, type: .event, text: text),
+            to: chat
+        )
+    }
+
+    @MainActor
+    private func appendChatMessage(_ message: ChatEvent, to chat: Chat) {
+        chat.messages.append(message)
     }
 
     private func playConfiguredSound(name: String?, volume: Float) {
