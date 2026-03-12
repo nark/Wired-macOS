@@ -47,16 +47,18 @@ struct ServerSettingsView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        HSplitView {
             List(ServerSettingsCategory.allCases, selection: $selectedCategory) { category in
                 Label(category.title, systemImage: category.iconName)
                     .tag(category)
             }
-            .navigationTitle("Settings")
-            .navigationSplitViewColumnWidth(min: 180, ideal: 210)
-        } detail: {
+            .frame(minWidth: 180, idealWidth: 210, maxWidth: 260)
+
             detailContent
+                .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .layoutPriority(1)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -243,23 +245,21 @@ private struct GeneralServerSettingsView: View {
                 Divider()
 
                 directorySection
+                
+                HStack {
+                    Button("Recharger") {
+                        Task { await loadSettings() }
+                    }
+                    .disabled(isLoading || isSaving)
+
+                    Spacer()
+                }
+                .padding(.top, 4)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .frame(maxWidth: 920, alignment: .leading)
-
-            HStack {
-                Button("Recharger") {
-                    Task { await loadSettings() }
-                }
-                .disabled(isLoading || isSaving)
-
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 14)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var basicSettingsSection: some View {
@@ -325,7 +325,7 @@ private struct GeneralServerSettingsView: View {
     }
 
     private var directorySection: some View {
-        settingsFieldRow("", alignment: .top) {
+        settingsFieldRow("", labelWidth: 0, alignment: .top) {
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Enregistrer le serveur auprès des annuaires suivants", isOn: $registerWithTrackers)
                     .toggleStyle(.checkbox)
@@ -449,7 +449,7 @@ private struct GeneralServerSettingsView: View {
     private func settingsNumericRow(_ label: String, value: Binding<Int>) -> some View {
         HStack(spacing: 8) {
             Text("\(label) :")
-                .frame(width: 190, alignment: .trailing)
+                .frame(width: 170, alignment: .trailing)
                 .foregroundStyle(.secondary)
             TextField("", value: value, format: .number)
                 .textFieldStyle(.roundedBorder)
@@ -461,7 +461,7 @@ private struct GeneralServerSettingsView: View {
     private func speedLimitRow(_ label: String, value: Binding<Int>) -> some View {
         HStack(spacing: 8) {
             Text("\(label) :")
-                .frame(width: 160, alignment: .trailing)
+                .frame(width: 140, alignment: .trailing)
                 .foregroundStyle(.secondary)
             TextField("", value: value, format: .number)
                 .textFieldStyle(.roundedBorder)
@@ -474,7 +474,7 @@ private struct GeneralServerSettingsView: View {
 
     private func settingsFieldRow<Content: View>(
         _ label: String,
-        labelWidth: CGFloat = 170,
+        labelWidth: CGFloat = 140,
         alignment: VerticalAlignment = .center,
         @ViewBuilder content: () -> Content
     ) -> some View {

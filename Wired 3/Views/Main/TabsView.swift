@@ -150,6 +150,7 @@ struct TabsView: View {
         }
         .navigationTitle(connectionTitle)
         .toolbarTitleDisplayMode(.inline)
+        .toolbarBackground(.visible, for: .windowToolbar)
         .toolbar {
             if let runtime = connectionController.runtime(for: connectionID) {
                 ToolbarItemGroup(placement: .navigation) {
@@ -157,6 +158,7 @@ struct TabsView: View {
                         Image(data: serverInfo.serverBanner)
                     }
                 }
+                .sharedBackgroundHiddenIfAvailable()
 
                 ToolbarItemGroup(placement: .principal) {
                     Button {
@@ -274,7 +276,8 @@ struct TabsView: View {
                     .buttonStyle(.plain)
                     .foregroundColor(runtime.selectedTab == .infos ? .accentColor : .primary)
                 }
-
+                .sharedBackgroundHiddenIfAvailable()
+                
                 ToolbarItemGroup(placement: .automatic) {
                     if !isBookmarked {
                         Button {
@@ -323,6 +326,7 @@ struct TabsView: View {
                         .disabled(runtime.status == .connecting)
                     }
                 }
+                .sharedBackgroundHiddenIfAvailable()
             }
         }
 #elseif os(iOS)

@@ -73,6 +73,7 @@ struct AccountEditor {
     var identity: String
     var fullName: String
     var comment: String
+    var originalPassword: String
     var password: String
     var primaryGroup: String
     var secondaryGroups: [String]
@@ -395,7 +396,7 @@ final class AccountsSettingsViewModel: ObservableObject {
         message.addParameter(field: "wired.account.comment", value: editor.comment)
         message.addParameter(field: "wired.account.group", value: editor.primaryGroup)
         message.addParameter(field: "wired.account.groups", value: editor.secondaryGroups)
-        message.addParameter(field: "wired.account.password", value: editor.password)
+        message.addParameter(field: "wired.account.password", value: passwordForAccountEdit(editor))
         if editor.canEditIdentity {
             let identity = editor.identity.trimmingCharacters(in: .whitespacesAndNewlines)
             if !identity.isEmpty {
@@ -420,6 +421,18 @@ final class AccountsSettingsViewModel: ObservableObject {
         if let response, response.name == "wired.error" {
             throw WiredError(message: response)
         }
+    }
+
+    private func passwordForAccountEdit(_ editor: AccountEditor) -> String {
+        if editor.password.isEmpty {
+            return "".sha256()
+        }
+
+        if editor.password == editor.originalPassword {
+            return editor.originalPassword
+        }
+
+        return editor.password.sha256()
     }
 
     private func editGroup(_ editor: AccountEditor, connection: AsyncConnection) async throws {
@@ -515,6 +528,7 @@ final class AccountsSettingsViewModel: ObservableObject {
             identity: message.string(forField: "wired.account.identity") ?? "",
             fullName: message.string(forField: "wired.account.full_name") ?? "",
             comment: message.string(forField: "wired.account.comment") ?? "",
+            originalPassword: message.string(forField: "wired.account.password") ?? "",
             password: message.string(forField: "wired.account.password") ?? "",
             primaryGroup: message.string(forField: "wired.account.group") ?? "",
             secondaryGroups: message.stringList(forField: "wired.account.groups") ?? [],
@@ -555,6 +569,7 @@ final class AccountsSettingsViewModel: ObservableObject {
             identity: "",
             fullName: "",
             comment: message.string(forField: "wired.account.comment") ?? "",
+            originalPassword: "",
             password: "",
             primaryGroup: "",
             secondaryGroups: [],
@@ -596,7 +611,7 @@ struct AccountsSettingsView: View {
     let runtime: ConnectionRuntime
 
     var body: some View {
-        NavigationSplitView {
+        HSplitView {
             VStack(spacing: 8) {
                 Picker("Type", selection: $viewModel.selectedFilter) {
                     ForEach(AccountFilter.allCases) { filter in
@@ -638,9 +653,11 @@ struct AccountsSettingsView: View {
                 .padding(.horizontal, 8)
                 .padding(.bottom, 8)
             }
-            .navigationSplitViewColumnWidth(min: 230, ideal: 260)
-        } detail: {
+            .frame(minWidth: 230, idealWidth: 260, maxWidth: 320, maxHeight: .infinity, alignment: .topLeading)
+
             detailView
+                .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .layoutPriority(1)
         }
         .overlay {
             if viewModel.isLoading {
