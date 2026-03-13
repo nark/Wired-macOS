@@ -267,13 +267,13 @@ private struct GeneralServerSettingsView: View {
             settingsFieldRow("Nom du serveur") {
                 TextField("", text: $serverName)
                     .textFieldStyle(.roundedBorder)
-                    .disabled(!canSetSettings || isSaving)
+                    .disabled(!canSetSettings)
             }
 
             settingsFieldRow("Description") {
                 TextField("", text: $serverDescription)
                     .textFieldStyle(.roundedBorder)
-                    .disabled(!canSetSettings || isSaving)
+                    .disabled(!canSetSettings)
             }
 
             settingsFieldRow("Bannière", alignment: .top) {
@@ -393,13 +393,13 @@ private struct GeneralServerSettingsView: View {
                 ForEach($trackers) { $tracker in
                     HStack(spacing: 10) {
                         TextField("", text: $tracker.url)
-                            .disabled(!canSetSettings || isSaving)
+                            .disabled(!canSetSettings)
                         TextField("", text: $tracker.login)
-                            .disabled(!canSetSettings || isSaving)
+                            .disabled(!canSetSettings)
                         SecureField("", text: $tracker.password)
-                            .disabled(!canSetSettings || isSaving)
+                            .disabled(!canSetSettings)
                         TextField("", text: $tracker.category)
-                            .disabled(!canSetSettings || isSaving)
+                            .disabled(!canSetSettings)
                     }
                     .font(.system(size: 12))
                     .tag(tracker.id)
@@ -657,7 +657,7 @@ private struct GeneralServerSettingsView: View {
 
         autoSaveTask?.cancel()
         autoSaveTask = Task {
-            try? await Task.sleep(for: .milliseconds(450))
+            try? await Task.sleep(for: .milliseconds(900))
             guard !Task.isCancelled else { return }
             await saveSettings()
         }
