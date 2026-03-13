@@ -440,6 +440,26 @@ final class ConnectionController {
     }
 #endif
 
+    @MainActor
+    private func shouldIncrementUnreadForChatMessage(in runtime: ConnectionRuntime, chatID: UInt32) -> Bool {
+#if os(macOS)
+        guard NSApp.isActive else { return true }
+        guard runtime.selectedTab == .chats else { return true }
+        guard runtime.selectedChatID == chatID else { return true }
+
+        cleanupWindowRegistry()
+        guard let window = windowsByConnectionID[runtime.id]?.window else {
+            windowsByConnectionID[runtime.id] = nil
+            return true
+        }
+
+        let isForegroundWindow = window.isKeyWindow || window.isMainWindow
+        return !isForegroundWindow
+#else
+        return true
+#endif
+    }
+
     // MARK: - Init
 
     init(
@@ -1499,9 +1519,10 @@ final class ConnectionController {
                                     )
                                     
                                     if userID != runtime.userID {
-                                        chat.unreadMessagesCount += 1
-                                        
-                                        updateNotificationsBadge()
+                                        if self.shouldIncrementUnreadForChatMessage(in: runtime, chatID: chat.id) {
+                                            chat.unreadMessagesCount += 1
+                                            updateNotificationsBadge()
+                                        }
                                         self.triggerEvent(
                                             .chatReceived,
                                             runtime: runtime,
@@ -1547,9 +1568,10 @@ final class ConnectionController {
                                     )
                                     
                                     if userID != runtime.userID {
-                                        chat.unreadMessagesCount += 1
-                                        
-                                        updateNotificationsBadge()
+                                        if self.shouldIncrementUnreadForChatMessage(in: runtime, chatID: chat.id) {
+                                            chat.unreadMessagesCount += 1
+                                            updateNotificationsBadge()
+                                        }
                                         self.triggerEvent(
                                             .chatReceived,
                                             runtime: runtime,
