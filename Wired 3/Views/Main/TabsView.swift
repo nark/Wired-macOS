@@ -176,7 +176,7 @@ struct TabsView: View {
                                         .padding(.horizontal, 5)
                                         .padding(.vertical, 2)
                                         .background(Capsule().fill(.red))
-                                        .offset(x: 12, y: -8)
+                                        .offset(x: 12, y: -6)
                                 }
                             }
 
@@ -202,7 +202,7 @@ struct TabsView: View {
                                         .padding(.horizontal, 5)
                                         .padding(.vertical, 2)
                                         .background(Capsule().fill(.red))
-                                        .offset(x: 12, y: -8)
+                                        .offset(x: 12, y: -6)
                                 }
                             }
 
@@ -227,7 +227,7 @@ struct TabsView: View {
                                         .padding(.horizontal, 5)
                                         .padding(.vertical, 2)
                                         .background(Capsule().fill(.red))
-                                        .offset(x: 12, y: -8)
+                                        .offset(x: 12, y: -6)
                                 }
                             }
 
