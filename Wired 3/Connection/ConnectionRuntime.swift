@@ -626,6 +626,19 @@ final class ConnectionRuntime: Identifiable {
         persistMessages()
     }
 
+    func deleteMessageConversation(withID conversationID: UUID) {
+        guard let index = messageConversations.firstIndex(where: { $0.id == conversationID }) else { return }
+
+        messageConversations.remove(at: index)
+
+        if selectedMessageConversationID == conversationID {
+            selectedMessageConversationID = messageConversations.first?.id
+        }
+
+        connectionController.updateNotificationsBadge()
+        persistMessages()
+    }
+
     func canSendMessage(to conversation: MessageConversation) -> Bool {
         switch conversation.kind {
         case .broadcast:

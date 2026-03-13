@@ -7,6 +7,7 @@ import SwiftUI
 
 struct MessagesView: View {
     @Environment(ConnectionRuntime.self) private var runtime
+    @State private var conversationIDPendingDeletion: UUID?
 
     private var selectedConversation: MessageConversation? {
         runtime.messageConversation(withID: runtime.selectedMessageConversationID)
@@ -18,6 +19,14 @@ struct MessagesView: View {
 
     private var broadcastConversations: [MessageConversation] {
         runtime.messageConversations.filter { $0.kind == .broadcast }
+    }
+
+    private var pendingDeletionConversation: MessageConversation? {
+        guard let conversation = runtime.messageConversation(withID: conversationIDPendingDeletion),
+              conversation.kind == .direct else {
+            return nil
+        }
+        return conversation
     }
 
     var body: some View {
@@ -35,7 +44,7 @@ struct MessagesView: View {
                                 .tag(conversation.id)
                                 .contextMenu {
                                     Button("Delete") {
-                                        
+                                        conversationIDPendingDeletion = conversation.id
                                     }
                                 }
                         }
@@ -55,10 +64,13 @@ struct MessagesView: View {
 
                 HStack {
                     Button {
-                        
+                        if selectedConversation?.kind == .direct {
+                            conversationIDPendingDeletion = runtime.selectedMessageConversationID
+                        }
                     } label: {
                         Image(systemName: "trash")
                     }
+                    .disabled(selectedConversation?.kind != .direct)
                     .buttonStyle(.plain)
                     
                     Spacer()
@@ -71,16 +83,19 @@ struct MessagesView: View {
 
             Divider()
 
-            if let conversation = selectedConversation {
-                MessageConversationDetailView(conversation: conversation)
-                    .environment(runtime)
-            } else {
-                ContentUnavailableView(
-                    "No Conversation",
-                    systemImage: "ellipsis.message",
-                    description: Text("Open a conversation from the users list.")
-                )
+            Group {
+                if let conversation = selectedConversation {
+                    MessageConversationDetailView(conversation: conversation)
+                        .environment(runtime)
+                } else {
+                    ContentUnavailableView(
+                        "No Conversation",
+                        systemImage: "ellipsis.message",
+                        description: Text("Open a conversation from the users list.")
+                    )
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
             _ = runtime.ensureBroadcastConversation()
@@ -95,6 +110,28 @@ struct MessagesView: View {
             if let conversation = runtime.messageConversation(withID: newValue) {
                 runtime.resetUnreads(conversation)
             }
+        }
+        .confirmationDialog(
+            "Delete Conversation?",
+            isPresented: Binding(
+                get: { pendingDeletionConversation != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        conversationIDPendingDeletion = nil
+                    }
+                }
+            ),
+            presenting: pendingDeletionConversation
+        ) { conversation in
+            Button("Delete \"\(conversation.title)\"", role: .destructive) {
+                runtime.deleteMessageConversation(withID: conversation.id)
+                conversationIDPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                conversationIDPendingDeletion = nil
+            }
+        } message: { conversation in
+            Text("This will permanently remove \"\(conversation.title)\" and its messages.")
         }
 #else
         NavigationStack {
