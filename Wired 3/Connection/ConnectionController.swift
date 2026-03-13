@@ -175,12 +175,14 @@ enum WiredEventsStore {
 enum SocketEvent {
     case connected(UUID, Connection)
     case received(UUID, Connection, P7Message)
+    case serverInfoChanged(UUID, Connection)
     case disconnected(UUID, Connection?, Error?)
 
     var id: UUID {
         switch self {
         case .connected(let id, _): return id
         case .received(let id, _, _): return id
+        case .serverInfoChanged(let id, _): return id
         case .disconnected(let id, _, _): return id
         }
     }
@@ -1020,6 +1022,12 @@ final class ConnectionController {
 
         case .received(let id, let connection, let message):
             await handleMessage(message, connection: connection, from: id)
+
+        case .serverInfoChanged(let id, let connection):
+            await MainActor.run {
+                guard let runtime = self.runtimeStores.first(where: { $0.id == id }) else { return }
+                runtime.serverInfo = connection.serverInfo
+            }
         }
     }
 

@@ -69,6 +69,6 @@ final class DelegateProxy: NSObject, ConnectionDelegate, ClientInfoDelegate, Ser
     // MARK: -
     
     func serverInfoDidChange(for connection: Connection) {
-        print("serverInfoDidChange")
+        onEvent(.serverInfoChanged(id, connection))
     }
 }
