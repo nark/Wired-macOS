@@ -529,7 +529,7 @@ private struct GeneralServerSettingsView: View {
         for _ in 0..<16 {
             guard !Task.isCancelled else { return }
 
-            if let serverInfo = runtime.connection?.serverInfo {
+            if let serverInfo = runtime.serverInfo {
                 if serverName.isEmpty {
                     serverName = serverInfo.serverName
                 }
@@ -604,7 +604,7 @@ private struct GeneralServerSettingsView: View {
         }
         if let value = message.data(forField: "wired.info.banner"), !value.isEmpty {
             bannerData = value
-        } else if bannerData == nil, let serverInfo = runtime.connection?.serverInfo, !serverInfo.serverBanner.isEmpty {
+        } else if bannerData == nil, let serverInfo = runtime.serverInfo, !serverInfo.serverBanner.isEmpty {
             bannerData = serverInfo.serverBanner
         }
         if let value = message.uint32(forField: "wired.info.downloads") {
@@ -643,7 +643,7 @@ private struct GeneralServerSettingsView: View {
             return bannerData
         }
 
-        if let serverInfo = runtime.connection?.serverInfo, !serverInfo.serverBanner.isEmpty {
+        if let serverInfo = runtime.serverInfo, !serverInfo.serverBanner.isEmpty {
             return serverInfo.serverBanner
         }
 

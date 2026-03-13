@@ -12,7 +12,7 @@ struct ServerInfoView: View {
     @Environment(ConnectionRuntime.self) private var runtime
     
     var body: some View {
-        if let serverInfo = runtime.connection?.serverInfo {
+        if let serverInfo = runtime.serverInfo {
             VStack {
                 Image(data: serverInfo.serverBanner)
                 
@@ -29,7 +29,7 @@ struct ServerInfoView: View {
                 LabeledContent {
                     Text(serverInfo.applicationName)
                 } label: {
-                    Text("Server Name").bold()
+                    Text("Application Name").bold()
                 }
                 
                 LabeledContent {

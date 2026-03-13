@@ -154,7 +154,7 @@ struct TabsView: View {
         .toolbar {
             if let runtime = connectionController.runtime(for: connectionID) {
                 ToolbarItemGroup(placement: .navigation) {
-                    if let serverInfo = runtime.connection?.serverInfo {
+                    if let serverInfo = runtime.serverInfo {
                         Image(data: serverInfo.serverBanner)
                     }
                 }
@@ -372,7 +372,7 @@ struct TabsView: View {
                 .navigationTitle("")
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        if let serverInfo = runtime.connection?.serverInfo {
+                        if let serverInfo = runtime.serverInfo {
                             Image(data: serverInfo.serverBanner)
                         }
                     }
@@ -452,7 +452,7 @@ struct TabsView: View {
         
         if let runtime = connectionController.runtime(for: configuration.id) {
             print("runtime \(runtime)")
-            if let serverName = runtime.connection?.serverInfo?.serverName {
+            if let serverName = runtime.serverInfo?.serverName {
                 print("serverName \(serverName)")
                 newBookmark.name = serverName
             }

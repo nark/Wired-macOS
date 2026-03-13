@@ -287,7 +287,7 @@ struct TransfersView: View {
     private func serverName(for transfer: Transfer) -> String {
         if let connectionID = transfer.connectionID,
            let runtime = connectionController.runtime(for: connectionID),
-           let serverInfo = runtime.connection?.serverInfo {
+           let serverInfo = runtime.serverInfo {
             let trimmedServerName = serverInfo.serverName.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedServerName.isEmpty {
                 return trimmedServerName

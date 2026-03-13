@@ -1249,7 +1249,9 @@ final class ConnectionController {
 //                runtime.showInfos.toggle()
 //            }
         case "wired.server_info":
-            print("wired.server_info")
+            await MainActor.run {
+                runtime.serverInfo = connection.serverInfo
+            }
             
         case "wired.chat.chat_list":
             if let chat = await parseChat(from: message) {

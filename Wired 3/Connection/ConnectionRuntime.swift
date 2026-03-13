@@ -110,7 +110,7 @@ final class ConnectionRuntime: Identifiable {
     private var didLoadPersistedMessages: Bool = false
     private var modelContext: ModelContext?
     
-    var serverInfo: P7Message? = nil
+    var serverInfo: ServerInfo? = nil
     var chats: [Chat] = []
     var private_chats: [Chat] = []
 
@@ -192,6 +192,7 @@ final class ConnectionRuntime: Identifiable {
         hasConnectionIssue = false
         privileges = [:]
         userID = 0
+        serverInfo = nil
         status = .connecting
         resetAutoReconnectState()
         loadPersistedMessagesIfNeeded()
@@ -199,6 +200,7 @@ final class ConnectionRuntime: Identifiable {
 
     func connected(_ connection: Connection) {
         self.connection = connection
+        self.serverInfo = connection.serverInfo
         lastError = nil
         hasConnectionIssue = false
         status = .connected
@@ -210,6 +212,7 @@ final class ConnectionRuntime: Identifiable {
         joined = false
         privileges = [:]
         userID = 0
+        serverInfo = nil
         status = .disconnected
         pendingChatInvitation = nil
         
