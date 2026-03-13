@@ -13,6 +13,7 @@ import WiredSwift
 struct BookmarkFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) var dismiss
+    @Environment(ConnectionController.self) private var connectionController
     
     @State var name: String = ""
     @State var hostname: String = ""
@@ -28,6 +29,9 @@ struct BookmarkFormView: View {
     @State var cipher: UInt32 = P7Socket.CipherType.ECDH_CHACHA20_POLY1305.rawValue
     @State var checksum: UInt32 = P7Socket.Checksum.HMAC_256.rawValue
     @State var compression: UInt32 = P7Socket.Compression.LZ4.rawValue
+
+    @AppStorage("UserNick") private var userNick: String = "Wired Swift"
+    @AppStorage("UserStatus") private var userStatus: String = ""
     
     var bookmark: Bookmark? = nil
 
@@ -159,6 +163,8 @@ struct BookmarkFormView: View {
     
     func save() {
         let keychain = KeychainSwift()
+        let normalizedCustomNick = useCustomIdentity ? customNick.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let normalizedCustomStatus = useCustomIdentity ? customStatus : ""
         
         if let bookmark {
             bookmark.name = name
@@ -167,21 +173,30 @@ struct BookmarkFormView: View {
             bookmark.connectAtStartup = connectAtStartup
             bookmark.autoReconnect = autoReconnect
             bookmark.useCustomIdentity = useCustomIdentity
-            bookmark.customNick = useCustomIdentity ? customNick.trimmingCharacters(in: .whitespacesAndNewlines) : ""
-            bookmark.customStatus = useCustomIdentity ? customStatus : ""
+            bookmark.customNick = normalizedCustomNick
+            bookmark.customStatus = normalizedCustomStatus
             bookmark.compressionRawValue = compression
             bookmark.cipherRawValue = cipher
             bookmark.checksumRawValue = checksum
             
             try? modelContext.save()
+
+            connectionController.applyIdentityUpdateIfConnected(
+                connectionID: bookmark.id,
+                usesCustomIdentity: useCustomIdentity,
+                customNick: normalizedCustomNick,
+                customStatus: normalizedCustomStatus,
+                fallbackNick: userNick,
+                fallbackStatus: userStatus
+            )
             
         } else {
             let newBookmark = Bookmark(name: name, hostname: hostname, login: login)
             newBookmark.connectAtStartup = connectAtStartup
             newBookmark.autoReconnect = autoReconnect
             newBookmark.useCustomIdentity = useCustomIdentity
-            newBookmark.customNick = useCustomIdentity ? customNick.trimmingCharacters(in: .whitespacesAndNewlines) : ""
-            newBookmark.customStatus = useCustomIdentity ? customStatus : ""
+            newBookmark.customNick = normalizedCustomNick
+            newBookmark.customStatus = normalizedCustomStatus
             newBookmark.cipherRawValue = cipher
             newBookmark.compressionRawValue = compression
             newBookmark.checksumRawValue = checksum

@@ -465,7 +465,7 @@ struct MainView: View {
                     }
                 } else {
                     Button("Connect") {
-                        openOrSelectBookmark(bookmark)
+                        connectFromContextMenu(id)
                     }
                 }
 
@@ -481,12 +481,50 @@ struct MainView: View {
                     showDeleteBookmarkConfirmation = true
                     bookmarkToDelete = bookmark
                 }
-            } else if connectionController.isConnected(id) {
-                Button("Disconnect") {
-                    disconnect(id)
+            } else {
+                if connectionController.isConnected(id) {
+                    Button("Disconnect") {
+                        disconnect(id)
+                    }
+                } else if connectionController.configuration(for: id) != nil {
+                    Button("Connect") {
+                        connectFromContextMenu(id)
+                    }
                 }
             }
         }
+    }
+
+    private func connectFromContextMenu(_ id: UUID) {
+        if let bookmark = bookmark(for: id) {
+#if os(macOS)
+            if connectionController.hasWindowAssociation(for: id),
+               connectionController.focusWindow(for: id) {
+                connectionController.connect(bookmark)
+                return
+            }
+#endif
+            windowConnectionID = id
+            listSelectionID = id
+            connectionController.activeConnectionID = id
+            connectionController.connect(bookmark)
+            return
+        }
+
+        guard let configuration = connectionController.configuration(for: id) else { return }
+
+#if os(macOS)
+        if connectionController.hasWindowAssociation(for: id),
+           connectionController.focusWindow(for: id) {
+            connectionController.connect(configuration)
+            return
+        }
+#endif
+
+        windowConnectionID = id
+        listSelectionID = id
+        connectionController.activeConnectionID = id
+        connectionController.connect(configuration)
     }
 
     private func handleConnectionPrimaryAction(_ selection: Set<UUID>) {

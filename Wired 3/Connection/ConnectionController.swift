@@ -646,6 +646,52 @@ final class ConnectionController {
         )
     }
 
+    @MainActor
+    func applyIdentityUpdateIfConnected(
+        connectionID: UUID,
+        usesCustomIdentity: Bool,
+        customNick: String,
+        customStatus: String,
+        fallbackNick: String,
+        fallbackStatus: String
+    ) {
+        let trimmedCustomNick = customNick.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveNick = usesCustomIdentity
+            ? (trimmedCustomNick.isEmpty ? fallbackNick.trimmingCharacters(in: .whitespacesAndNewlines) : trimmedCustomNick)
+            : fallbackNick.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveStatus = usesCustomIdentity ? customStatus : fallbackStatus
+
+        withStateLock {
+            guard let existing = configurationsByID[connectionID] else { return }
+            configurationsByID[connectionID] = ConnectionConfiguration(
+                id: existing.id,
+                name: existing.name,
+                hostname: existing.hostname,
+                login: existing.login,
+                password: existing.password,
+                autoReconnect: existing.autoReconnect,
+                usesCustomIdentity: usesCustomIdentity,
+                customNick: trimmedCustomNick,
+                customStatus: usesCustomIdentity ? customStatus : "",
+                cipher: existing.cipher,
+                compression: existing.compression,
+                checksum: existing.checksum
+            )
+        }
+
+        guard let runtime = runtime(for: connectionID), runtime.status == .connected else { return }
+
+        Task {
+            if !effectiveNick.isEmpty, let nickMessage = runtime.setNickMessage(effectiveNick) {
+                _ = try? await runtime.send(nickMessage)
+            }
+
+            if let statusMessage = runtime.setStatusMessage(effectiveStatus) {
+                _ = try? await runtime.send(statusMessage)
+            }
+        }
+    }
+
     
     // MARK: - Notifications
     
