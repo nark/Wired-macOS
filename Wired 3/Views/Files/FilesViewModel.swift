@@ -243,6 +243,10 @@ final class FilesViewModel: ObservableObject {
 
     @MainActor
     func reloadAll() async {
+        if columns.isEmpty {
+            await loadRoot()
+            return
+        }
         for idx in columns.indices {
             await reloadColumn(at: idx)
         }

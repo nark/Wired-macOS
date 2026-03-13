@@ -766,7 +766,11 @@ struct FilesView: View {
                     case .tree:
                         await filesViewModel.loadTreeRoot()
                     case .columns:
-                        await filesViewModel.reloadSelectedColumn()
+                        if filesViewModel.columns.isEmpty {
+                            await filesViewModel.loadRoot()
+                        } else {
+                            await filesViewModel.reloadSelectedColumn()
+                        }
                     }
                 }
             } label: {
