@@ -390,8 +390,10 @@ actor TransferWorker {
         await mutate { $0.state = .running }
 
         var data = true
-        var dataLength: UInt64 = runMessage.uint64(forField: "wired.transfer.data") ?? 0
-        var rsrcLength: UInt64 = runMessage.uint64(forField: "wired.transfer.rsrc") ?? 0
+        let announcedDataLength: UInt64 = runMessage.uint64(forField: "wired.transfer.data") ?? 0
+        let announcedRsrcLength: UInt64 = runMessage.uint64(forField: "wired.transfer.rsrc") ?? 0
+        var dataLength: UInt64 = announcedDataLength
+        var rsrcLength: UInt64 = announcedRsrcLength
 
         // Make sure parent dir exists
         try FileManager.default.createDirectory(atPath: (tmpPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true, attributes: nil)
@@ -544,6 +546,14 @@ actor TransferWorker {
             for url in startedScopes {
                 url.stopAccessingSecurityScopedResource()
             }
+        }
+
+        // Zero-byte files produce no OOB payload, so the temp file may never be created.
+        // Ensure a tangible source exists before moving it into place.
+        if !fm.fileExists(atPath: tmpPath),
+           announcedDataLength == 0,
+           announcedRsrcLength == 0 {
+            _ = fm.createFile(atPath: tmpPath, contents: Data(), attributes: nil)
         }
 
         if fm.fileExists(atPath: finalPath) {
