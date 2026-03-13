@@ -45,7 +45,10 @@ final class FilesViewModel: ObservableObject {
     @Published var showFilesBrowser: Bool = false
     @Published var showCreateFolderSheet: Bool = false
     @Published var showDeleteConfirmation: Bool = false
-    
+
+    @Published var isSearchMode: Bool = false
+    @Published var isSearching: Bool = false
+
     @Published var error: Error? = nil {
         didSet {
             if let error, isPermissionDeniedError(error) {
@@ -61,6 +64,15 @@ final class FilesViewModel: ObservableObject {
     private var deniedDirectoryPaths: Set<String> = []
     private var pendingDirectoryReloadTasks: [String: Task<Void, Never>] = [:]
 
+    private struct SavedBrowseState {
+        let columns: [FileColumn]
+        let childrenByPath: [String: [FileItem]]
+        let rootPath: String
+        let expandedPaths: Set<String>
+        let selectionPath: String?
+    }
+    private var savedBrowseState: SavedBrowseState? = nil
+
     // MARK: -
     
     static func empty() -> FilesViewModel {
@@ -73,6 +85,69 @@ final class FilesViewModel: ObservableObject {
     ) {
         self.fileService = fileService
         self.runtime = runtime
+    }
+
+    @MainActor
+    func search(query: String) async {
+        guard let connection = runtime?.connection as? AsyncConnection,
+              let fileService else { return }
+
+        if !isSearchMode {
+            savedBrowseState = SavedBrowseState(
+                columns: columns,
+                childrenByPath: treeChildrenByPath,
+                rootPath: treeRootPath,
+                expandedPaths: expandedTreePaths,
+                selectionPath: treeSelectionPath
+            )
+            isSearchMode = true
+        }
+
+        isSearching = true
+        var results: [FileItem] = []
+
+        do {
+            for try await file in fileService.searchFiles(query: query, connection: connection) {
+                results.append(file)
+            }
+        } catch is CancellationError {
+            isSearching = false
+            return
+        } catch {
+            self.error = error
+            isSearching = false
+            return
+        }
+
+        guard isSearchMode else { return }
+
+        columns = [FileColumn(path: "/", items: results)]
+        treeChildrenByPath = ["/": results]
+        treeRootPath = "/"
+        expandedTreePaths = ["/"]
+        treeSelectionPath = nil
+        treeViewRevision &+= 1
+        isSearching = false
+    }
+
+    @MainActor
+    func clearSearch() async {
+        isSearchMode = false
+        isSearching = false
+
+        if let saved = savedBrowseState {
+            columns = saved.columns
+            treeChildrenByPath = saved.childrenByPath
+            treeRootPath = saved.rootPath
+            expandedTreePaths = saved.expandedPaths
+            treeSelectionPath = saved.selectionPath
+            treeViewRevision &+= 1
+            savedBrowseState = nil
+        }
+
+        if columns.isEmpty {
+            await loadRoot()
+        }
     }
 
     func clearDirectorySubscriptions() async {

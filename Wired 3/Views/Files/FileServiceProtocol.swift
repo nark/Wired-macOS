@@ -73,6 +73,11 @@ protocol FileServiceProtocol {
         path: String,
         connection: AsyncConnection
     ) async throws
+
+    func searchFiles(
+        query: String,
+        connection: AsyncConnection
+    ) -> AsyncThrowingStream<FileItem, Error>
 }
 
 final class FileService: FileServiceProtocol {
@@ -313,6 +318,29 @@ final class FileService: FileServiceProtocol {
 
         if response?.name == "wired.error" {
             throw WiredError(message: response!)
+        }
+    }
+
+    func searchFiles(
+        query: String,
+        connection: AsyncConnection
+    ) -> AsyncThrowingStream<FileItem, Error> {
+        let message = P7Message(withName: "wired.file.search", spec: spec!)
+        message.addParameter(field: "wired.file.query", value: query)
+
+        return AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    for try await response in try connection.sendAndWaitMany(message) {
+                        if response.name == "wired.file.search_list" {
+                            continuation.yield(FileItem(response, connection: connection))
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
         }
     }
 

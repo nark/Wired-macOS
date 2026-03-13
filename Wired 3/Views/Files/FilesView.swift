@@ -312,6 +312,9 @@ struct FilesView: View {
     @State private var forwardDirectoryHistory: [String] = []
     @State private var currentDirectoryPath: String = "/"
     @State private var isApplyingHistoryNavigation: Bool = false
+    
+    @State private var searchText: String = ""
+    @State private var currentSearchTask: Task<Void, Never>? = nil
 
     private var selectedItem: FileItem? {
         switch selectedFileViewType {
@@ -586,6 +589,33 @@ struct FilesView: View {
 
             Divider()
 
+            if filesViewModel.isSearchMode {
+                HStack(spacing: 6) {
+                    if filesViewModel.isSearching {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 14, height: 14)
+                        Text("Searching…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Image(systemName: "magnifyingglass")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        let count = filesViewModel.columns.first?.items.count ?? 0
+                        Text("\(count) result\(count == 1 ? "" : "s") for \u{201C}\(searchText)\u{201D}")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.bar)
+
+                Divider()
+            }
+
             switch selectedFileViewType {
             case .tree:
                 treeContent
@@ -821,8 +851,55 @@ struct FilesView: View {
             .disabled(selectedDeletableItems.isEmpty)
 
             Spacer()
+
+            HStack(spacing: 4) {
+                TextField("", text: $searchText, prompt: Text("Search Files…"))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 260)
+                    .onSubmit { triggerSearch() }
+                    .onChange(of: searchText) { _, newValue in
+                        if newValue.isEmpty && filesViewModel.isSearchMode {
+                            currentSearchTask?.cancel()
+                            currentSearchTask = nil
+                            Task { await filesViewModel.clearSearch() }
+                        }
+                    }
+
+                if filesViewModel.isSearching {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 16, height: 16)
+                } else {
+                    Button { triggerSearch() } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .help("Search Files")
+                    .disabled(searchText.count < 3)
+                }
+
+                if filesViewModel.isSearchMode {
+                    Button {
+                        searchText = ""
+                        currentSearchTask?.cancel()
+                        currentSearchTask = nil
+                        Task { await filesViewModel.clearSearch() }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear Search")
+                }
+            }
         }
         .padding()
+    }
+
+    private func triggerSearch() {
+        guard searchText.count >= 3 else { return }
+        currentSearchTask?.cancel()
+        currentSearchTask = Task {
+            await filesViewModel.search(query: searchText)
+        }
     }
 
     private func upload(urls: [URL], to targetDirectory: FileItem) {
