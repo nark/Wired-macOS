@@ -719,7 +719,7 @@ struct FilesView: View {
             primarySelectionPath = nil
             selectedItemsForToolbar.removeAll()
             Task {
-                if newValue == .tree {
+                if newValue == .tree && !filesViewModel.isSearchMode {
                     await filesViewModel.loadTreeRoot()
                 }
             }
@@ -1240,7 +1240,9 @@ struct FilesTreeView: View {
         )
         .background(colorScheme == .light ? Color.white : Color(nsColor: .windowBackgroundColor))
         .onAppear {
-            Task { await filesViewModel.loadTreeRoot() }
+            if !filesViewModel.isSearchMode {
+                Task { await filesViewModel.loadTreeRoot() }
+            }
             selectedPaths = Set([filesViewModel.treeSelectionPath].compactMap { $0 })
         }
         .onChange(of: filesViewModel.treeSelectionPath) { _, newValue in
