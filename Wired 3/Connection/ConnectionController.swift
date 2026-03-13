@@ -1021,6 +1021,12 @@ final class ConnectionController {
             await scheduleAutoReconnectIfNeeded(for: id, error: error)
 
         case .received(let id, let connection, let message):
+            await MainActor.run {
+                guard let runtime = self.runtimeStores.first(where: { $0.id == id }) else { return }
+                if runtime.serverInfo == nil, let serverInfo = connection.serverInfo {
+                    runtime.serverInfo = serverInfo
+                }
+            }
             await handleMessage(message, connection: connection, from: id)
 
         case .serverInfoChanged(let id, let connection):
