@@ -1114,6 +1114,13 @@ struct FilesView: View {
 
     @MainActor
     private func navigateHistory(backward: Bool) async {
+        if filesViewModel.isSearchMode {
+            currentSearchTask?.cancel()
+            currentSearchTask = nil
+            searchText = ""
+            await filesViewModel.clearSearch()
+        }
+
         if backward {
             guard let previous = backDirectoryHistory.popLast() else { return }
             forwardDirectoryHistory.append(currentDirectoryPath)
