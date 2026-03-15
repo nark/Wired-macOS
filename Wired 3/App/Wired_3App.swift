@@ -135,19 +135,6 @@ private struct MainAppCommands: Commands {
             .disabled(controller.bookmarkMenuItems().isEmpty)
         }
 
-        CommandGroup(after: .windowArrangement) {
-            Button("Error Log") {
-                openWindow(id: "error-log")
-            }
-            .keyboardShortcut("j", modifiers: [.command, .shift])
-        }
-
-        CommandGroup(replacing: .appSettings) {
-            Button("Settings…") {
-                openWindow(id: "preferences")
-            }
-            .keyboardShortcut(",", modifiers: [.command])
-        }
     }
 
     private func openMainTab() {
@@ -453,9 +440,7 @@ struct Wired_3App: App {
                 .environment(errorToastCenter)
                 .environmentObject(transfers)
         }
-#if os(macOS)
-        .restorationBehavior(.disabled)
-#endif
+        .wiredDisableRestorationBehaviorIfAvailable()
         .modelContainer(sharedModelContainer)
         .commands {
             MainAppCommands(controller: controller)
@@ -468,11 +453,9 @@ struct Wired_3App: App {
         }
         .modelContainer(sharedModelContainer)
 
-        Window("Settings", id: "preferences") {
+        Settings {
             SettingsView()
         }
-        .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unified)
 #else
         WindowGroup {
             AppRootView()
@@ -485,6 +468,18 @@ struct Wired_3App: App {
 #endif
     }
 }
+
+#if os(macOS)
+private extension Scene {
+    func wiredDisableRestorationBehaviorIfAvailable() -> some Scene {
+        if #available(macOS 15.0, *) {
+            return self.restorationBehavior(.disabled)
+        }
+
+        return self
+    }
+}
+#endif
 
 /// A small root view that has access to SwiftData's ModelContext.
 /// This avoids threading ModelContext manually through your whole view tree.
