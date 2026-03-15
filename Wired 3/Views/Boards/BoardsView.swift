@@ -19,7 +19,7 @@ private typealias BoardsPlatformImage = UIImage
 private extension Color {
     static var boardsWindowBackground: Color {
         #if os(macOS)
-        return Color.boardsWindowBackground
+        return Color(nsColor: .windowBackgroundColor)
         #else
         return Color(.systemBackground)
         #endif
@@ -27,7 +27,7 @@ private extension Color {
 
     static var boardsTextBackground: Color {
         #if os(macOS)
-        return Color.boardsTextBackground
+        return Color(nsColor: .textBackgroundColor)
         #else
         return Color(.secondarySystemBackground)
         #endif

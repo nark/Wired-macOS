@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import KeychainSwift
 #if os(macOS)
 import AppKit
 #endif
@@ -171,6 +172,7 @@ struct MainView: View {
             .onChange(of: windowConnectionID) { _, newValue in
                 connectionController.activeConnectionID = newValue
             }
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -196,6 +198,7 @@ struct MainView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
         .animation(.smooth, value: isTransfersVisible)
         #endif
     }
@@ -242,18 +245,21 @@ struct MainView: View {
     #if os(iOS)
     private var compactMainContent: some View {
         NavigationStack {
-            compactSidebarList
-                .navigationTitle("Wired 3")
-                .navigationDestination(for: UUID.self) { connectionID in
-                    detailPane(for: connectionID)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .task(id: connectionID) {
-                            selectConnection(connectionID)
-                        }
-                }
-                .toolbar {
-                    mainToolbar
-                }
+            if let selectedID = windowConnectionID,
+               bookmark(for: selectedID) != nil || temporaryConnection(for: selectedID) != nil {
+                detailPane(for: selectedID)
+                    .navigationTitle(connectionName(for: selectedID))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        compactDetailToolbar
+                    }
+            } else {
+                compactSidebarList
+                    .navigationTitle("Wired 3")
+                    .toolbar {
+                        mainToolbar
+                    }
+            }
         }
         .sheet(item: $editedBookmark) { bookmark in
             BookmarkFormView(bookmark: bookmark)
@@ -266,6 +272,7 @@ struct MainView: View {
                 deleteBookmark()
             }
         }
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
     }
     #endif
 
@@ -301,9 +308,12 @@ struct MainView: View {
         List {
             Section {
                 ForEach(bookmarks, id: \.id) { bookmark in
-                    NavigationLink(value: bookmark.id) {
+                    Button {
+                        selectConnection(bookmark.id)
+                    } label: {
                         connectionRow(connectionID: bookmark.id, name: bookmark.name)
                     }
+                    .buttonStyle(.plain)
                 }
             } header: {
                 Text("Favorites")
@@ -312,18 +322,17 @@ struct MainView: View {
             if !connectionController.temporaryConnections.isEmpty {
                 Section {
                     ForEach(connectionController.temporaryConnections, id: \.id) { temporary in
-                        NavigationLink(value: temporary.id) {
+                        Button {
+                            selectConnection(temporary.id)
+                        } label: {
                             connectionRow(connectionID: temporary.id, name: temporary.name)
                         }
+                        .buttonStyle(.plain)
                     }
                 } header: {
                     Text("Connections")
                 }
             }
-        }
-        .onChange(of: listSelectionID) { _, newValue in
-            guard let newValue else { return }
-            selectConnection(newValue)
         }
     }
 
@@ -385,6 +394,12 @@ struct MainView: View {
     private func connectionRow(connectionID: UUID, name: String) -> some View {
         ConnectionRowView(connectionID: connectionID, name: name)
             .environment(connectionController)
+#if os(iOS)
+            .contentShape(Rectangle())
+            .contextMenu {
+                connectionContextMenu(for: Set([connectionID]))
+            }
+#endif
     }
 
     private func detailPane(for connectionID: UUID?) -> some View {
@@ -416,6 +431,26 @@ struct MainView: View {
             Divider()
         }
     }
+
+    #if os(iOS)
+    @ToolbarContentBuilder
+    private var compactDetailToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button("Connections") {
+                windowConnectionID = nil
+                listSelectionID = nil
+                connectionController.activeConnectionID = nil
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            NavigationLink {
+                SettingsView()
+            } label: {
+                Image(systemName: "gear")
+            }
+        }
+    }
+    #endif
 
     @ToolbarContentBuilder
     private var mainToolbar: some ToolbarContent {
@@ -596,6 +631,46 @@ struct MainView: View {
         connectionController.activeConnectionID = id
     }
 
+    private func connectionName(for id: UUID) -> String {
+        if let bookmark = bookmark(for: id) {
+            return bookmark.name
+        }
+        if let temporary = temporaryConnection(for: id) {
+            return temporary.name
+        }
+        return "Connection"
+    }
+
+    private func bookmarkConnection(_ id: UUID) {
+        guard bookmark(for: id) == nil else { return }
+        guard let configuration = connectionController.configuration(for: id) else { return }
+
+        let newBookmark = Bookmark(
+            id: configuration.id,
+            name: configuration.name,
+            hostname: configuration.hostname,
+            login: configuration.login
+        )
+        newBookmark.cipherRawValue = configuration.cipher.rawValue
+        newBookmark.compressionRawValue = configuration.compression.rawValue
+        newBookmark.checksumRawValue = configuration.checksum.rawValue
+
+        if let runtime = connectionController.runtime(for: id),
+           let serverName = runtime.serverInfo?.serverName,
+           !serverName.isEmpty {
+            newBookmark.name = serverName
+        }
+
+        modelContext.insert(newBookmark)
+        try? modelContext.save()
+
+        if let password = configuration.password, !password.isEmpty {
+            KeychainSwift().set(password, forKey: "\(configuration.login)@\(configuration.hostname)")
+        }
+
+        connectionController.markConnectionAsBookmarked(id)
+    }
+
     @ViewBuilder
     private func connectionContextMenu(for selection: Set<UUID>) -> some View {
         if let id = selection.first {
@@ -623,13 +698,22 @@ struct MainView: View {
                     bookmarkToDelete = bookmark
                 }
             } else {
+                let hasConfiguration = connectionController.configuration(for: id) != nil
+
                 if connectionController.isConnected(id) {
                     Button("Disconnect") {
                         disconnect(id)
                     }
-                } else if connectionController.configuration(for: id) != nil {
+                } else if hasConfiguration {
                     Button("Connect") {
                         connectFromContextMenu(id)
+                    }
+                }
+
+                if hasConfiguration {
+                    Divider()
+                    Button("Add to Favorites") {
+                        bookmarkConnection(id)
                     }
                 }
             }

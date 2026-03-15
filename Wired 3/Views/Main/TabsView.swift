@@ -372,6 +372,7 @@ struct TabsView: View {
                             .navigationTitle(connectionName)
                     }
                 }
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                 .navigationTitle("")
                 .toolbar {
                     ToolbarItem(placement: .principal) {
@@ -380,7 +381,15 @@ struct TabsView: View {
                         }
                     }
 
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        if !isBookmarked {
+                            Button {
+                                bookmarkCurrentConnection()
+                            } label: {
+                                Image(systemName: "bookmark")
+                            }
+                        }
+
                         if runtime.status == .connected {
                             Button {
                                 askDisconnect = true
@@ -407,8 +416,12 @@ struct TabsView: View {
                     serverName: connectionName,
                     connectionID: runtime.id
                 )
+            } else {
+                ContentUnavailableView("Connection unavailable", systemImage: "exclamationmark.triangle")
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
             }
         }
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
 #endif
     }
 

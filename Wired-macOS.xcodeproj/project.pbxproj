@@ -708,6 +708,8 @@
 				INFOPLIST_FILE = "Wired 3/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Wired 3";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				"INFOPLIST_KEY_LSMinimumSystemVersion[sdk=macosx*]" = "$(MACOSX_DEPLOYMENT_TARGET)";
+				"INFOPLIST_KEY_NSPrincipalClass[sdk=macosx*]" = NSApplication;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -766,6 +768,8 @@
 				INFOPLIST_FILE = "Wired 3/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Wired 3";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				"INFOPLIST_KEY_LSMinimumSystemVersion[sdk=macosx*]" = "$(MACOSX_DEPLOYMENT_TARGET)";
+				"INFOPLIST_KEY_NSPrincipalClass[sdk=macosx*]" = NSApplication;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

@@ -495,6 +495,7 @@ private struct AppRootView: View {
 
     var body: some View {
         MainView()
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
             .overlay(alignment: .bottomTrailing) {
                 ErrorToastOverlay()
                     .environment(errorToastCenter)
