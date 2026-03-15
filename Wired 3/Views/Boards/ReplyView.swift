@@ -7,7 +7,13 @@
 //
 
 import SwiftUI
+#if os(macOS)
 import AppKit
+private typealias ReplyPlatformImage = NSImage
+#elseif canImport(UIKit)
+import UIKit
+private typealias ReplyPlatformImage = UIImage
+#endif
 
 struct ReplyView: View {
     @Environment(\.dismiss) private var dismiss
@@ -26,9 +32,9 @@ struct ReplyView: View {
         return formatter
     }()
 
-    private var threadAuthorIcon: NSImage? {
+    private var threadAuthorIcon: ReplyPlatformImage? {
         guard let iconData = thread.posts.first?.icon else { return nil }
-        return NSImage(data: iconData)
+        return ReplyPlatformImage(data: iconData)
     }
 
     private var threadCreatedDateText: String {
@@ -41,6 +47,17 @@ struct ReplyView: View {
 
     private var canPost: Bool {
         !text.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    @ViewBuilder
+    private func authorIconView(_ icon: ReplyPlatformImage) -> some View {
+        #if os(macOS)
+        Image(nsImage: icon)
+            .resizable()
+        #else
+        Image(uiImage: icon)
+            .resizable()
+        #endif
     }
 
     init(thread: BoardThread, initialText: String? = nil) {
@@ -63,8 +80,7 @@ struct ReplyView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     if let icon = threadAuthorIcon {
-                        Image(nsImage: icon)
-                            .resizable()
+                        authorIconView(icon)
                             .frame(width: 26, height: 26)
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     } else {

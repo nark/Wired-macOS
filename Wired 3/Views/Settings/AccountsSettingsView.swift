@@ -607,91 +607,169 @@ final class AccountsSettingsViewModel: ObservableObject {
 
 struct AccountsSettingsView: View {
     @StateObject private var viewModel = AccountsSettingsViewModel()
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let runtime: ConnectionRuntime
 
     var body: some View {
-        HSplitView {
-            VStack(spacing: 8) {
-                Picker("Type", selection: $viewModel.selectedFilter) {
-                    ForEach(AccountFilter.allCases) { filter in
-                        Text(filter.title).tag(filter)
-                    }
+        content
+            .overlay {
+                if viewModel.isLoading {
+                    ProgressView()
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 8)
-                .padding(.top, 8)
-
-                List(selection: $viewModel.selectedID) {
-                    ForEach(viewModel.filteredAccounts) { account in
-                        HStack(spacing: 6) {
-                            Image(systemName: account.type == .group ? "person.3" : "person")
-                            if account.name == "admin" {
-                                Text(account.name)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(accountSummaryColor(account.color))
-                            } else {
-                                Text(account.name)
-                                    .foregroundStyle(accountSummaryColor(account.color))
-                            }
-                        }
-                        .tag(account.id)
-                    }
-                }
-                .listStyle(.inset)
-
-                HStack {
-                    Button {
-                        Task { await viewModel.reloadAccounts() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("Recharger")
-
-                    Spacer()
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
             }
+            .task {
+                viewModel.configure(runtime: runtime)
+                await viewModel.loadAccountsIfNeeded()
+                await viewModel.subscribeToAccountChangesIfNeeded()
+            }
+            .onDisappear {
+                Task {
+                    await viewModel.unsubscribeFromAccountChangesIfNeeded()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .wiredAccountAccountsChanged)) { notification in
+                guard let runtimeID = notification.userInfo?["runtimeID"] as? UUID else { return }
+                guard runtimeID == runtime.id else { return }
+
+                Task {
+                    await viewModel.reloadAccounts()
+                }
+            }
+            .onChange(of: viewModel.selectedID) { _, _ in
+                Task { await viewModel.readSelectedAccountIfNeeded() }
+            }
+            .errorAlert(error: Binding(
+                get: { viewModel.error },
+                set: { viewModel.error = $0 }
+            ),
+            source: "Accounts Settings",
+            serverName: nil,
+            connectionID: runtime.id)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        #if os(macOS)
+        HSplitView {
+            accountSidebar
             .frame(minWidth: 230, idealWidth: 260, maxWidth: 320, maxHeight: .infinity, alignment: .topLeading)
 
             detailView
                 .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .layoutPriority(1)
         }
-        .overlay {
-            if viewModel.isLoading {
-                ProgressView()
+        #else
+        if horizontalSizeClass == .compact {
+            NavigationStack {
+                accountCompactList
+                    .navigationTitle("Comptes")
+            }
+        } else {
+            NavigationSplitView {
+                accountSidebar
+                    .navigationTitle("Comptes")
+            } detail: {
+                detailView
             }
         }
-        .task {
-            viewModel.configure(runtime: runtime)
-            await viewModel.loadAccountsIfNeeded()
-            await viewModel.subscribeToAccountChangesIfNeeded()
-        }
-        .onDisappear {
-            Task {
-                await viewModel.unsubscribeFromAccountChangesIfNeeded()
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .wiredAccountAccountsChanged)) { notification in
-            guard let runtimeID = notification.userInfo?["runtimeID"] as? UUID else { return }
-            guard runtimeID == runtime.id else { return }
+        #endif
+    }
 
-            Task {
-                await viewModel.reloadAccounts()
+    private var accountSidebar: some View {
+        VStack(spacing: 8) {
+            Picker("Type", selection: $viewModel.selectedFilter) {
+                ForEach(AccountFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+
+            List(selection: $viewModel.selectedID) {
+                ForEach(viewModel.filteredAccounts) { account in
+                    accountRow(account)
+                        .tag(account.id)
+                }
+            }
+            .listStyle(.inset)
+
+            HStack {
+                Button {
+                    Task { await viewModel.reloadAccounts() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Recharger")
+
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+        }
+    }
+
+    #if os(iOS)
+    private var accountCompactList: some View {
+        VStack(spacing: 8) {
+            Picker("Type", selection: $viewModel.selectedFilter) {
+                ForEach(AccountFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+
+            List(viewModel.filteredAccounts) { account in
+                NavigationLink(value: account.id) {
+                    accountRow(account)
+                }
+            }
+            .listStyle(.inset)
+            .navigationDestination(for: String.self) { accountID in
+                detailView
+                    .navigationTitle(accountName(for: accountID))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .task(id: accountID) {
+                        if viewModel.selectedID != accountID {
+                            viewModel.selectedID = accountID
+                        }
+                        await viewModel.readSelectedAccountIfNeeded()
+                    }
+            }
+
+            HStack {
+                Button {
+                    Task { await viewModel.reloadAccounts() }
+                } label: {
+                    Label("Recharger", systemImage: "arrow.clockwise")
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+        }
+    }
+    #endif
+
+    private func accountRow(_ account: AccountSummary) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: account.type == .group ? "person.3" : "person")
+            if account.name == "admin" {
+                Text(account.name)
+                    .fontWeight(.bold)
+                    .foregroundStyle(accountSummaryColor(account.color))
+            } else {
+                Text(account.name)
+                    .foregroundStyle(accountSummaryColor(account.color))
             }
         }
-        .onChange(of: viewModel.selectedID) { _, _ in
-            Task { await viewModel.readSelectedAccountIfNeeded() }
-        }
-        .errorAlert(error: Binding(
-            get: { viewModel.error },
-            set: { viewModel.error = $0 }
-        ),
-        source: "Accounts Settings",
-        serverName: nil,
-        connectionID: runtime.id)
+    }
+
+    private func accountName(for id: String) -> String {
+        viewModel.filteredAccounts.first(where: { $0.id == id })?.name ?? "Compte"
     }
 
     @ViewBuilder

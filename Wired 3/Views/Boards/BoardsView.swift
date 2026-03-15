@@ -7,8 +7,32 @@
 //
 
 import SwiftUI
-import AppKit
 import CoreTransferable
+#if os(macOS)
+import AppKit
+private typealias BoardsPlatformImage = NSImage
+#elseif canImport(UIKit)
+import UIKit
+private typealias BoardsPlatformImage = UIImage
+#endif
+
+private extension Color {
+    static var boardsWindowBackground: Color {
+        #if os(macOS)
+        return Color.boardsWindowBackground
+        #else
+        return Color(.systemBackground)
+        #endif
+    }
+
+    static var boardsTextBackground: Color {
+        #if os(macOS)
+        return Color.boardsTextBackground
+        #else
+        return Color(.secondarySystemBackground)
+        #endif
+    }
+}
 
 private enum ThreadSortCriterion: String, CaseIterable, Identifiable {
     case unread
@@ -68,6 +92,7 @@ private struct FlattenedBoardRow: Identifiable {
 
 struct BoardsView: View {
     @Environment(ConnectionRuntime.self) private var runtime
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage("boardsThreadSortMode") private var legacyThreadSortModeRaw: String = "lastActivity"
     @AppStorage("boardsThreadSortCriterion") private var threadSortCriterionRaw: String = ThreadSortCriterion.lastReplyDate.rawValue
     @AppStorage("boardsThreadSortAscending") private var threadSortAscending: Bool = false
@@ -547,20 +572,7 @@ struct BoardsView: View {
     }
 
     var body: some View {
-        HSplitView {
-            // ── Left column: hierarchical boards list ──────────────────────
-            boardsList
-                .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
-
-            // ── Middle column: threads in selected board ───────────────────
-            threadsList
-                .frame(minWidth: 280, idealWidth: 360, maxWidth: 520)
-
-            // ── Right column: posts in selected thread ─────────────────────
-            postsDetail
-                .frame(minWidth: 320, idealWidth: 520, maxWidth: .infinity)
-                .layoutPriority(1)
-        }
+        layout
         .task {
             loadSmartBoards()
         }
@@ -574,6 +586,69 @@ struct BoardsView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var layout: some View {
+        #if os(macOS)
+        HSplitView {
+            boardsList
+                .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
+
+            threadsList
+                .frame(minWidth: 280, idealWidth: 360, maxWidth: 520)
+
+            postsDetail
+                .frame(minWidth: 320, idealWidth: 520, maxWidth: .infinity)
+                .layoutPriority(1)
+        }
+        #else
+        if horizontalSizeClass == .compact {
+            NavigationStack {
+                compactContent
+            }
+        } else {
+            NavigationSplitView {
+                boardsList
+            } content: {
+                threadsList
+            } detail: {
+                postsDetail
+            }
+        }
+        #endif
+    }
+
+    #if os(iOS)
+    @ViewBuilder
+    private var compactContent: some View {
+        if selectedBoardPath == nil && selectedSmartBoardID == nil {
+            boardsList
+                .navigationTitle("Boards")
+        } else if selectedThreadUUID == nil {
+            threadsList
+                .navigationTitle(selectedBoard?.name ?? selectedSmartBoard?.name ?? "Threads")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Boards") {
+                            selectedBoardPath = nil
+                            selectedSmartBoardID = nil
+                            selectedThreadUUID = nil
+                        }
+                    }
+                }
+        } else {
+            postsDetail
+                .navigationTitle(selectedThread?.subject ?? "Posts")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Threads") {
+                            selectedThreadUUID = nil
+                        }
+                    }
+                }
+        }
+    }
+    #endif
 
     private func loadSmartBoards() {
         guard let data = smartBoardsJSON.data(using: .utf8),
@@ -629,16 +704,17 @@ struct BoardsView: View {
     // MARK: - Boards list
 
     private var boardsList: some View {
+        #if os(macOS)
         VStack(spacing: 0) {
             Group {
                 if runtime.boards.isEmpty && !runtime.boardsLoaded && smartBoards.isEmpty {
                     ProgressView("Loading boards…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(nsColor: .windowBackgroundColor))
+                        .background(Color.boardsWindowBackground)
                 } else if runtime.boards.isEmpty && smartBoards.isEmpty {
                     ContentUnavailableView("No Boards", systemImage: "newspaper")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(nsColor: .windowBackgroundColor))
+                        .background(Color.boardsWindowBackground)
                 } else {
                     List(selection: boardListSelection) {
                         Section("SMART BOARDS") {
@@ -961,18 +1037,92 @@ struct BoardsView: View {
                 Task { try? await runtime.getPosts(forThread: thread) }
             }
         }
+        #else
+        List(selection: boardListSelection) {
+            if !smartBoards.isEmpty {
+                Section("SMART BOARDS") {
+                    ForEach(smartBoards) { smartBoard in
+                        Label(smartBoard.name, systemImage: "line.3.horizontal.decrease.circle")
+                            .tag("smart:\(smartBoard.id)")
+                    }
+                }
+            }
+
+            Section("BOARDS") {
+                ForEach(visibleBoardRows) { row in
+                    let board = row.board
+                    HStack(spacing: 6) {
+                        if boardHasChildren(board) {
+                            Image(systemName: isBoardExpanded(board) ? "chevron.down" : "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 12, height: 12)
+                                .padding(.leading, CGFloat(row.depth) * 10)
+                                .onTapGesture {
+                                    toggleBoardExpanded(board)
+                                }
+                        } else {
+                            Color.clear
+                                .frame(width: 12, height: 12)
+                                .padding(.leading, CGFloat(row.depth) * 10)
+                        }
+
+                        BoardRowView(board: board)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .tag(board.path)
+                }
+            }
+        }
+        .listStyle(.inset)
+        .onChange(of: boardListSelection.wrappedValue) { _, value in
+            guard let value else {
+                selectedBoardPath = nil
+                selectedSmartBoardID = nil
+                selectedThreadUUID = nil
+                runtime.selectedBoardPath = nil
+                runtime.selectedThreadUUID = nil
+                return
+            }
+
+            if value.hasPrefix("smart:") {
+                let smartID = String(value.dropFirst("smart:".count))
+                selectedSmartBoardID = smartID
+                selectedBoardPath = nil
+                selectedThreadUUID = nil
+                runtime.selectedBoardPath = nil
+                runtime.selectedThreadUUID = nil
+                if let smartBoard = selectedSmartBoard {
+                    Task { await preloadSmartBoardData(for: smartBoard) }
+                }
+                return
+            }
+
+            selectedSmartBoardID = nil
+            selectedBoardPath = value
+            runtime.selectedBoardPath = value
+            runtime.selectedThreadUUID = nil
+            selectedThreadUUID = nil
+
+            guard let board = selectedBoard else { return }
+            if !board.threadsLoaded {
+                Task { try? await runtime.getThreads(forBoard: board) }
+            }
+        }
+        #endif
     }
 
     // MARK: - Threads list
 
     private var threadsList: some View {
+        #if os(macOS)
         VStack(spacing: 0) {
             Group {
                 if selectedSmartBoard != nil {
                     if visibleThreads.isEmpty {
                         ContentUnavailableView("No Matching Threads", systemImage: "line.3.horizontal.decrease.circle")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color(nsColor: .textBackgroundColor))
+                            .background(Color.boardsTextBackground)
                     } else {
                         List(visibleThreads, selection: $selectedThreadUUID) { thread in
                             ThreadRowView(thread: thread)
@@ -1002,17 +1152,17 @@ struct BoardsView: View {
                             openReplyForThread(thread)
                         }
                         .scrollContentBackground(.hidden)
-                        .background(Color(nsColor: .textBackgroundColor))
+                        .background(Color.boardsTextBackground)
                     }
                 } else if let board = selectedBoard {
                     if !board.threadsLoaded {
                         ProgressView("Loading threads…")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color(nsColor: .textBackgroundColor))
+                            .background(Color.boardsTextBackground)
                     } else if board.threads.isEmpty {
                         ContentUnavailableView("No Threads", systemImage: "text.bubble")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color(nsColor: .textBackgroundColor))
+                            .background(Color.boardsTextBackground)
                     } else {
                         List(visibleThreads, selection: $selectedThreadUUID) { thread in
                             ThreadRowView(thread: thread)
@@ -1042,17 +1192,17 @@ struct BoardsView: View {
                             openReplyForThread(thread)
                         }
                         .scrollContentBackground(.hidden)
-                        .background(Color(nsColor: .textBackgroundColor))
+                        .background(Color.boardsTextBackground)
                     }
                 } else {
                     ContentUnavailableView("Select a Board", systemImage: "text.bubble")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(nsColor: .textBackgroundColor))
+                        .background(Color.boardsTextBackground)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(Color.boardsTextBackground)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 Divider()
@@ -1144,6 +1294,34 @@ struct BoardsView: View {
                 Task { try? await runtime.getPosts(forThread: thread) }
             }
         }
+        #else
+        VStack(spacing: 0) {
+            if selectedSmartBoard != nil || selectedBoard != nil {
+                if visibleThreads.isEmpty {
+                    ContentUnavailableView("No Threads", systemImage: "text.bubble")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(visibleThreads, id: \.uuid, selection: $selectedThreadUUID) { thread in
+                        ThreadRowView(thread: thread)
+                            .tag(thread.uuid)
+                    }
+                    .listStyle(.plain)
+                }
+            } else {
+                ContentUnavailableView("Select a Board", systemImage: "newspaper")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(Color.boardsTextBackground)
+        .onChange(of: selectedThreadUUID) { _, _ in
+            runtime.selectedThreadUUID = selectedThreadUUID
+            guard let thread = selectedThread else { return }
+            runtime.markThreadAsRead(thread)
+            if !thread.postsLoaded {
+                Task { try? await runtime.getPosts(forThread: thread) }
+            }
+        }
+        #endif
     }
 
     // MARK: - Posts detail
@@ -1158,7 +1336,7 @@ struct BoardsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(Color.boardsTextBackground)
     }
 }
 
@@ -1213,6 +1391,7 @@ private struct ThreadSortMenuView: View {
     }
 }
 
+#if os(macOS)
 struct MarkdownComposer: View {
     @Binding var text: String
     var minHeight: CGFloat = 180
@@ -1248,7 +1427,7 @@ struct MarkdownComposer: View {
                 )
         }
         .padding(8)
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(Color.boardsTextBackground)
     }
 
     private func button(_ title: String, help: String, action: @escaping () -> Void) -> some View {
@@ -1460,6 +1639,54 @@ private final class FocusTextView: NSTextView {
         super.keyDown(with: event)
     }
 }
+#else
+struct MarkdownComposer: View {
+    @Binding var text: String
+    var minHeight: CGFloat = 180
+    var autoFocus: Bool = false
+    var onOptionEnter: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                button("B", help: "Gras") { append("**bold**") }
+                button("I", help: "Italique") { append("*italic*") }
+                button("Code", help: "Code inline") { append("`code`") }
+                button("Link", help: "Lien") { append("[label](https://)") }
+                button("Img", help: "Image") { append("![alt](https://)") }
+                button("Quote", help: "Citation") { append("\n> ") }
+                button("List", help: "Liste") { append("\n- ") }
+                Spacer(minLength: 0)
+            }
+
+            TextEditor(text: $text)
+                .frame(minHeight: minHeight)
+                .padding(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.3))
+                        .allowsHitTesting(false)
+                )
+        }
+        .padding(8)
+    }
+
+    private func button(_ title: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help(help)
+    }
+
+    private func append(_ snippet: String) {
+        if text.isEmpty {
+            text = snippet
+        } else {
+            text += snippet
+        }
+    }
+}
+#endif
 
 private struct SmartBoardEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -1549,7 +1776,9 @@ private struct SmartBoardEditorView: View {
                         Text("Non-lu :")
                             .frame(width: 90, alignment: .trailing)
                         Toggle("Oui", isOn: $unreadOnly)
+                            #if os(macOS)
                             .toggleStyle(.checkbox)
+                            #endif
                         Spacer()
                     }
                 }
@@ -2163,52 +2392,7 @@ private struct PostsDetailView: View {
     var body: some View {
         Group {
             if let thread {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            if !thread.postsLoaded {
-                                ProgressView("Loading posts…")
-                                    .padding(40)
-                            } else if thread.posts.isEmpty {
-                                ContentUnavailableView("No Posts", systemImage: "text.alignleft")
-                                    .padding(40)
-                            } else {
-                                ForEach(sortedPosts(thread.posts)) { post in
-                                    PostRowView(
-                                        post: post,
-                                        canReply: canReplyToThread,
-                                        canEdit: canEditPost(post),
-                                        canDelete: canDeletePost(post),
-                                        onReply: { openReplyFromPost(post, selectedText: nil) },
-                                        onQuote: { selectedText in openReplyFromPost(post, selectedText: selectedText) },
-                                        onEdit: { postToEdit = post },
-                                        onDelete: { postToDelete = post }
-                                    )
-                                        .padding(.horizontal)
-                                    Divider()
-                                        .padding(.horizontal)
-                                }
-                            }
-                            Color.clear
-                                .frame(height: 1)
-                                .id(bottomAnchorID)
-                        }
-                    }
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .onAppear {
-                        if thread.postsLoaded {
-                            scrollToBottom(proxy)
-                        }
-                    }
-                    .onChange(of: thread.postsLoaded) { _, loaded in
-                        guard loaded else { return }
-                        scrollToBottom(proxy)
-                    }
-                    .onChange(of: thread.posts.count) { _, _ in
-                        guard thread.postsLoaded else { return }
-                        scrollToBottom(proxy, animated: true)
-                    }
-                }
+                postsContainer(for: thread)
             } else {
                 ContentUnavailableView("Thread unavailable", systemImage: "exclamationmark.triangle")
             }
@@ -2252,7 +2436,68 @@ private struct PostsDetailView: View {
         } message: {
             Text(postToDelete?.text ?? "")
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(Color.boardsTextBackground)
+    }
+
+    private func postsContainer(for thread: BoardThread) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    postsContent(for: thread)
+                    Color.clear
+                        .frame(height: 1)
+                        .id(bottomAnchorID)
+                }
+            }
+            .background(Color.boardsTextBackground)
+            .onAppear {
+                if thread.postsLoaded {
+                    scrollToBottom(proxy)
+                }
+            }
+            .onChange(of: thread.postsLoaded) { _, loaded in
+                guard loaded else { return }
+                scrollToBottom(proxy)
+            }
+            .onChange(of: thread.posts.count) { _, _ in
+                guard thread.postsLoaded else { return }
+                scrollToBottom(proxy, animated: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func postsContent(for thread: BoardThread) -> some View {
+        if !thread.postsLoaded {
+            ProgressView("Loading posts…")
+                .padding(40)
+        } else if thread.posts.isEmpty {
+            ContentUnavailableView("No Posts", systemImage: "text.alignleft")
+                .padding(40)
+        } else {
+            ForEach(sortedPosts(thread.posts)) { post in
+                postRow(post)
+            }
+        }
+    }
+
+    private func postRow(_ post: BoardPost) -> some View {
+        VStack(spacing: 0) {
+            PostRowView(
+                post: post,
+                canReply: canReplyToThread,
+                canEdit: canEditPost(post),
+                canDelete: canDeletePost(post),
+                onReply: { openReplyFromPost(post, selectedText: nil) },
+                onQuote: { selectedText in openReplyFromPost(post, selectedText: selectedText) },
+                onEdit: { postToEdit = post },
+                onDelete: { postToDelete = post }
+            )
+            .padding(.horizontal)
+
+            Divider()
+                .padding(.horizontal)
+        }
     }
 }
 
@@ -2363,13 +2608,23 @@ private struct PostRowView: View {
         return QuoteLine(level: level, text: content.isEmpty ? " " : content)
     }
 
+    @ViewBuilder
+    private func postIconView(_ image: BoardsPlatformImage) -> some View {
+        #if os(macOS)
+        Image(nsImage: image)
+            .resizable()
+        #else
+        Image(uiImage: image)
+            .resizable()
+        #endif
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Author header
             HStack(spacing: 8) {
-                if let iconData = post.icon, let img = NSImage(data: iconData) {
-                    Image(nsImage: img)
-                        .resizable()
+                if let iconData = post.icon, let img = BoardsPlatformImage(data: iconData) {
+                    postIconView(img)
                         .frame(width: 32, height: 32)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                 } else {

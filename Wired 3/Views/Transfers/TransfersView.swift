@@ -27,7 +27,9 @@ struct TransfersView: View {
                     let validIDs = Set(currentIDs)
                     selection = selection.intersection(validIDs)
                 }
+#if os(macOS)
                 .alternatingRowBackgrounds()
+#endif
                 .alert(
                     "Remove transfer?",
                     isPresented: $showRemoveConfirmation,

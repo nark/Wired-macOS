@@ -348,18 +348,21 @@ struct TabsView: View {
                     }
 
                     Tab("Boards", systemImage: "newspaper.fill") {
-                        if let runtime = connectionController.runtime(for: bookmark.id) {
-                            BoardsView()
-                                .environment(runtime)
-                        }
+                        BoardsView()
+                            .environment(runtime)
                     }
 
                     Tab("Files", systemImage: "folder.fill") {
-                        Text("Files")
+                        FilesView(connectionID: connectionID, filesViewModel: filesViewModel)
+                            .environment(connectionController)
+                            .environmentObject(transfers)
+                            .environment(runtime)
                     }
 
                     Tab("Settings", systemImage: "gearshape.fill") {
-                        Text("Settings")
+                        ServerSettingsView(connectionID: connectionID)
+                            .environment(connectionController)
+                            .environment(runtime)
                     }
 
                     Tab("Info", systemImage: "info.circle.fill") {

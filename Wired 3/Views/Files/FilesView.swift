@@ -2134,6 +2134,14 @@ struct FilesColumnsView: View {
     @State private var multiSelectionPathsByColumn: [UUID: Set<String>] = [:]
     @State private var previewWidth: CGFloat = 320
 
+    private var platformBackgroundColor: Color {
+        #if os(macOS)
+        return Color(nsColor: .windowBackgroundColor)
+        #else
+        return Color(.secondarySystemBackground)
+        #endif
+    }
+
     var body: some View {
         ScrollView(.horizontal) {
             ScrollViewReader { proxy in
@@ -2164,7 +2172,7 @@ struct FilesColumnsView: View {
                 }
             }
         }
-        .background(colorScheme == .light ? Color.white : Color(nsColor: .windowBackgroundColor))
+        .background(colorScheme == .light ? Color.white : platformBackgroundColor)
         .onAppear {
             notifySelectionItemsChanged()
         }
@@ -2174,6 +2182,7 @@ struct FilesColumnsView: View {
         let onAppend: (FileColumn) -> Void = { appended in
             proxy.scrollTo(appended.id, anchor: .trailing)
         }
+#if os(macOS)
         return AppKitFileColumnTableView(
             bookmarkID: connectionID,
             transferManager: transfers,
@@ -2221,6 +2230,35 @@ struct FilesColumnsView: View {
         .frame(width: width(for: column))
         .background(Color.clear)
         .id(column.id)
+#else
+        return List(column.items, id: \.path) { item in
+            Button {
+                let paths: Set<String> = [item.path]
+                multiSelectionPathsByColumn[column.id] = paths
+                onPrimarySelectionChange(item.path)
+                notifySelectionItemsChanged()
+
+                if item.type == .directory || item.type == .uploads || item.type == .dropbox {
+                    filesViewModel.selectColumnItem(
+                        id: item.id,
+                        at: index,
+                        onColumnAppended: onAppend
+                    )
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    FinderFileIconView(item: item, size: 16)
+                    Text(item.name)
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .listStyle(.plain)
+        .frame(width: width(for: column))
+        .background(Color.clear)
+        .id(column.id)
+#endif
     }
 
     private func width(for column: FileColumn) -> CGFloat {
@@ -2718,6 +2756,14 @@ private struct FilePreviewColumn: View {
     let selectedItem: FileItem?
     @Environment(\.colorScheme) private var colorScheme
 
+    private var platformBackgroundColor: Color {
+        #if os(macOS)
+        return Color(nsColor: .windowBackgroundColor)
+        #else
+        return Color(.secondarySystemBackground)
+        #endif
+    }
+
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .medium
@@ -2759,7 +2805,7 @@ private struct FilePreviewColumn: View {
             Spacer()
         }
         .padding(10)
-        .background(colorScheme == .light ? Color.white : Color(nsColor: .windowBackgroundColor))
+        .background(colorScheme == .light ? Color.white : platformBackgroundColor)
     }
 
     @ViewBuilder

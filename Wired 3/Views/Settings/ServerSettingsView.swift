@@ -37,6 +37,7 @@ private enum ServerSettingsCategory: String, CaseIterable, Identifiable {
 
 struct ServerSettingsView: View {
     @Environment(ConnectionController.self) private var connectionController
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let connectionID: UUID
 
@@ -47,23 +48,65 @@ struct ServerSettingsView: View {
     }
 
     var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        #if os(macOS)
         HSplitView {
-            List(ServerSettingsCategory.allCases, selection: $selectedCategory) { category in
-                Label(category.title, systemImage: category.iconName)
-                    .tag(category)
-            }
+            categorySidebar
             .frame(minWidth: 180, idealWidth: 210, maxWidth: 260)
 
             detailContent
                 .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .layoutPriority(1)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        #else
+        if horizontalSizeClass == .compact {
+            NavigationStack {
+                List(ServerSettingsCategory.allCases) { category in
+                    NavigationLink(value: category) {
+                        Label(category.title, systemImage: category.iconName)
+                    }
+                }
+                .navigationTitle("Réglages")
+                .navigationDestination(for: ServerSettingsCategory.self) { category in
+                    detailContent(for: category)
+                        .navigationTitle(category.title)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .onAppear {
+                            selectedCategory = category
+                        }
+                }
+            }
+        } else {
+            NavigationSplitView {
+                categorySidebar
+                    .navigationTitle("Réglages")
+            } detail: {
+                detailContent
+            }
+        }
+        #endif
+    }
+
+    private var categorySidebar: some View {
+        List(ServerSettingsCategory.allCases, selection: $selectedCategory) { category in
+            Label(category.title, systemImage: category.iconName)
+                .tag(category)
+        }
     }
 
     @ViewBuilder
     private var detailContent: some View {
-        switch selectedCategory ?? .accounts {
+        detailContent(for: selectedCategory ?? .general)
+    }
+
+    @ViewBuilder
+    private func detailContent(for category: ServerSettingsCategory) -> some View {
+        switch category {
         case .general:
             if let runtime {
                 GeneralServerSettingsView(runtime: runtime)
@@ -327,8 +370,7 @@ private struct GeneralServerSettingsView: View {
     private var directorySection: some View {
         settingsFieldRow("", labelWidth: 0, alignment: .top) {
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Enregistrer le serveur auprès des annuaires suivants", isOn: $registerWithTrackers)
-                    .toggleStyle(.checkbox)
+                registerWithTrackersToggle
 
                 trackerTable
                 trackerToolbar
@@ -336,8 +378,7 @@ private struct GeneralServerSettingsView: View {
                 Divider()
                     .padding(.vertical, 4)
 
-                Toggle("Activer l'annuaire", isOn: $trackerEnabled)
-                    .toggleStyle(.checkbox)
+                trackerEnabledToggle
 
                 settingsFieldRow("Catégories d'annuaire", labelWidth: 0, alignment: .top) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -377,6 +418,26 @@ private struct GeneralServerSettingsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    @ViewBuilder
+    private var registerWithTrackersToggle: some View {
+        #if os(macOS)
+        Toggle("Enregistrer le serveur auprès des annuaires suivants", isOn: $registerWithTrackers)
+            .toggleStyle(.checkbox)
+        #else
+        Toggle("Enregistrer le serveur auprès des annuaires suivants", isOn: $registerWithTrackers)
+        #endif
+    }
+
+    @ViewBuilder
+    private var trackerEnabledToggle: some View {
+        #if os(macOS)
+        Toggle("Activer l'annuaire", isOn: $trackerEnabled)
+            .toggleStyle(.checkbox)
+        #else
+        Toggle("Activer l'annuaire", isOn: $trackerEnabled)
+        #endif
     }
 
     private var trackerTable: some View {

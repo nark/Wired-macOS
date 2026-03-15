@@ -15,6 +15,7 @@ import AppKit
 struct MainView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var bookmarks: [Bookmark]
     @Environment(ConnectionController.self) private var connectionController
     @EnvironmentObject private var transfers: TransferManager
@@ -115,6 +116,66 @@ struct MainView: View {
     var body: some View {
         @Bindable var connectionController = connectionController
 
+        rootContent
+            #if os(macOS)
+            .navigationTitle(tabTitle)
+            .background(
+                MainWindowCloseConfirmationView(
+                    selectedConnectionID: windowConnectionID,
+                    checkBeforeClosing: checkActiveConnectionsBeforeClosingWindowTab,
+                    connectionController: connectionController,
+                    onWindowBecameKey: {
+                        listSelectionID = windowConnectionID
+                    },
+                    onWindowChanged: { window in
+                        windowNumber = window.windowNumber
+                    },
+                    onTabBarVisibilityChanged: { isVisible in
+                        isTabBarVisible = isVisible
+                    }
+                )
+                .frame(width: 0, height: 0)
+            )
+            #endif
+            .sheet(item: newConnectionSheetBinding) { draft in
+                NewConnectionFormView(draft: draft) { id in
+                    connectionController.suppressPresentedNewConnectionSheet = true
+                    connectionController.requestedSelectionID = id
+                    openMainTab()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        connectionController.suppressPresentedNewConnectionSheet = false
+                    }
+                }
+            }
+            .onAppear {
+                performInitialLaunchFlowIfNeeded()
+                consumePendingSelectionIfNeeded()
+                restoreWindowConnectionIfNeeded()
+                listSelectionID = windowConnectionID
+                connectionController.activeConnectionID = windowConnectionID
+            }
+            .onChange(of: activeTransfersCount) { oldValue, newValue in
+                guard newValue > oldValue else { return }
+                guard !isTransfersVisible else { return }
+
+                withAnimation(.smooth) {
+                    isTransfersVisible = true
+                    transfersHeight = max(lastTransfersHeight, 200)
+                }
+            }
+            .onChange(of: connectionController.requestedSelectionID) { _, newValue in
+                _ = newValue
+                consumePendingSelectionIfNeeded()
+                restoreWindowConnectionIfNeeded()
+            }
+            .onChange(of: windowConnectionID) { _, newValue in
+                connectionController.activeConnectionID = newValue
+            }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        #if os(macOS)
         VSplitView {
             mainContent
 
@@ -125,201 +186,260 @@ struct MainView: View {
                 )
                 .animation(.smooth, value: isTransfersVisible)
         }
-#if os(macOS)
-        .navigationTitle(tabTitle)
-        .background(
-            MainWindowCloseConfirmationView(
-                selectedConnectionID: windowConnectionID,
-                checkBeforeClosing: checkActiveConnectionsBeforeClosingWindowTab,
-                connectionController: connectionController,
-                onWindowBecameKey: {
-                    listSelectionID = windowConnectionID
-                },
-                onWindowChanged: { window in
-                    windowNumber = window.windowNumber
-                },
-                onTabBarVisibilityChanged: { isVisible in
-                    isTabBarVisible = isVisible
-                }
-            )
-            .frame(width: 0, height: 0)
-        )
-#endif
-        .sheet(item: newConnectionSheetBinding) { draft in
-            NewConnectionFormView(draft: draft) { id in
-                connectionController.suppressPresentedNewConnectionSheet = true
-                connectionController.requestedSelectionID = id
-                openMainTab()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    connectionController.suppressPresentedNewConnectionSheet = false
-                }
+        #else
+        VStack(spacing: 0) {
+            mainContent
+
+            if isTransfersVisible {
+                transfersPanel
+                    .frame(height: max(lastTransfersHeight, 200))
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.smooth, value: isTransfersVisible)
+        #endif
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        #if os(iOS)
+        if horizontalSizeClass == .compact {
+            compactMainContent
+        } else {
+            splitMainContent
+        }
+        #else
+        splitMainContent
+        #endif
+    }
+
+    private var splitMainContent: some View {
+        NavigationSplitView {
+            sidebarContent
+                #if os(macOS)
+                .padding(.top, isTabBarVisible ? 30 : 0)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+                #endif
+        } detail: {
+            detailPane(for: windowConnectionID)
+        }
+        .toolbar {
+            mainToolbar
+        }
+        .sheet(item: $editedBookmark) { bookmark in
+            BookmarkFormView(bookmark: bookmark)
+        }
+        .alert("Delete Bookmark", isPresented: $showDeleteBookmarkConfirmation) {
+            Button("Cancel", role: .cancel) {
+            }
+
+            Button("Delete", role: .destructive) {
+                deleteBookmark()
             }
         }
     }
 
-    private var mainContent: some View {
-        NavigationSplitView {
-            VStack(spacing: 0) {
-                List(selection: listSelectionBinding) {
-                    Section {
-                        ForEach(bookmarks, id: \.id) { bookmark in
-                            ConnectionRowView(
-                                connectionID: bookmark.id,
-                                name: bookmark.name
+    #if os(iOS)
+    private var compactMainContent: some View {
+        NavigationStack {
+            compactSidebarList
+                .navigationTitle("Wired 3")
+                .navigationDestination(for: UUID.self) { connectionID in
+                    detailPane(for: connectionID)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .task(id: connectionID) {
+                            selectConnection(connectionID)
+                        }
+                }
+                .toolbar {
+                    mainToolbar
+                }
+        }
+        .sheet(item: $editedBookmark) { bookmark in
+            BookmarkFormView(bookmark: bookmark)
+        }
+        .alert("Delete Bookmark", isPresented: $showDeleteBookmarkConfirmation) {
+            Button("Cancel", role: .cancel) {
+            }
+
+            Button("Delete", role: .destructive) {
+                deleteBookmark()
+            }
+        }
+    }
+    #endif
+
+    private var sidebarContent: some View {
+        VStack(spacing: 0) {
+            connectionList
+
+            Divider()
+
+            transfersToggleBar
+        }
+    }
+
+    @ViewBuilder
+    private var connectionList: some View {
+        #if os(macOS)
+        List(selection: listSelectionBinding) {
+            connectionSections
+        }
+        .contextMenu(forSelectionType: UUID.self) { selection in
+            connectionContextMenu(for: selection)
+        } primaryAction: { selection in
+            handleConnectionPrimaryAction(selection)
+        }
+        #else
+        List(selection: listSelectionBinding) {
+            connectionSections
+        }
+        #endif
+    }
+
+    private var compactSidebarList: some View {
+        List {
+            Section {
+                ForEach(bookmarks, id: \.id) { bookmark in
+                    NavigationLink(value: bookmark.id) {
+                        connectionRow(connectionID: bookmark.id, name: bookmark.name)
+                    }
+                }
+            } header: {
+                Text("Favorites")
+            }
+
+            if !connectionController.temporaryConnections.isEmpty {
+                Section {
+                    ForEach(connectionController.temporaryConnections, id: \.id) { temporary in
+                        NavigationLink(value: temporary.id) {
+                            connectionRow(connectionID: temporary.id, name: temporary.name)
+                        }
+                    }
+                } header: {
+                    Text("Connections")
+                }
+            }
+        }
+        .onChange(of: listSelectionID) { _, newValue in
+            guard let newValue else { return }
+            selectConnection(newValue)
+        }
+    }
+
+    @ViewBuilder
+    private var connectionSections: some View {
+        Section {
+            ForEach(bookmarks, id: \.id) { bookmark in
+                connectionRow(connectionID: bookmark.id, name: bookmark.name)
+                    .tag(bookmark.id)
+            }
+        } header: {
+            Text("Favorites")
+        }
+
+        if !connectionController.temporaryConnections.isEmpty {
+            Section {
+                ForEach(connectionController.temporaryConnections, id: \.id) { temporary in
+                    connectionRow(connectionID: temporary.id, name: temporary.name)
+                        .tag(temporary.id)
+                }
+            } header: {
+                Text("Connections")
+            }
+        }
+    }
+
+    private var transfersToggleBar: some View {
+        HStack(spacing: 0) {
+            Button {
+                toggleTransfers()
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: isTransfersVisible ? "menubar.arrow.down.rectangle" : "menubar.arrow.up.rectangle")
+
+                    if activeTransfersCount > 0 {
+                        Text(activeTransfersCount > 99 ? "99" : "\(activeTransfersCount)")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(
+                                Circle()
+                                    .fill(Color.red)
                             )
-                            .environment(connectionController)
-                            .tag(bookmark.id)
-                        }
-                    } header: {
-                        Text("Favorites")
-                    }
-
-                    if !connectionController.temporaryConnections.isEmpty {
-                        Section {
-                            ForEach(connectionController.temporaryConnections, id: \.id) { temporary in
-                                ConnectionRowView(
-                                    connectionID: temporary.id,
-                                    name: temporary.name
-                                )
-                                .environment(connectionController)
-                                .tag(temporary.id)
-                            }
-                        } header: {
-                            Text("Connections")
-                        }
+                            .offset(x: 10, y: -8)
+                            .transition(.scale(scale: 0.7).combined(with: .opacity))
                     }
                 }
-                .contextMenu(forSelectionType: UUID.self) { selection in
-                    connectionContextMenu(for: selection)
-                } primaryAction: { selection in
-                    handleConnectionPrimaryAction(selection)
-                }
-
-                Divider()
-
-                HStack(spacing: 0) {
-                    Button {
-                        toggleTransfers()
-
-                    } label: {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: isTransfersVisible ? "menubar.arrow.down.rectangle" : "menubar.arrow.up.rectangle")
-
-                            if activeTransfersCount > 0 {
-                                Text(activeTransfersCount > 99 ? "99" : "\(activeTransfersCount)")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 18, height: 18)
-                                    .background(
-                                        Circle()
-                                            .fill(Color.red)
-                                    )
-                                    .offset(x: 10, y: -8)
-                                    .transition(.scale(scale: 0.7).combined(with: .opacity))
-                            }
-                        }
-                        .animation(.spring(response: 0.25, dampingFraction: 0.72), value: activeTransfersCount)
-                    }
-                    .foregroundStyle(isTransfersVisible ? .blue : .black)
-                    .buttonStyle(.plain)
-                    .help("Show Transfers")
-
-                    Spacer()
-                }
-                .padding(9)
+                .animation(.spring(response: 0.25, dampingFraction: 0.72), value: activeTransfersCount)
             }
-#if os(macOS)
-            .padding(.top, isTabBarVisible ? 30 : 0)
-#endif
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigation) {
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
-                        Image(systemName: "gear")
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button {
-                        connectionController.presentedNewConnectionWindowNumber = windowNumber
-                        connectionController.presentNewConnection()
-                    } label: {
-                        Label("New Connection", systemImage: "plus")
-                    }
-                }
-            }
-            .sheet(item: $editedBookmark) { bookmark in
-                BookmarkFormView(bookmark: bookmark)
-            }
-            .alert("Delete Bookmark", isPresented: $showDeleteBookmarkConfirmation) {
-                Button("Cancel", role: .cancel) {
-                    
-                }
-                
-                Button("Delete", role: .destructive) {
-                    deleteBookmark()
-                }
-            }
-        } detail: {
-            ZStack {
-                if let bookmark = windowBookmark {
-                    TabsView(
-                        connectionID: bookmark.id,
-                        connectionName: bookmark.name,
-                        bookmark: bookmark
-                    )
-                    .environment(connectionController)
-                    .environmentObject(transfers)
-                    .id(bookmark.id)
-                } else if let temporary = windowTemporaryConnection {
-                    TabsView(
-                        connectionID: temporary.id,
-                        connectionName: temporary.name,
-                        bookmark: nil
-                    )
-                    .environment(connectionController)
-                    .environmentObject(transfers)
-                    .id(temporary.id)
-                } else {
-                    Text("Select an item")
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .top) {
-                Divider()
+            .foregroundStyle(isTransfersVisible ? .blue : .black)
+            .buttonStyle(.plain)
+            .help("Show Transfers")
+
+            Spacer()
+        }
+        .padding(9)
+    }
+
+    private func connectionRow(connectionID: UUID, name: String) -> some View {
+        ConnectionRowView(connectionID: connectionID, name: name)
+            .environment(connectionController)
+    }
+
+    private func detailPane(for connectionID: UUID?) -> some View {
+        ZStack {
+            if let bookmark = bookmark(for: connectionID) {
+                TabsView(
+                    connectionID: bookmark.id,
+                    connectionName: bookmark.name,
+                    bookmark: bookmark
+                )
+                .environment(connectionController)
+                .environmentObject(transfers)
+                .id(bookmark.id)
+            } else if let temporary = temporaryConnection(for: connectionID) {
+                TabsView(
+                    connectionID: temporary.id,
+                    connectionName: temporary.name,
+                    bookmark: nil
+                )
+                .environment(connectionController)
+                .environmentObject(transfers)
+                .id(temporary.id)
+            } else {
+                Text("Select an item")
             }
         }
-        .onAppear {
-            performInitialLaunchFlowIfNeeded()
-            consumePendingSelectionIfNeeded()
-            restoreWindowConnectionIfNeeded()
-            listSelectionID = windowConnectionID
-            connectionController.activeConnectionID = windowConnectionID
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .top) {
+            Divider()
         }
-        .onChange(of: activeTransfersCount) { oldValue, newValue in
-            guard newValue > oldValue else { return }
-            guard !isTransfersVisible else { return }
+    }
 
-            withAnimation(.smooth) {
-                isTransfersVisible = true
-                transfersHeight = max(lastTransfersHeight, 200)
+    @ToolbarContentBuilder
+    private var mainToolbar: some ToolbarContent {
+        #if os(iOS)
+        ToolbarItem(placement: .navigationBarLeading) {
+            NavigationLink {
+                SettingsView()
+            } label: {
+                Image(systemName: "gear")
             }
         }
-        .onChange(of: connectionController.requestedSelectionID) { _, newValue in
-            _ = newValue
-            consumePendingSelectionIfNeeded()
-            restoreWindowConnectionIfNeeded()
+        ToolbarItem(placement: .navigationBarTrailing) {
+            EditButton()
         }
-        .onChange(of: windowConnectionID) { _, newValue in
-            connectionController.activeConnectionID = newValue
+        #endif
+        ToolbarItem {
+            Button {
+                #if os(macOS)
+                connectionController.presentedNewConnectionWindowNumber = windowNumber
+                #endif
+                connectionController.presentNewConnection()
+            } label: {
+                Label("New Connection", systemImage: "plus")
+            }
         }
     }
 
@@ -436,6 +556,11 @@ struct MainView: View {
             // If we cannot resolve an existing tab/window for this active connection,
             // avoid replacing the current detail content.
             return
+#else
+            windowConnectionID = bookmark.id
+            listSelectionID = bookmark.id
+            connectionController.activeConnectionID = bookmark.id
+            return
 #endif
         }
 
@@ -453,6 +578,22 @@ struct MainView: View {
 
     private func bookmark(for id: UUID) -> Bookmark? {
         bookmarks.first(where: { $0.id == id })
+    }
+
+    private func bookmark(for id: UUID?) -> Bookmark? {
+        guard let id else { return nil }
+        return bookmark(for: id)
+    }
+
+    private func temporaryConnection(for id: UUID?) -> TemporaryConnection? {
+        guard let id else { return nil }
+        return connectionController.temporaryConnection(for: id)
+    }
+
+    private func selectConnection(_ id: UUID) {
+        windowConnectionID = id
+        listSelectionID = id
+        connectionController.activeConnectionID = id
     }
 
     @ViewBuilder
@@ -564,16 +705,27 @@ struct MainView: View {
     }
 
     private func openMainWindow() {
+#if os(macOS)
         openWindow(id: "main")
+#endif
     }
 
     private func openMainTab() {
+#if os(macOS)
         let sourceWindow = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible }) ?? NSApp.windows.first
         let existingWindows = Set(NSApp.windows.map { ObjectIdentifier($0) })
         openMainWindow()
         attachNewMainWindowAsTab(existingWindows: existingWindows, preferredSourceWindow: sourceWindow)
+#else
+        if let requested = connectionController.requestedSelectionID {
+            windowConnectionID = requested
+            listSelectionID = requested
+            connectionController.activeConnectionID = requested
+        }
+#endif
     }
 
+#if os(macOS)
     private func attachNewMainWindowAsTab(
         existingWindows: Set<ObjectIdentifier>,
         preferredSourceWindow: NSWindow?,
@@ -608,16 +760,29 @@ struct MainView: View {
             newWindow.makeKeyAndOrderFront(nil)
         }
     }
+#endif
 
     private func connectInNewWindow(_ bookmark: Bookmark) {
         connectionController.requestedSelectionID = bookmark.id
+#if os(macOS)
         openMainWindow()
+#else
+        windowConnectionID = bookmark.id
+        listSelectionID = bookmark.id
+        connectionController.activeConnectionID = bookmark.id
+#endif
         connectionController.connect(bookmark)
     }
 
     private func connectInNewTab(_ bookmark: Bookmark) {
         connectionController.requestedSelectionID = bookmark.id
+#if os(macOS)
         openMainTab()
+#else
+        windowConnectionID = bookmark.id
+        listSelectionID = bookmark.id
+        connectionController.activeConnectionID = bookmark.id
+#endif
         connectionController.connect(bookmark)
     }
 }
