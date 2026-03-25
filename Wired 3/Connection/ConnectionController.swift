@@ -1,0 +1,2591 @@
+//
+//  ConnectionController.swift
+//  Wired 3
+//
+//  Created by Rafaël Warnault on 18/12/2025.
+//  Copyright © 2025 Read-Write. All rights reserved.
+//
+
+import SwiftUI
+import SwiftData
+import WiredSwift
+import UserNotifications
+#if os(macOS)
+import AppKit
+#endif
+
+extension Notification.Name {
+    static let wiredAccountAccountsChanged = Notification.Name("wiredAccountAccountsChanged")
+    static let wiredServerEventReceived = Notification.Name("wiredServerEventReceived")
+    static let wiredServerLogMessageReceived = Notification.Name("wiredServerLogMessageReceived")
+}
+
+struct RemoteServerEvent {
+    let connectionID: UUID
+    let event: WiredServerEventRecord
+}
+
+struct RemoteServerLogEntry {
+    let connectionID: UUID
+    let entry: WiredLogEntry
+}
+
+enum WiredEventTag: Int, CaseIterable, Codable, Identifiable {
+    case serverConnected = 1
+    case serverDisconnected = 2
+    case error = 3
+    case userJoined = 4
+    case userChangedNick = 5
+    case userChangedStatus = 13
+    case userLeft = 6
+    case chatReceived = 7
+    case chatSent = 16
+    case highlightedChatReceived = 14
+    case chatInvitationReceived = 15
+    case messageReceived = 8
+    case broadcastReceived = 10
+    case boardPostAdded = 9
+    case boardReactionReceived = 17
+    case transferStarted = 11
+    case transferFinished = 12
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .serverConnected: return "Server Connected"
+        case .serverDisconnected: return "Server Disconnected"
+        case .error: return "Error"
+        case .userJoined: return "User Joined"
+        case .userChangedNick: return "User Changed Nick"
+        case .userLeft: return "User Left"
+        case .chatReceived: return "Chat Received"
+        case .messageReceived: return "Message Received"
+        case .boardPostAdded: return "Board Post Added"
+        case .boardReactionReceived: return "Board Reaction Received"
+        case .broadcastReceived: return "Broadcast Received"
+        case .transferStarted: return "Transfer Started"
+        case .transferFinished: return "Transfer Finished"
+        case .userChangedStatus: return "User Changed Status"
+        case .highlightedChatReceived: return "Highlighted Chat Received"
+        case .chatInvitationReceived: return "Private Chat Invitation Received"
+        case .chatSent: return "Chat Sent"
+        }
+    }
+
+    static let menuOrder: [WiredEventTag] = [
+        .serverConnected,
+        .serverDisconnected,
+        .error,
+        .userJoined,
+        .userChangedNick,
+        .userChangedStatus,
+        .userLeft,
+        .chatReceived,
+        .chatSent,
+        .highlightedChatReceived,
+        .chatInvitationReceived,
+        .messageReceived,
+        .broadcastReceived,
+        .boardPostAdded,
+        .boardReactionReceived,
+        .transferStarted,
+        .transferFinished,
+    ]
+}
+
+struct WiredEventConfiguration: Codable, Sendable, Equatable {
+    var tag: WiredEventTag
+    var playSound: Bool
+    var sound: String?
+    var bounceInDock: Bool
+    var postInChat: Bool
+    var showAlert: Bool
+    var notificationCenter: Bool
+
+    init(
+        tag: WiredEventTag,
+        playSound: Bool = false,
+        sound: String? = nil,
+        bounceInDock: Bool = false,
+        postInChat: Bool = false,
+        showAlert: Bool = false,
+        notificationCenter: Bool = false
+    ) {
+        self.tag = tag
+        self.playSound = playSound
+        self.sound = sound
+        self.bounceInDock = bounceInDock
+        self.postInChat = postInChat
+        self.showAlert = showAlert
+        self.notificationCenter = notificationCenter
+    }
+}
+
+enum WiredEventsStore {
+    static let configurationsKey = "WiredEventsConfigurations"
+    static let volumeKey = "WiredEventsVolume"
+    static let defaultSoundName = "Basso"
+    static let availableSounds: [String] = [
+        "Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero", "Morse",
+        "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink"
+    ]
+
+    static func defaultConfigurations() -> [WiredEventConfiguration] {
+        WiredEventTag.menuOrder.map { tag in
+            switch tag {
+            case .userJoined, .userChangedNick, .userLeft:
+                return WiredEventConfiguration(tag: tag, postInChat: true)
+            case .userChangedStatus:
+                return WiredEventConfiguration(tag: tag, postInChat: false)
+            default:
+                return WiredEventConfiguration(tag: tag)
+            }
+        }
+    }
+
+    static func loadConfigurations(defaults: UserDefaults = .standard) -> [WiredEventConfiguration] {
+        guard let data = defaults.data(forKey: configurationsKey),
+              let decoded = try? JSONDecoder().decode([WiredEventConfiguration].self, from: data) else {
+            return defaultConfigurations()
+        }
+
+        var byTag = Dictionary(uniqueKeysWithValues: defaultConfigurations().map { ($0.tag, $0) })
+        for config in decoded {
+            byTag[config.tag] = config
+        }
+        return WiredEventTag.menuOrder.compactMap { byTag[$0] }
+    }
+
+    static func saveConfigurations(_ configurations: [WiredEventConfiguration], defaults: UserDefaults = .standard) {
+        guard let data = try? JSONEncoder().encode(configurations) else { return }
+        defaults.set(data, forKey: configurationsKey)
+    }
+
+    static func configuration(for tag: WiredEventTag, defaults: UserDefaults = .standard) -> WiredEventConfiguration {
+        loadConfigurations(defaults: defaults).first(where: { $0.tag == tag }) ?? WiredEventConfiguration(tag: tag)
+    }
+
+    static func saveConfiguration(_ configuration: WiredEventConfiguration, defaults: UserDefaults = .standard) {
+        var all = loadConfigurations(defaults: defaults)
+        if let index = all.firstIndex(where: { $0.tag == configuration.tag }) {
+            all[index] = configuration
+        } else {
+            all.append(configuration)
+        }
+        saveConfigurations(all, defaults: defaults)
+    }
+
+    static func loadVolume(defaults: UserDefaults = .standard) -> Float {
+        guard defaults.object(forKey: volumeKey) != nil else { return 1.0 }
+        let value = defaults.float(forKey: volumeKey)
+        return min(max(value, 0.0), 1.0)
+    }
+
+    static func saveVolume(_ volume: Float, defaults: UserDefaults = .standard) {
+        defaults.set(min(max(volume, 0.0), 1.0), forKey: volumeKey)
+    }
+}
+
+enum SocketEvent {
+    case connected(UUID, Connection)
+    case received(UUID, Connection, P7Message)
+    case serverInfoChanged(UUID, Connection)
+    case disconnected(UUID, Connection?, Error?)
+
+    var id: UUID {
+        switch self {
+        case .connected(let id, _): return id
+        case .received(let id, _, _): return id
+        case .serverInfoChanged(let id, _): return id
+        case .disconnected(let id, _, _): return id
+        }
+    }
+}
+
+struct NewConnectionDraft: Identifiable, Equatable {
+    var id = UUID()
+    var hostname: String = ""
+    var login: String = ""
+    var password: String = ""
+}
+
+struct TemporaryConnection: Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var hostname: String
+    var login: String
+}
+
+struct IncomingURLAction {
+    let connectionID: UUID
+    let remotePath: String?
+}
+
+struct BookmarkMenuItem: Identifiable, Hashable {
+    let id: UUID
+    let name: String
+}
+
+struct ConnectionConfiguration: Identifiable, @unchecked Sendable {
+    let id: UUID
+    let name: String
+    let hostname: String
+    let login: String
+    let password: String?
+    let autoReconnect: Bool
+    let usesCustomIdentity: Bool
+    let customNick: String
+    let customStatus: String
+    let cipher: P7Socket.CipherType
+    let compression: P7Socket.Compression
+    let checksum: P7Socket.Checksum
+
+    var url: Url {
+        Url(withString: "wired://\(login)@\(hostname)")
+    }
+
+    init(bookmark: Bookmark, password: String? = nil) {
+        self.id = bookmark.id
+        self.name = bookmark.name
+        self.hostname = bookmark.hostname
+        self.login = bookmark.login
+        self.password = password
+        self.autoReconnect = bookmark.autoReconnect
+        self.usesCustomIdentity = bookmark.useCustomIdentity
+        self.customNick = bookmark.customNick.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.customStatus = bookmark.customStatus
+        self.cipher = bookmark.cipher
+        self.compression = bookmark.compression
+        self.checksum = bookmark.checksum
+    }
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        hostname: String,
+        login: String,
+        password: String?,
+        autoReconnect: Bool = false,
+        usesCustomIdentity: Bool = false,
+        customNick: String = "",
+        customStatus: String = "",
+        cipher: P7Socket.CipherType = .ECDH_CHACHA20_POLY1305,
+        compression: P7Socket.Compression = .LZ4,
+        checksum: P7Socket.Checksum = .HMAC_256
+    ) {
+        self.id = id
+        self.name = name
+        self.hostname = hostname
+        self.login = login
+        self.password = password
+        self.autoReconnect = autoReconnect
+        self.usesCustomIdentity = usesCustomIdentity
+        self.customNick = customNick
+        self.customStatus = customStatus
+        self.cipher = cipher
+        self.compression = compression
+        self.checksum = checksum
+    }
+}
+
+@Observable
+final class ConnectionController {
+    private enum AutoReconnectBlockReason {
+        case explicitDisconnect
+        case kicked
+        case banned
+        case serverForcedDisconnect
+        case loginRejected
+    }
+
+    // MARK: - Dependencies
+
+    let socketClient: SocketClient
+    var runtimeStores: [ConnectionRuntime] = []
+    var connectionEvents: [SocketEvent] = []
+    var temporaryConnections: [TemporaryConnection] = []
+    var presentedNewConnection: NewConnectionDraft? = nil
+    #if os(macOS)
+    var presentedNewConnectionWindowNumber: Int? = nil
+    #endif
+    var suppressPresentedNewConnectionSheet: Bool = false
+    var presentChangePassword: UUID? = nil
+    var presentChangePasswordWindowNumber: Int? = nil
+    var requestedSelectionID: UUID? = nil
+    var activeConnectionID: UUID? = nil
+    var didPerformInitialLaunchFlow: Bool = false
+    var connectionIssueRevision: UInt64 = 0
+    var notificationsRevision: UInt64 = 0
+    private var connectionIssueIDs: Set<UUID> = []
+    
+    // MARK: - Runtime
+
+    private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var autoReconnectTasks: [UUID: Task<Void, Never>] = [:]
+    private var autoReconnectAttempts: [UUID: Int] = [:]
+    private var autoReconnectBlockedReasons: [UUID: AutoReconnectBlockReason] = [:]
+    private var suppressNextDisconnectErrorForID: Set<UUID> = []
+    private let suppressDisconnectErrorLock = NSLock()
+    private var configurationsByID: [UUID: ConnectionConfiguration] = [:]
+    private var modelContext: ModelContext?
+    private let autoReconnectInterval: Duration = .seconds(10)
+    private let stateLock = NSLock()
+#if os(macOS)
+    private final class WeakWindowBox {
+        weak var window: NSWindow?
+
+        init(window: NSWindow) {
+            self.window = window
+        }
+    }
+
+    private var windowsByConnectionID: [UUID: WeakWindowBox] = [:]
+#endif
+
+    private func markSuppressNextDisconnectError(for id: UUID) {
+        suppressDisconnectErrorLock.lock()
+        suppressNextDisconnectErrorForID.insert(id)
+        suppressDisconnectErrorLock.unlock()
+    }
+
+    private func consumeSuppressNextDisconnectError(for id: UUID) -> Bool {
+        suppressDisconnectErrorLock.lock()
+        let shouldSuppress = suppressNextDisconnectErrorForID.remove(id) != nil
+        suppressDisconnectErrorLock.unlock()
+        return shouldSuppress
+    }
+
+    private func withStateLock<T>(_ body: () -> T) -> T {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return body()
+    }
+
+    private func setConnectionIssue(_ id: UUID, isIssue: Bool) {
+        let changed = withStateLock {
+            if isIssue {
+                return connectionIssueIDs.insert(id).inserted
+            } else {
+                return connectionIssueIDs.remove(id) != nil
+            }
+        }
+
+        if changed {
+            connectionIssueRevision &+= 1
+        }
+    }
+
+#if os(macOS)
+    @MainActor
+    func registerWindow(_ window: NSWindow, for connectionID: UUID?) {
+        cleanupWindowRegistry()
+        removeWindowAssociations(for: window)
+
+        guard let connectionID else { return }
+        windowsByConnectionID[connectionID] = WeakWindowBox(window: window)
+    }
+
+    @MainActor
+    func unregisterWindow(_ window: NSWindow) {
+        removeWindowAssociations(for: window)
+        cleanupWindowRegistry()
+    }
+
+    @MainActor
+    func focusWindow(for connectionID: UUID) -> Bool {
+        cleanupWindowRegistry()
+
+        guard let window = windowsByConnectionID[connectionID]?.window else {
+            windowsByConnectionID[connectionID] = nil
+            return false
+        }
+
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    @MainActor
+    func hasWindowAssociation(for connectionID: UUID) -> Bool {
+        cleanupWindowRegistry()
+        guard let window = windowsByConnectionID[connectionID]?.window else {
+            windowsByConnectionID[connectionID] = nil
+            return false
+        }
+        return window.isVisible
+    }
+
+    @MainActor
+    func activeConnectedConnectionIDs(inTabGroupOf window: NSWindow) -> [UUID] {
+        cleanupWindowRegistry()
+        let windowsInGroup = Set((window.tabGroup?.windows ?? [window]).map { ObjectIdentifier($0) })
+        let connectedIDs = activeConnectedConnectionIDs()
+
+        return connectedIDs.filter { id in
+            guard let associatedWindow = windowsByConnectionID[id]?.window else { return false }
+            return windowsInGroup.contains(ObjectIdentifier(associatedWindow))
+        }
+    }
+
+    @MainActor
+    func activeConnectedConnectionIDs(in windows: [NSWindow]) -> [UUID] {
+        cleanupWindowRegistry()
+        let windowSet = Set(windows.map { ObjectIdentifier($0) })
+        let connectedIDs = activeConnectedConnectionIDs()
+
+        return connectedIDs.filter { id in
+            guard let associatedWindow = windowsByConnectionID[id]?.window else { return false }
+            return windowSet.contains(ObjectIdentifier(associatedWindow))
+        }
+    }
+
+    @MainActor
+    private func removeWindowAssociations(for window: NSWindow) {
+        for (id, box) in windowsByConnectionID where box.window === window {
+            windowsByConnectionID[id] = nil
+        }
+    }
+
+    @MainActor
+    private func cleanupWindowRegistry() {
+        for (id, box) in windowsByConnectionID where box.window == nil {
+            windowsByConnectionID[id] = nil
+        }
+    }
+#endif
+
+    @MainActor
+    private func shouldIncrementUnreadForChatMessage(in runtime: ConnectionRuntime, chatID: UInt32) -> Bool {
+#if os(macOS)
+        guard NSApp.isActive else { return true }
+        guard runtime.selectedTab == .chats else { return true }
+        guard runtime.selectedChatID == chatID else { return true }
+
+        cleanupWindowRegistry()
+        guard let window = windowsByConnectionID[runtime.id]?.window else {
+            windowsByConnectionID[runtime.id] = nil
+            return true
+        }
+
+        let isForegroundWindow = window.isKeyWindow || window.isMainWindow
+        return !isForegroundWindow
+#else
+        return true
+#endif
+    }
+
+    @MainActor
+    func shouldAutoMarkBoardThreadAsRead(in runtime: ConnectionRuntime, thread: BoardThread) -> Bool {
+#if os(macOS)
+        guard NSApp.isActive else { return false }
+        guard runtime.selectedTab == .boards else { return false }
+        guard runtime.selectedThreadUUID == thread.uuid else { return false }
+        guard runtime.selectedBoardPath == thread.boardPath else { return false }
+
+        cleanupWindowRegistry()
+        guard let window = windowsByConnectionID[runtime.id]?.window else {
+            windowsByConnectionID[runtime.id] = nil
+            return false
+        }
+
+        return window.isKeyWindow || window.isMainWindow
+#else
+        return true
+#endif
+    }
+
+    // MARK: - Init
+
+    init(
+        socketClient: SocketClient
+    ) {
+        self.socketClient = socketClient
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(wiredUserNickDidChange), name: .wiredUserNickDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(wiredUserStatusDidChange), name: .wiredUserStatusDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(wiredUserIconDidChange), name: .wiredUserIconDidChange, object: nil)
+    }
+    
+    func runtime(for id: UUID) -> ConnectionRuntime? {
+        runtimeStores.first { $0.id == id }
+    }
+
+    func configuration(for id: UUID) -> ConnectionConfiguration? {
+        withStateLock { configurationsByID[id] }
+    }
+
+    func hasConnectionIssue(_ id: UUID) -> Bool {
+        withStateLock { connectionIssueIDs.contains(id) }
+    }
+
+    func firstActiveConnectionID() -> UUID? {
+        if let activeConnectionID, withStateLock({ tasks[activeConnectionID] != nil }) {
+            return activeConnectionID
+        }
+
+        return withStateLock { tasks.keys.first }
+    }
+
+    @MainActor
+    func activeConnectedConnectionIDs() -> [UUID] {
+        let activeTaskIDs = withStateLock { Set(tasks.keys) }
+        return runtimeStores
+            .filter { activeTaskIDs.contains($0.id) && $0.status == .connected }
+            .map(\.id)
+    }
+
+    @MainActor
+    var canChangePassword: Bool {
+        guard let id = activeConnectionID, let r = runtime(for: id), r.status == .connected else { return false }
+        return r.hasPrivilege("wired.account.account.change_password")
+    }
+
+    func activeBookmarkedConnectionID() -> UUID? {
+        guard let id = activeConnectionID else { return nil }
+        guard let modelContext else { return nil }
+
+        do {
+            var descriptor = FetchDescriptor<Bookmark>(
+                predicate: #Predicate<Bookmark> { bookmark in
+                    bookmark.id == id
+                }
+            )
+            descriptor.fetchLimit = 1
+            return try modelContext.fetch(descriptor).first?.id
+        } catch {
+            return nil
+        }
+    }
+
+    func bookmarkMenuItems() -> [BookmarkMenuItem] {
+        guard let modelContext else { return [] }
+
+        do {
+            var descriptor = FetchDescriptor<Bookmark>(
+                sortBy: [SortDescriptor(\.name, order: .forward)]
+            )
+            descriptor.includePendingChanges = true
+            return try modelContext.fetch(descriptor).map {
+                BookmarkMenuItem(id: $0.id, name: $0.name)
+            }
+        } catch {
+            return []
+        }
+    }
+
+    func connectBookmark(withID id: UUID) {
+        guard let modelContext else { return }
+
+        do {
+            var descriptor = FetchDescriptor<Bookmark>(
+                predicate: #Predicate<Bookmark> { bookmark in
+                    bookmark.id == id
+                }
+            )
+            descriptor.fetchLimit = 1
+            guard let bookmark = try modelContext.fetch(descriptor).first else { return }
+            connect(bookmark)
+        } catch {
+            return
+        }
+    }
+
+    func temporaryConnection(for id: UUID) -> TemporaryConnection? {
+        temporaryConnections.first(where: { $0.id == id })
+    }
+
+    func presentNewConnection(prefill: NewConnectionDraft = NewConnectionDraft()) {
+        #if os(macOS)
+        if presentedNewConnectionWindowNumber == nil {
+            presentedNewConnectionWindowNumber = NSApp.keyWindow?.windowNumber ?? NSApp.mainWindow?.windowNumber
+        }
+        #endif
+        presentedNewConnection = prefill
+    }
+
+    func connectTemporary(_ draft: NewConnectionDraft, requestSelection: Bool = true) -> UUID? {
+        let hostname = draft.hostname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let login = draft.login.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !hostname.isEmpty, !login.isEmpty else { return nil }
+
+        let id = UUID()
+        let displayName = hostname
+        let configuration = ConnectionConfiguration(
+            id: id,
+            name: displayName,
+            hostname: hostname,
+            login: login,
+            password: draft.password
+        )
+
+        let temporary = TemporaryConnection(
+            id: id,
+            name: displayName,
+            hostname: hostname,
+            login: login
+        )
+        temporaryConnections.append(temporary)
+        connect(configuration)
+        if requestSelection {
+            requestedSelectionID = id
+        }
+        return id
+    }
+
+    func connectOrReuseTemporary(_ draft: NewConnectionDraft) -> UUID? {
+        let hostname = draft.hostname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let login = draft.login.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !hostname.isEmpty, !login.isEmpty else { return nil }
+
+        if let existing = configurationsByID.values.first(where: {
+            $0.hostname.caseInsensitiveCompare(hostname) == .orderedSame &&
+            $0.login.caseInsensitiveCompare(login) == .orderedSame
+        }) {
+            connect(existing)
+            requestedSelectionID = existing.id
+            return existing.id
+        }
+
+        return connectTemporary(draft)
+    }
+
+    func markConnectionAsBookmarked(_ id: UUID) {
+        temporaryConnections.removeAll { $0.id == id }
+    }
+
+    func disconnect(connectionID: UUID, runtime: ConnectionRuntime) {
+        withStateLock {
+            autoReconnectBlockedReasons[connectionID] = .explicitDisconnect
+        }
+        cancelAutoReconnect(for: connectionID, clearUI: true)
+        setConnectionIssue(connectionID, isIssue: false)
+        let task = withStateLock { tasks.removeValue(forKey: connectionID) }
+        task?.cancel()
+
+        Task {
+            await socketClient.disconnect(id: connectionID)
+
+            await MainActor.run {
+                runtime.disconnect(error: nil)
+            }
+        }
+    }
+
+    func securityOptions(for connectionID: UUID?) -> (
+        cipher: P7Socket.CipherType,
+        compression: P7Socket.Compression,
+        checksum: P7Socket.Checksum
+    )? {
+        guard let connectionID, let configuration = configurationsByID[connectionID] else {
+            return nil
+        }
+        return (
+            cipher: configuration.cipher,
+            compression: configuration.compression,
+            checksum: configuration.checksum
+        )
+    }
+
+    @MainActor
+    func applyIdentityUpdateIfConnected(
+        connectionID: UUID,
+        usesCustomIdentity: Bool,
+        customNick: String,
+        customStatus: String,
+        fallbackNick: String,
+        fallbackStatus: String
+    ) {
+        let trimmedCustomNick = customNick.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveNick = usesCustomIdentity
+            ? (trimmedCustomNick.isEmpty ? fallbackNick.trimmingCharacters(in: .whitespacesAndNewlines) : trimmedCustomNick)
+            : fallbackNick.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveStatus = usesCustomIdentity ? customStatus : fallbackStatus
+
+        withStateLock {
+            guard let existing = configurationsByID[connectionID] else { return }
+            configurationsByID[connectionID] = ConnectionConfiguration(
+                id: existing.id,
+                name: existing.name,
+                hostname: existing.hostname,
+                login: existing.login,
+                password: existing.password,
+                autoReconnect: existing.autoReconnect,
+                usesCustomIdentity: usesCustomIdentity,
+                customNick: trimmedCustomNick,
+                customStatus: usesCustomIdentity ? customStatus : "",
+                cipher: existing.cipher,
+                compression: existing.compression,
+                checksum: existing.checksum
+            )
+        }
+
+        guard let runtime = runtime(for: connectionID), runtime.status == .connected else { return }
+
+        Task {
+            if !effectiveNick.isEmpty, let nickMessage = runtime.setNickMessage(effectiveNick) {
+                _ = try? await runtime.send(nickMessage)
+            }
+
+            if let statusMessage = runtime.setStatusMessage(effectiveStatus) {
+                _ = try? await runtime.send(statusMessage)
+            }
+        }
+    }
+
+    
+    // MARK: - Notifications
+    
+    @MainActor @objc func wiredUserNickDidChange(_ notification: Notification) {
+        if let nick = notification.object as? String {
+            for r in runtimeStores {
+                let hasCustomIdentity = withStateLock { configurationsByID[r.id]?.usesCustomIdentity ?? false }
+                if hasCustomIdentity { continue }
+                if let message = r.setNickMessage(nick) {
+                    Task {
+                        try? await r.send(message)
+                    }
+                }
+            }
+        }
+    }
+    
+    @MainActor @objc func wiredUserStatusDidChange(_ notification: Notification) {
+        if let status = notification.object as? String {
+            for r in runtimeStores {
+                let hasCustomIdentity = withStateLock { configurationsByID[r.id]?.usesCustomIdentity ?? false }
+                if hasCustomIdentity { continue }
+                if let message = r.setStatusMessage(status) {
+                    Task {
+                        _ = try? await r.send(message)
+                    }
+                }
+            }
+        }
+    }
+    
+    @MainActor @objc func wiredUserIconDidChange(_ notification: Notification) {
+        if let icon = notification.object as? String {
+            if let data = Data(base64Encoded: icon, options: .ignoreUnknownCharacters) {
+                for r in runtimeStores {
+                    if let message = r.setIconMessage(data) {
+                        Task {
+                            try? await r.send(message)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - IdleTimers
+    
+    @MainActor func startIdleTimers() {
+        for r in runtimeStores {
+            r.startIdleTimer()
+        }
+    }
+
+    @MainActor func stopIdleTimers() {
+        for r in runtimeStores {
+            r.stopIdleTimer()
+        }
+    }
+
+    // MARK: - Public API
+
+    func connect(_ bookmark: Bookmark) {
+        connect(ConnectionConfiguration(bookmark: bookmark), initiatedByAutoReconnect: false)
+    }
+
+    func connect(_ configuration: ConnectionConfiguration) {
+        connect(configuration, initiatedByAutoReconnect: false)
+    }
+
+    private func connect(_ configuration: ConnectionConfiguration, initiatedByAutoReconnect: Bool) {
+        let id = configuration.id
+        let canStart = withStateLock {
+            guard tasks[id] == nil else { return false }
+            configurationsByID[id] = configuration
+            autoReconnectBlockedReasons[id] = nil
+            return true
+        }
+        guard canStart else { return }
+        if initiatedByAutoReconnect {
+            markSuppressNextDisconnectError(for: id)
+        } else {
+            cancelAutoReconnect(for: id, clearUI: true)
+        }
+
+        Task { @MainActor in
+            let runtime =
+                runtimeStores.first(where: { $0.id == id })
+                ?? ConnectionRuntime(id: id, connectionController: self)
+
+            if !runtimeStores.contains(where: { $0.id == id }) {
+                runtimeStores.append(runtime)
+            }
+            if let modelContext {
+                runtime.attach(modelContext: modelContext)
+            }
+            runtime.connect()
+        }
+
+        let task = Task {
+            let maxConnectAttempts = 3
+
+            for attempt in 1...maxConnectAttempts {
+                do {
+                    let stream = await socketClient.connect(configuration: configuration)
+
+                    await MainActor.run {
+                        self.startIdleTimers()
+                    }
+
+                    for try await event in stream {
+                        await handle(event)
+                    }
+
+                    break
+
+                } catch {
+                    let shouldRetry =
+                        attempt < maxConnectAttempts &&
+                        isTransientConnectError(error) &&
+                        !Task.isCancelled
+
+                    if shouldRetry {
+                        await socketClient.disconnect(id: id)
+                        try? await Task.sleep(for: .milliseconds(500))
+                        continue
+                    }
+
+                    if Task.isCancelled {
+                        break
+                    }
+
+                    let shouldSuppressError = initiatedByAutoReconnect || consumeSuppressNextDisconnectError(for: id)
+                    let isExplicitDisconnect = withStateLock {
+                        autoReconnectBlockedReasons[id] == .explicitDisconnect
+                    }
+
+                    await MainActor.run {
+                        if !isExplicitDisconnect {
+                            self.setConnectionIssue(id, isIssue: true)
+                        }
+                        if let runtime = runtimeStores.first(where: { $0.id == id }) {
+                            runtime.disconnect(error: shouldSuppressError ? nil : error)
+                        }
+                    }
+
+                    withStateLock {
+                        tasks[id] = nil
+                    }
+                    await scheduleAutoReconnectIfNeeded(for: id, error: error)
+                    break
+                }
+            }
+
+            // cleanup commun (success OU error)
+            await MainActor.run {
+                if let runtime = runtimeStores.first(where: { $0.id == id }) {
+                    runtime.disconnect()
+                }
+            }
+
+            withStateLock {
+                tasks[id] = nil
+            }
+        }
+
+        withStateLock {
+            tasks[id] = task
+        }
+    }
+
+    func disconnectAll() {
+        let allTaskIDs = withStateLock { Array(tasks.keys) }
+        for id in allTaskIDs {
+            withStateLock {
+                autoReconnectBlockedReasons[id] = .explicitDisconnect
+            }
+            cancelAutoReconnect(for: id, clearUI: true)
+            setConnectionIssue(id, isIssue: false)
+        }
+        let runningTasks = withStateLock { tasks }
+        for (id, task) in runningTasks {
+            task.cancel()
+            Task { await socketClient.disconnect(id: id) }
+        }
+        withStateLock {
+            tasks.removeAll()
+        }
+    }
+
+    @MainActor
+    func attach(modelContext: ModelContext) {
+        guard self.modelContext == nil else { return }
+        self.modelContext = modelContext
+        for runtime in runtimeStores {
+            runtime.attach(modelContext: modelContext)
+        }
+    }
+    
+    func isConnected(_ bookmark: Bookmark) -> Bool {
+        withStateLock { tasks[bookmark.id] != nil }
+    }
+
+    func isConnected(_ id: UUID) -> Bool {
+        withStateLock { tasks[id] != nil }
+    }
+
+    func disconnect(_ bookmark: Bookmark, runtime: ConnectionRuntime) {
+        disconnect(connectionID: bookmark.id, runtime: runtime)
+    }
+
+    @MainActor
+    func handleIncomingURL(_ url: URL) -> IncomingURLAction? {
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "wired3" || scheme == "wired" else {
+            return nil
+        }
+
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hostWithPort: String = {
+            guard !host.isEmpty else { return "" }
+            if let port = components.port {
+                return "\(host):\(port)"
+            }
+            return host
+        }()
+
+        let loginFromQuery = components.queryItems?.first(where: {
+            $0.name.lowercased() == "login" || $0.name.lowercased() == "user"
+        })?.value
+
+        let passwordFromQuery = components.queryItems?.first(where: {
+            $0.name.lowercased() == "password" || $0.name.lowercased() == "pass"
+        })?.value
+
+        let login = (components.user ?? loginFromQuery ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let password = components.password ?? passwordFromQuery ?? ""
+        let normalizedRemotePath: String? = {
+            let path = components.percentEncodedPath.removingPercentEncoding ?? components.path
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed != "/" else { return nil }
+            return trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        }()
+
+        if hostWithPort.isEmpty {
+            guard let remotePath = normalizedRemotePath else {
+                presentNewConnection()
+                return nil
+            }
+
+            if let activeConnectionID {
+                return IncomingURLAction(connectionID: activeConnectionID, remotePath: remotePath)
+            }
+
+            if let connected = runtimeStores.first(where: { $0.status == .connected }) {
+                requestedSelectionID = connected.id
+                activeConnectionID = connected.id
+                return IncomingURLAction(connectionID: connected.id, remotePath: remotePath)
+            }
+
+            return nil
+        }
+
+        if login.isEmpty {
+            presentNewConnection(prefill: NewConnectionDraft(hostname: hostWithPort))
+            return nil
+        }
+
+        let draft = NewConnectionDraft(
+            hostname: hostWithPort,
+            login: login,
+            password: password
+        )
+        guard let connectionID = connectOrReuseTemporary(draft) else {
+            return nil
+        }
+        return IncomingURLAction(connectionID: connectionID, remotePath: normalizedRemotePath)
+    }
+
+    // MARK: - Event handling
+
+    private func handle(_ event: SocketEvent) async {
+        switch event {
+
+        case .connected(let id, let connection):
+            await MainActor.run {
+                self.setConnectionIssue(id, isIssue: false)
+                if let runtime = self.runtimeStores.first(where: { $0.id == id }) {
+                    runtime.resetAutoReconnectState()
+                    runtime.connected(connection)
+                    let serverName = self.runtimeDisplayName(runtime)
+                    self.triggerEvent(.serverConnected, runtime: runtime, subtitle: serverName, body: "\(serverName) connected.", chatText: "\(serverName) connected.")
+                }
+            }
+            cancelAutoReconnect(for: id, clearUI: false)
+            withStateLock {
+                autoReconnectAttempts[id] = 0
+            }
+
+        case .disconnected(let id, _, let error):
+            let shouldSuppressError = consumeSuppressNextDisconnectError(for: id)
+            let isExplicitDisconnect = withStateLock {
+                autoReconnectBlockedReasons[id] == .explicitDisconnect
+            }
+            await MainActor.run {
+                if !isExplicitDisconnect {
+                    self.setConnectionIssue(id, isIssue: true)
+                }
+                if let runtime = self.runtimeStores.first(where: { $0.id == id }) {
+                    let serverName = self.runtimeDisplayName(runtime)
+                    self.triggerEvent(.serverDisconnected, runtime: runtime, subtitle: serverName, body: "\(serverName) disconnected.", chatText: "\(serverName) disconnected.")
+                    if let error, !shouldSuppressError {
+                        self.triggerEvent(.error, runtime: runtime, subtitle: serverName, body: error.localizedDescription, chatText: "Error: \(error.localizedDescription)")
+                    }
+                    runtime.disconnect(error: shouldSuppressError ? nil : error)
+                }
+            }
+            withStateLock {
+                tasks[id] = nil
+            }
+            await scheduleAutoReconnectIfNeeded(for: id, error: error)
+
+        case .received(let id, let connection, let message):
+            await MainActor.run {
+                guard let runtime = self.runtimeStores.first(where: { $0.id == id }) else { return }
+                if runtime.serverInfo == nil, let serverInfo = connection.serverInfo {
+                    runtime.serverInfo = serverInfo
+                }
+            }
+            await handleMessage(message, connection: connection, from: id)
+
+        case .serverInfoChanged(let id, let connection):
+            await MainActor.run {
+                guard let runtime = self.runtimeStores.first(where: { $0.id == id }) else { return }
+                runtime.serverInfo = connection.serverInfo
+            }
+        }
+    }
+
+    private func isTransientConnectError(_ error: Error) -> Bool {
+        let description = error.localizedDescription.lowercased()
+        let transientMarkers = [
+            "is unreachable",
+            "network is unreachable",
+            "host is down",
+            "no route to host",
+            "connection refused"
+        ]
+
+        return transientMarkers.contains { description.contains($0) }
+    }
+
+    private func cancelAutoReconnect(for id: UUID, clearUI: Bool) {
+        let taskToCancel = withStateLock {
+            let task = autoReconnectTasks[id]
+            autoReconnectTasks[id] = nil
+            if clearUI {
+                autoReconnectAttempts[id] = 0
+            }
+            return task
+        }
+        taskToCancel?.cancel()
+        if clearUI {
+            Task { @MainActor in
+                self.runtime(for: id)?.resetAutoReconnectState()
+            }
+        }
+    }
+
+    private func scheduleAutoReconnectIfNeeded(for id: UUID, error: Error?) async {
+        if let reason = autoReconnectBlockReason(from: error) {
+            withStateLock {
+                autoReconnectBlockedReasons[id] = reason
+            }
+        }
+
+        guard await shouldAutoReconnect(for: id) else {
+            cancelAutoReconnect(for: id, clearUI: true)
+            return
+        }
+
+        let alreadyScheduled = withStateLock { autoReconnectTasks[id] != nil }
+        guard !alreadyScheduled else { return }
+
+        let reconnectTask = Task { [weak self] in
+            guard let self else { return }
+            let intervalSeconds = 10.0
+
+            while !Task.isCancelled {
+                guard await self.shouldAutoReconnect(for: id) else { break }
+
+                let attempt = self.withStateLock {
+                    let next = (self.autoReconnectAttempts[id] ?? 0) + 1
+                    self.autoReconnectAttempts[id] = next
+                    return next
+                }
+                let nextAttemptAt = Date().addingTimeInterval(intervalSeconds)
+
+                await MainActor.run {
+                    self.runtime(for: id)?.setAutoReconnectState(
+                        isScheduled: true,
+                        attempt: attempt,
+                        interval: intervalSeconds,
+                        nextAttemptAt: nextAttemptAt
+                    )
+                }
+
+                try? await Task.sleep(for: self.autoReconnectInterval)
+                guard !Task.isCancelled else { break }
+
+                await MainActor.run {
+                    self.runtime(for: id)?.setAutoReconnectState(isScheduled: false)
+                }
+
+                guard await self.shouldAutoReconnect(for: id) else { break }
+
+                let hasRunningTask = self.withStateLock { self.tasks[id] != nil }
+                if hasRunningTask { continue }
+
+                guard let configuration = self.withStateLock({ self.configurationsByID[id] }) else {
+                    continue
+                }
+
+                self.connect(configuration, initiatedByAutoReconnect: true)
+            }
+
+            self.withStateLock {
+                self.autoReconnectTasks[id] = nil
+            }
+            await MainActor.run {
+                self.runtime(for: id)?.setAutoReconnectState(isScheduled: false)
+            }
+        }
+        withStateLock {
+            autoReconnectTasks[id] = reconnectTask
+        }
+    }
+
+    private func shouldAutoReconnect(for id: UUID) async -> Bool {
+        guard await isAutoReconnectEnabled(for: id) else {
+            return false
+        }
+
+        let blocked = withStateLock { autoReconnectBlockedReasons[id] != nil }
+        guard !blocked else {
+            return false
+        }
+
+        return true
+    }
+
+    private func isAutoReconnectEnabled(for id: UUID) async -> Bool {
+        let fallback = withStateLock { configurationsByID[id]?.autoReconnect ?? false }
+
+        guard let modelContext else { return fallback }
+        nonisolated(unsafe) let ctx = modelContext
+        return await MainActor.run {
+            do {
+                var descriptor = FetchDescriptor<Bookmark>(
+                    predicate: #Predicate<Bookmark> { bookmark in
+                        bookmark.id == id
+                    }
+                )
+                descriptor.fetchLimit = 1
+                let bookmark = try ctx.fetch(descriptor).first
+                return bookmark?.autoReconnect ?? fallback
+            } catch {
+                return fallback
+            }
+        }
+    }
+
+    private func autoReconnectBlockReason(from error: Error?) -> AutoReconnectBlockReason? {
+        guard let error else { return nil }
+
+        if let asyncError = error as? AsyncConnectionError,
+           case let .serverError(message) = asyncError {
+            if let reason = autoReconnectBlockReason(from: message) {
+                return reason
+            }
+        }
+
+        let lowered = error.localizedDescription.lowercased()
+        if lowered.contains("banned") {
+            return .banned
+        }
+        if lowered.contains("kicked") {
+            return .kicked
+        }
+
+        return nil
+    }
+
+    private func autoReconnectBlockReason(from message: P7Message) -> AutoReconnectBlockReason? {
+        let name = (message.name ?? "").lowercased()
+        if name == "wired.banned" {
+            return .banned
+        }
+
+        if name == "wired.error" {
+            let errorString = (message.string(forField: "wired.error.string") ?? "").lowercased()
+            if errorString.contains("banned") {
+                return .banned
+            }
+            if errorString.contains("kicked") {
+                return .kicked
+            }
+        }
+
+        return nil
+    }
+
+    private func handleMessage(_ message: P7Message, connection: Connection, from id: UUID) async {
+        guard let runtime = runtimeStores.first(where: { $0.id == id }) else { return }
+                
+        switch message.name {
+        case "wired.banned":
+            withStateLock {
+                autoReconnectBlockedReasons[id] = .banned
+            }
+
+        case "wired.error":
+            if let reason = autoReconnectBlockReason(from: message) {
+                withStateLock {
+                    autoReconnectBlockedReasons[id] = reason
+                }
+            }
+            let errorText = message.string(forField: "wired.error.string") ?? "Unknown server error"
+            await MainActor.run {
+                self.triggerEvent(
+                    .error,
+                    runtime: runtime,
+                    subtitle: self.runtimeDisplayName(runtime),
+                    body: errorText,
+                    chatText: "Error: \(errorText)"
+                )
+            }
+
+        case "wired.chat.user_kick":
+            let runtimeUserID = await MainActor.run { runtime.userID }
+            if let targetUserID = message.uint32(forField: "wired.user.disconnected_id"), targetUserID == runtimeUserID {
+                withStateLock {
+                    autoReconnectBlockedReasons[id] = .kicked
+                }
+            }
+            await MainActor.run {
+                self.handleModerationBroadcast(message, kind: "kicked", in: runtime)
+            }
+
+        case "wired.chat.user_ban":
+            let runtimeUserID = await MainActor.run { runtime.userID }
+            if let targetUserID = message.uint32(forField: "wired.user.disconnected_id"), targetUserID == runtimeUserID {
+                withStateLock {
+                    autoReconnectBlockedReasons[id] = .banned
+                }
+            }
+            await MainActor.run {
+                self.handleModerationBroadcast(message, kind: "banned", in: runtime)
+            }
+
+        case "wired.chat.user_disconnect":
+            let runtimeUserID = await MainActor.run { runtime.userID }
+            if let targetUserID = message.uint32(forField: "wired.user.disconnected_id"), targetUserID == runtimeUserID {
+                withStateLock {
+                    autoReconnectBlockedReasons[id] = .serverForcedDisconnect
+                }
+            }
+            await MainActor.run {
+                self.handleModerationBroadcast(message, kind: "disconnected", in: runtime)
+            }
+
+//        case "wired.error":
+//            await MainActor.run {
+//                runtime.lastError = WiredError(message: message)
+//            }
+            
+        case "wired.login":
+            await MainActor.run {
+                runtime.userID = message.uint32(forField: "wired.user.id") ?? 0
+                runtime.resetBoards()
+            }
+
+            let request = P7Message(withName: "wired.chat.get_chats", spec: spec!)
+            _ = try? await runtime.send(request)
+
+            // Keep board bootstrap off the main message-processing path:
+            // some servers may never answer these requests, which would stall
+            // chat join events and leave the UI on "Connecting...".
+            Task {
+                try? await runtime.subscribeBoards()
+                try? await runtime.getBoards()
+                await runtime.bootstrapBoardThreads()
+            }
+        case "wired.account.privileges":
+            var parsedPrivileges: [String: Any] = [:]
+
+            for fieldName in spec?.accountPrivileges ?? [] {
+                if let field = spec?.fieldsByName[fieldName] {
+                    if field.type == .bool {
+                        if let val = message.bool(forField: fieldName) {
+                            parsedPrivileges[fieldName] = val
+                        }
+                    } else if field.type == .enum32 || field.type == .uint32 {
+                        if let val = message.uint32(forField: fieldName) {
+                            parsedPrivileges[fieldName] = val
+                        }
+                    }
+                }
+            }
+
+            if let color = message.enumeration(forField: "wired.account.color")
+                ?? message.uint32(forField: "wired.account.color") {
+                parsedPrivileges["wired.account.color"] = color
+            }
+
+            let privileges = parsedPrivileges
+            await MainActor.run {
+                runtime.privileges = privileges
+            }
+
+            // Account or group privilege changes can alter board/thread/post visibility.
+            // Re-sync the boards tree from server so UI stays in sync without reconnect.
+            Task { @MainActor in
+                await runtime.reloadBoardsAndThreads()
+            }
+        case "wired.account.accounts_changed":
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .wiredAccountAccountsChanged,
+                    object: nil,
+                    userInfo: ["runtimeID": id]
+                )
+            }
+        case "wired.event.event":
+            if let event = WiredServerEventRecord(message: message) {
+                await MainActor.run {
+                    NotificationCenter.default.post(
+                        name: .wiredServerEventReceived,
+                        object: RemoteServerEvent(connectionID: id, event: event)
+                    )
+                }
+            }
+
+        case "wired.log.message":
+            if let entry = WiredLogEntry(message: message) {
+                await MainActor.run {
+                    NotificationCenter.default.post(
+                        name: .wiredServerLogMessageReceived,
+                        object: RemoteServerLogEntry(connectionID: id, entry: entry)
+                    )
+                }
+            }
+
+//        case "wired.user.info":
+//            await updateUserInfo(from: message, in: runtime)
+//            await MainActor.run {
+//                runtime.showInfos.toggle()
+//            }
+        case "wired.server_info":
+            await MainActor.run {
+                runtime.serverInfo = connection.serverInfo
+            }
+            
+        case "wired.chat.chat_list":
+            if let chat = await parseChat(from: message) {
+                await runtime.appendChat(chat)
+                
+                if chat.id == 1 {
+                    do {
+                        try await runtime.joinChat(chat.id)
+                    } catch {
+                        await MainActor.run {
+                            runtime.lastError = error
+                        }
+                    }
+                }
+            }
+        case "wired.chat.chat_created":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                await MainActor.run {
+                    if runtime.chat(withID: chatID) == nil {
+                        runtime.appendPrivateChat(
+                            Chat(id: chatID, name: "Private Chat", isPrivate: true)
+                        )
+                    }
+                    runtime.selectedChatID = chatID
+                }
+            }
+        case "wired.chat.invitation":
+            if let chatID = message.uint32(forField: "wired.chat.id"),
+               let inviterUserID = message.uint32(forField: "wired.user.id") {
+                await MainActor.run {
+                    if runtime.chat(withID: chatID) == nil {
+                        runtime.appendPrivateChat(
+                            Chat(id: chatID, name: "Private Chat", isPrivate: true)
+                        )
+                    }
+
+                    let inviterNick =
+                        runtime.chats
+                        .flatMap(\.users)
+                        .first(where: { $0.id == inviterUserID })?
+                        .nick
+
+                    runtime.pendingChatInvitation = ChatInvitation(
+                        chatID: chatID,
+                        inviterUserID: inviterUserID,
+                        inviterNick: inviterNick
+                    )
+                    let inviter = inviterNick ?? "User"
+                    self.triggerEvent(
+                        .chatInvitationReceived,
+                        runtime: runtime,
+                        subtitle: inviter,
+                        body: "Invitation to a private chat.",
+                        chatText: "\(inviter) invited you to a private chat."
+                    )
+                }
+            }
+            
+        case "wired.chat.public_chat_created":
+            if let chat = await parseChat(from: message) {
+                await runtime.appendChat(chat)
+            }
+
+        case "wired.chat.public_chat_deleted":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                await MainActor.run {
+                    runtime.chats.removeAll(where: { $0.id == chatID })
+                }
+            }
+            
+        case "wired.chat.user_list":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                if let chat = await runtime.chat(withID: chatID) {
+                    if let user = await parseUser(from: message) {
+                        await MainActor.run {
+                            _ = self.upsertUser(user, in: chat)
+                            runtime.refreshPrivateChatName(chat)
+                        }
+                    }
+                }
+            }
+        case "wired.chat.user_list.done":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                await MainActor.run {
+                    if let chat = runtime.chat(withID: chatID) {
+                        chat.joined = true
+                        runtime.refreshPrivateChatName(chat)
+                    }
+                }
+                
+                if chatID == 1 {
+                    await MainActor.run {
+                        runtime.joined = true
+                    }
+                }
+            }
+        case "wired.chat.topic":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                if let chat = await runtime.chat(withID: chatID) {
+                    if let topic = message.string(forField: "wired.chat.topic.topic"),
+                       let nick = message.string(forField: "wired.user.nick"),
+                       let time = message.date(forField: "wired.chat.topic.time") {
+                        await MainActor.run {
+                            chat.topic = Topic(topic: topic, nick: nick, time: time)
+                        }
+                    }
+                }
+            }
+            
+        case "wired.chat.user_join":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                if let chat = await runtime.chat(withID: chatID) {
+                    if let user = await parseUser(from: message) {
+                        await MainActor.run {
+                            runtime.clearIncomingChatTyping(chatID: chatID, userID: user.id)
+                            let wasInserted = self.upsertUser(user, in: chat)
+                            if wasInserted {
+                                //chat.messages.append(ChatEvent(chat: chat, user: user, type: .join, text: ""))
+                                if user.id != runtime.userID {
+                                    self.triggerEvent(
+                                        .userJoined,
+                                        runtime: runtime,
+                                        chat: chat,
+                                        subtitle: user.nick,
+                                        body: "\(user.nick) joined \(chat.name).",
+                                        chatText: "\(user.nick) joined \(chat.name)."
+                                    )
+                                }
+                            }
+                            runtime.refreshPrivateChatName(chat)
+                        }
+                    }
+                }
+            }
+        case "wired.chat.user_leave":
+            if  let chatID = message.uint32(forField: "wired.chat.id"),
+                let userID = message.uint32(forField: "wired.user.id")
+            {
+                if let chat = await runtime.chat(withID: chatID) {
+                    await MainActor.run {
+                        runtime.clearIncomingChatTyping(chatID: chatID, userID: userID)
+                        if let user = chat.users.first(where: { $0.id == userID }) {
+                            let nick = user.nick
+                            //chat.messages.append(ChatEvent(chat: chat, user: user, type: .leave, text: ""))
+                            chat.users.removeAll { $0.id == user.id }
+                            if userID != runtime.userID {
+                                self.triggerEvent(
+                                    .userLeft,
+                                    runtime: runtime,
+                                    chat: chat,
+                                    subtitle: nick,
+                                    body: "\(nick) left \(chat.name).",
+                                    chatText: "\(nick) left \(chat.name)."
+                                )
+                            }
+                        }
+                        runtime.refreshPrivateChatName(chat)
+
+                        // Keep local joined state authoritative when our own user leaves.
+                        if userID == runtime.userID {
+                            if chat.isPrivate {
+                                runtime.removePrivateChat(chat.id)
+                            } else {
+                                chat.joined = false
+                                if runtime.selectedChatID == chat.id {
+                                    runtime.selectedChatID = 1
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        case "wired.chat.user_decline_invitation":
+            if let chatID = message.uint32(forField: "wired.chat.id"),
+               let userID = message.uint32(forField: "wired.user.id"),
+               let chat = await runtime.chat(withID: chatID) {
+                await MainActor.run {
+                    if let user = chat.users.first(where: { $0.id == userID }) {
+                        appendChatMessage(
+                            ChatEvent(chat: chat, user: user, type: .leave, text: ""),
+                            to: chat
+                        )
+                    }
+                }
+            }
+        case "wired.chat.user_status":
+            if let userID = message.uint32(forField: "wired.user.id") {
+                let targetChatID = message.uint32(forField: "wired.chat.id")
+                let incomingNick = message.string(forField: "wired.user.nick")
+                let incomingStatus = message.string(forField: "wired.user.status")
+
+                await MainActor.run {
+                    let targetChats: [Chat]
+                    if let targetChatID {
+                        targetChats = (runtime.chats + runtime.private_chats).filter { $0.id == targetChatID }
+                    } else {
+                        targetChats = runtime.chats + runtime.private_chats
+                    }
+
+                    for chat in targetChats {
+                        guard let user = chat.users.first(where: { $0.id == userID }) else { continue }
+                        let previousNick = user.nick
+                        let previousStatus = user.status
+                        user.nick = message.string(forField: "wired.user.nick") ?? user.nick
+                        user.status = message.string(forField: "wired.user.status")
+                        user.icon = message.data(forField: "wired.user.icon") ?? user.icon
+                        user.idle = message.bool(forField: "wired.user.idle") ?? user.idle
+                        user.color = message.enumeration(forField: "wired.account.color")
+                            ?? message.uint32(forField: "wired.account.color")
+                            ?? user.color
+                        runtime.refreshPrivateChatName(chat)
+
+                        guard user.id != runtime.userID else { continue }
+
+                        if let incomingNick, incomingNick != previousNick {
+                            self.triggerEvent(
+                                .userChangedNick,
+                                runtime: runtime,
+                                chat: chat,
+                                subtitle: previousNick,
+                                body: "\(previousNick) is now \(incomingNick).",
+                                chatText: "\(previousNick) is now \(incomingNick)."
+                            )
+
+                            // Propagate nick change to any open direct message conversation
+                            if let conv = runtime.messageConversations.first(where: {
+                                $0.kind == .direct && $0.participantUserID == userID
+                            }) {
+                                conv.participantNick = incomingNick
+                                conv.title = incomingNick
+                            }
+                        }
+
+                        if incomingStatus != previousStatus {
+                            self.triggerEvent(
+                                .userChangedStatus,
+                                runtime: runtime,
+                                chat: chat,
+                                subtitle: user.nick,
+                                body: "\(user.nick) changed status.",
+                                chatText: "\(user.nick) changed status."
+                            )
+                        }
+                    }
+                }
+            }
+        case "wired.chat.say":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                if let userID = message.uint32(forField: "wired.user.id") {
+                    if let chat = await runtime.chat(withID: chatID) {
+                        if let user = await chat.users.first(where: { $0.id == userID }) {
+                            if let say = message.string(forField: "wired.chat.say") {
+                                await MainActor.run {
+                                    runtime.clearIncomingChatTyping(chatID: chatID, userID: userID)
+                                    appendChatMessage(
+                                        ChatEvent(chat: chat, user: user, type: .say, text: say),
+                                        to: chat
+                                    )
+                                    
+                                    if userID != runtime.userID {
+                                        if self.shouldIncrementUnreadForChatMessage(in: runtime, chatID: chat.id) {
+                                            chat.unreadMessagesCount += 1
+                                            updateNotificationsBadge()
+                                        }
+                                        self.triggerEvent(
+                                            .chatReceived,
+                                            runtime: runtime,
+                                            subtitle: user.nick,
+                                            body: say,
+                                            chatText: "[\(chat.name)] <\(user.nick)> \(say)"
+                                        )
+                                        if self.isHighlightedChat(text: say, runtime: runtime) {
+                                            // TODO: Match legacy Wired highlight rules (keywords/regexes) once highlight settings are ported.
+                                            self.triggerEvent(
+                                                .highlightedChatReceived,
+                                                runtime: runtime,
+                                                subtitle: user.nick,
+                                                body: say,
+                                                chatText: "[\(chat.name)] Highlighted chat from \(user.nick): \(say)"
+                                            )
+                                        }
+                                    } else {
+                                        self.triggerEvent(
+                                            .chatSent,
+                                            runtime: runtime,
+                                            subtitle: user.nick,
+                                            body: say,
+                                            chatText: "[\(chat.name)] <\(user.nick)> \(say)"
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        case "wired.chat.me":
+            if let chatID = message.uint32(forField: "wired.chat.id") {
+                if let userID = message.uint32(forField: "wired.user.id") {
+                    if let chat = await runtime.chat(withID: chatID) {
+                        if let user = await chat.users.first(where: { $0.id == userID }) {
+                            if let say = message.string(forField: "wired.chat.me") {
+                                await MainActor.run {
+                                    runtime.clearIncomingChatTyping(chatID: chatID, userID: userID)
+                                    appendChatMessage(
+                                        ChatEvent(chat: chat, user: user, type: .me, text: say),
+                                        to: chat
+                                    )
+                                    
+                                    if userID != runtime.userID {
+                                        if self.shouldIncrementUnreadForChatMessage(in: runtime, chatID: chat.id) {
+                                            chat.unreadMessagesCount += 1
+                                            updateNotificationsBadge()
+                                        }
+                                        self.triggerEvent(
+                                            .chatReceived,
+                                            runtime: runtime,
+                                            subtitle: user.nick,
+                                            body: say,
+                                            chatText: "[\(chat.name)] * \(user.nick) \(say)"
+                                        )
+                                        if self.isHighlightedChat(text: say, runtime: runtime) {
+                                            // TODO: Match legacy Wired highlight rules (keywords/regexes) once highlight settings are ported.
+                                            self.triggerEvent(
+                                                .highlightedChatReceived,
+                                                runtime: runtime,
+                                                subtitle: user.nick,
+                                                body: say,
+                                                chatText: "[\(chat.name)] Highlighted chat from \(user.nick): \(say)"
+                                            )
+                                        }
+                                    } else {
+                                        self.triggerEvent(
+                                            .chatSent,
+                                            runtime: runtime,
+                                            subtitle: user.nick,
+                                            body: say,
+                                            chatText: "[\(chat.name)] * \(user.nick) \(say)"
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        case "wired.chat.typing":
+            if let chatID = message.uint32(forField: "wired.chat.id"),
+               let userID = message.uint32(forField: "wired.user.id"),
+               let isTyping = message.bool(forField: "wired.chat.typing") {
+                await MainActor.run {
+                    runtime.applyIncomingChatTyping(chatID: chatID, userID: userID, isTyping: isTyping)
+                }
+            }
+        case "wired.message.message":
+            if let senderUserID = message.uint32(forField: "wired.user.id"),
+               let body = message.string(forField: "wired.message.message") {
+                await MainActor.run {
+                    guard senderUserID != runtime.userID else { return }
+                    runtime.receivePrivateMessage(from: senderUserID, text: body)
+                    let sender = runtime.messageConversations.first(where: {
+                        $0.kind == .direct && $0.participantUserID == senderUserID
+                    })?.title ?? "User"
+                    self.triggerEvent(
+                        .messageReceived,
+                        runtime: runtime,
+                        subtitle: sender,
+                        body: body,
+                        chatText: "Private message from \(sender): \(body)"
+                    )
+                }
+            }
+        case "wired.message.broadcast":
+            if let body = message.string(forField: "wired.message.broadcast") {
+                let senderUserID = message.uint32(forField: "wired.user.id")
+                await MainActor.run {
+                    // Filter own echo: skip only if senderUserID is clearly our own ID.
+                    // Some servers put the recipient's ID in wired.user.id (not the sender's),
+                    // so we only skip when senderUserID == runtime.userID AND runtime.userID != 0.
+                    if let sid = senderUserID, sid == runtime.userID, runtime.userID != 0 { return }
+                    runtime.receiveBroadcastMessage(from: senderUserID ?? 0, text: body)
+
+                    if runtime.selectedTab != .messages {
+                        let resolvedSenderID = senderUserID ?? 0
+                        let nick =
+                            runtime.messageConversations
+                            .first(where: { $0.kind == .broadcast })?
+                            .messages
+                            .last(where: { $0.senderUserID == resolvedSenderID })?
+                            .senderNick ?? "User"
+                        self.triggerEvent(
+                            .broadcastReceived,
+                            runtime: runtime,
+                            subtitle: nick,
+                            body: body,
+                            chatText: "Broadcast from \(nick): \(body)"
+                        )
+                    }
+                }
+            }
+
+        case "wired.file.directory_changed":
+            if let path = message.string(forField: "wired.file.path") {
+                NotificationCenter.default.post(
+                    name: .wiredFileDirectoryChanged,
+                    object: RemoteDirectoryEvent(connectionID: id, path: path)
+                )
+            }
+
+        case "wired.file.directory_deleted":
+            if let path = message.string(forField: "wired.file.path") {
+                NotificationCenter.default.post(
+                    name: .wiredFileDirectoryDeleted,
+                    object: RemoteDirectoryEvent(connectionID: id, path: path)
+                )
+            }
+
+        // MARK: - Board list (initial load)
+
+        case "wired.board.board_list":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            let readable = message.bool(forField: "wired.board.readable") ?? true
+            let writable  = message.bool(forField: "wired.board.writable") ?? false
+            await MainActor.run {
+                guard runtime.boardsByPath[path] == nil else { return }
+                let board = Board(path: path, readable: readable, writable: writable)
+                runtime.appendBoard(board)
+            }
+
+        case "wired.board.board_list.done":
+            await MainActor.run { runtime.boardsLoaded = true }
+
+        // MARK: - Thread list
+
+        case "wired.board.thread_list":
+            guard
+                let boardPath = message.string(forField: "wired.board.board"),
+                let uuid      = message.uuid(forField: "wired.board.thread"),
+                let subject   = message.string(forField: "wired.board.subject"),
+                let nick      = message.string(forField: "wired.user.nick"),
+                let postDate  = message.date(forField: "wired.board.post_date")
+            else { break }
+            let replies = Int(message.uint32(forField: "wired.board.replies") ?? 0)
+            let isOwn   = message.bool(forField: "wired.board.own_thread") ?? false
+            let lastReplyDate = message.date(forField: "wired.board.latest_reply_date")
+            await MainActor.run {
+                if let board = runtime.boardsByPath[boardPath] {
+                    guard !board.threads.contains(where: { $0.uuid == uuid }) else { return }
+                    let thread = BoardThread(uuid: uuid, boardPath: boardPath,
+                                            subject: subject, nick: nick,
+                                            postDate: postDate, replies: replies, isOwn: isOwn)
+                    thread.lastReplyDate = lastReplyDate
+                    thread.lastReplyUUID = message.uuid(forField: "wired.board.latest_reply")
+                    if let emojisStr = message.string(forField: "wired.board.reaction.emojis"),
+                       !emojisStr.isEmpty {
+                        thread.topReactionEmojis = emojisStr.components(separatedBy: "|")
+                    }
+                    runtime.applyBoardThreadListState(to: thread)
+                    board.threads.append(thread)
+                }
+            }
+
+        case "wired.board.thread_list.done":
+            break
+
+        // MARK: - Thread content (first post + replies)
+
+        case "wired.board.thread":
+            guard
+                let threadUUID = message.uuid(forField: "wired.board.thread"),
+                let text = message.string(forField: "wired.board.text")
+            else { break }
+            await MainActor.run {
+                if let thread = runtime.thread(uuid: threadUUID) {
+                    thread.postsLoaded = false
+                    thread.posts.removeAll()
+                    let rootPost = BoardPost(
+                        uuid: "thread-root-\(threadUUID)",
+                        threadUUID: threadUUID,
+                        text: text,
+                        nick: thread.nick,
+                        postDate: thread.postDate,
+                        icon: message.data(forField: "wired.user.icon"),
+                        isOwn: thread.isOwn,
+                        isThreadBody: true
+                    )
+                    thread.posts.append(rootPost)
+                    runtime.refreshThreadUnreadState(for: thread)
+                }
+            }
+
+        case "wired.board.post_list":
+            guard
+                let postUUID   = message.uuid(forField: "wired.board.post"),
+                let threadUUID = message.uuid(forField: "wired.board.thread"),
+                let text       = message.string(forField: "wired.board.text"),
+                let nick       = message.string(forField: "wired.user.nick"),
+                let postDate   = message.date(forField: "wired.board.post_date")
+            else { break }
+            let isOwn = message.bool(forField: "wired.board.own_post") ?? false
+            let icon = message.data(forField: "wired.user.icon")
+            let editDate = message.date(forField: "wired.board.edit_date")
+            await MainActor.run {
+                if let thread = runtime.thread(uuid: threadUUID) {
+                    guard !thread.posts.contains(where: { $0.uuid == postUUID }) else { return }
+                    let post = BoardPost(uuid: postUUID, threadUUID: threadUUID,
+                                        text: text, nick: nick, postDate: postDate,
+                                        icon: icon,
+                                        isOwn: isOwn)
+                    if let editDate {
+                        post.editDate = editDate
+                    }
+                    thread.posts.append(post)
+                    runtime.refreshThreadUnreadState(for: thread)
+                }
+            }
+
+        case "wired.board.post_list.done":
+            if let threadUUID = message.uuid(forField: "wired.board.thread") {
+                await MainActor.run {
+                    guard let thread = runtime.thread(uuid: threadUUID) else { return }
+                    thread.postsLoaded = true
+                    runtime.refreshThreadUnreadState(for: thread)
+                    if self.shouldAutoMarkBoardThreadAsRead(in: runtime, thread: thread) {
+                        runtime.markThreadAsRead(thread)
+                    }
+                }
+            }
+
+        // MARK: - Live board events
+
+        case "wired.board.board_added":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            let readable = message.bool(forField: "wired.board.readable") ?? true
+            let writable  = message.bool(forField: "wired.board.writable") ?? false
+            await MainActor.run {
+                guard runtime.boardsByPath[path] == nil else { return }
+                let board = Board(path: path, readable: readable, writable: writable)
+                runtime.appendBoard(board)
+            }
+
+        case "wired.board.board_deleted":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            await MainActor.run {
+                runtime.boardsByPath.removeValue(forKey: path)
+                runtime.boards.removeAll { $0.path == path }
+                for board in runtime.boardsByPath.values {
+                    board.children?.removeAll { $0.path == path }
+                }
+                runtime.connectionController.updateNotificationsBadge()
+            }
+
+        case "wired.board.board_renamed", "wired.board.board_moved":
+            guard
+                let oldPath = message.string(forField: "wired.board.board"),
+                let newPath = message.string(forField: "wired.board.new_board")
+            else { break }
+            await MainActor.run {
+                runtime.moveBoardInTree(from: oldPath, to: newPath)
+            }
+
+        case "wired.board.board_info":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            await MainActor.run {
+                runtime.boardsByPath[path]?.apply(message)
+            }
+
+        case "wired.board.board_info_changed":
+            guard let path = message.string(forField: "wired.board.board") else { break }
+            await MainActor.run {
+                if let board = runtime.boardsByPath[path] {
+                    if let r = message.bool(forField: "wired.board.readable") { board.readable = r }
+                    if let w = message.bool(forField: "wired.board.writable") { board.writable = w }
+                }
+            }
+
+            // Board permission edits can hide/show boards for this account.
+            Task { @MainActor in
+                await runtime.reloadBoardsAndThreads()
+            }
+
+        // MARK: - Live thread events
+
+        case "wired.board.thread_added":
+            guard
+                let boardPath = message.string(forField: "wired.board.board"),
+                let uuid      = message.uuid(forField: "wired.board.thread"),
+                let subject   = message.string(forField: "wired.board.subject"),
+                let nick      = message.string(forField: "wired.user.nick"),
+                let postDate  = message.date(forField: "wired.board.post_date")
+            else { break }
+            await MainActor.run {
+                if let board = runtime.boardsByPath[boardPath] {
+                    guard !board.threads.contains(where: { $0.uuid == uuid }) else { return }
+                    let ownThread = message.bool(forField: "wired.board.own_thread") ?? false
+                    let thread = BoardThread(uuid: uuid, boardPath: boardPath,
+                                            subject: subject, nick: nick,
+                                            postDate: postDate,
+                                            isOwn: ownThread)
+                    thread.lastReplyDate = message.date(forField: "wired.board.latest_reply_date")
+                    thread.lastReplyUUID = message.uuid(forField: "wired.board.latest_reply")
+                    if ownThread {
+                        runtime.markOwnThreadAsRead(thread)
+                    } else {
+                        runtime.applyBoardThreadListState(to: thread)
+                        self.triggerEvent(
+                            .boardPostAdded,
+                            runtime: runtime,
+                            subtitle: nick,
+                            body: "\(subject) (\(boardPath))",
+                            chatText: "Board post added in \(boardPath): \(subject) by \(nick)"
+                        )
+                    }
+                    board.threads.append(thread)
+                }
+            }
+
+        case "wired.board.thread_changed":
+            guard let uuid = message.uuid(forField: "wired.board.thread") else { break }
+            let threadNeedingReload: BoardThread? = await MainActor.run {
+                guard let thread = runtime.thread(uuid: uuid) else {
+                    if let boardPath = message.string(forField: "wired.board.board"),
+                       let board = runtime.boardsByPath[boardPath] {
+                        // Thread may not be loaded yet on this connection; materialize it so unread badges stay correct.
+                        let subject = message.string(forField: "wired.board.subject") ?? "Thread"
+                        let nick = message.string(forField: "wired.user.nick") ?? ""
+                        let postDate =
+                            message.date(forField: "wired.board.latest_reply_date")
+                            ?? message.date(forField: "wired.board.post_date")
+                            ?? Date()
+
+                        let thread = BoardThread(
+                            uuid: uuid,
+                            boardPath: boardPath,
+                            subject: subject,
+                            nick: nick,
+                            postDate: postDate,
+                            replies: Int(message.uint32(forField: "wired.board.replies") ?? 0),
+                            isOwn: false
+                        )
+                        thread.apply(message)
+                        runtime.applyBoardThreadListState(to: thread)
+                        board.threads.append(thread)
+                        let isOwnPostEvent = message.bool(forField: "wired.board.own_post") ?? false
+                        let latestReplyChanged = thread.lastReplyUUID != nil
+
+                        if isOwnPostEvent {
+                            runtime.markOwnThreadAsRead(
+                                thread,
+                                postUUID: message.uuid(forField: "wired.board.post")
+                            )
+                        } else if latestReplyChanged {
+                            runtime.applyRemoteThreadActivity(to: thread, latestReplyChanged: true)
+                        }
+
+                        if self.shouldAutoMarkBoardThreadAsRead(in: runtime, thread: thread) {
+                            runtime.markThreadAsRead(thread)
+                        } else if latestReplyChanged && !isOwnPostEvent {
+                            self.triggerEvent(
+                                .boardPostAdded,
+                                runtime: runtime,
+                                subtitle: nick,
+                                body: "\(subject) (\(boardPath))",
+                                chatText: "Board activity in \(boardPath): \(subject)"
+                            )
+                        }
+                    }
+                    return nil
+                }
+
+                let previousLatestReplyUUID = thread.lastReplyUUID
+                let previousEditDate = thread.editDate
+                thread.apply(message)
+                let latestReplyChanged = thread.lastReplyUUID != previousLatestReplyUUID
+                let threadEdited = thread.editDate != previousEditDate
+
+                let isOwnPostEvent = message.bool(forField: "wired.board.own_post") ?? false
+                let shouldAutoRead = self.shouldAutoMarkBoardThreadAsRead(in: runtime, thread: thread)
+
+                if isOwnPostEvent {
+                    runtime.markOwnThreadAsRead(
+                        thread,
+                        postUUID: message.uuid(forField: "wired.board.post")
+                    )
+                } else {
+                    runtime.applyRemoteThreadActivity(to: thread, latestReplyChanged: latestReplyChanged)
+                }
+
+                if shouldAutoRead {
+                    runtime.markThreadAsRead(thread)
+                } else if latestReplyChanged && !isOwnPostEvent {
+                    let boardPath = message.string(forField: "wired.board.board") ?? thread.boardPath
+                    self.triggerEvent(
+                        .boardPostAdded,
+                        runtime: runtime,
+                        subtitle: message.string(forField: "wired.user.nick") ?? thread.nick,
+                        body: "\(thread.subject) (\(boardPath))",
+                        chatText: "Board activity in \(boardPath): \(thread.subject)"
+                    )
+                }
+
+                let isViewingThread =
+                    runtime.selectedTab == .boards &&
+                    runtime.selectedThreadUUID == thread.uuid &&
+                    runtime.selectedBoardPath == thread.boardPath
+
+                if thread.postsLoaded, latestReplyChanged {
+                    if let latestReplyUUID = thread.lastReplyUUID,
+                       let pendingLocalUUID = runtime.pendingLocalPostUUID(forThread: thread.uuid),
+                       let localPost = thread.posts.first(where: { $0.uuid == pendingLocalUUID }) {
+                        // Reconcile optimistic local post with server-issued UUID/date.
+                        localPost.uuid = latestReplyUUID
+                        if let latestReplyDate = thread.lastReplyDate {
+                            localPost.postDate = latestReplyDate
+                        }
+                        // Ensure the reconciled post stays at the very end.
+                        if let index = thread.posts.firstIndex(where: { $0 === localPost }) {
+                            let post = thread.posts.remove(at: index)
+                            thread.posts.append(post)
+                        }
+                        runtime.clearPendingLocalPostUUID(forThread: thread.uuid)
+                        if shouldAutoRead {
+                            runtime.markThreadAsRead(thread)
+                        }
+                    } else if isViewingThread,
+                              let postUUID = message.uuid(forField: "wired.board.post"),
+                              let text = message.string(forField: "wired.board.text"),
+                              let nick = message.string(forField: "wired.user.nick"),
+                              let postDate = message.date(forField: "wired.board.post_date") {
+                        // Remote reply while viewing: append incrementally to avoid full reload.
+                        if let existing = thread.posts.first(where: { $0.uuid == postUUID }) {
+                            existing.text = text
+                            existing.nick = nick
+                            existing.postDate = postDate
+                            existing.icon = message.data(forField: "wired.user.icon")
+                            existing.isOwn = message.bool(forField: "wired.board.own_post") ?? false
+                            existing.editDate = message.date(forField: "wired.board.edit_date")
+                            if let index = thread.posts.firstIndex(where: { $0 === existing }) {
+                                let post = thread.posts.remove(at: index)
+                                thread.posts.append(post)
+                            }
+                        } else {
+                            let post = BoardPost(
+                                uuid: postUUID,
+                                threadUUID: thread.uuid,
+                                text: text,
+                                nick: nick,
+                                postDate: postDate,
+                                icon: message.data(forField: "wired.user.icon"),
+                                isOwn: message.bool(forField: "wired.board.own_post") ?? false
+                            )
+                            post.editDate = message.date(forField: "wired.board.edit_date")
+                            thread.posts.append(post)
+                        }
+                        runtime.clearPendingLocalPostUUID(forThread: thread.uuid)
+                        if shouldAutoRead {
+                            runtime.markThreadAsRead(thread)
+                        }
+                        return nil
+                    } else if isViewingThread {
+                        // Pending local post was not found; drop stale marker then fallback reload.
+                        runtime.clearPendingLocalPostUUID(forThread: thread.uuid)
+                        // If another user replied while this thread is visible, refresh posts.
+                        return thread
+                    }
+                } else if thread.postsLoaded, isViewingThread, threadEdited {
+                    // Thread/post edits should refresh the currently visible post list.
+                    return thread
+                }
+                return nil
+            }
+            if let threadNeedingReload {
+                Task { @MainActor in
+                    try? await runtime.getPosts(forThread: threadNeedingReload)
+                }
+            }
+
+        case "wired.board.thread_moved":
+            guard
+                let uuid        = message.uuid(forField: "wired.board.thread"),
+                let newBoardPath = message.string(forField: "wired.board.new_board")
+            else { break }
+            await MainActor.run {
+                if let thread = runtime.thread(uuid: uuid) {
+                    runtime.boardsByPath[thread.boardPath]?.threads.removeAll { $0.uuid == uuid }
+                    thread.boardPath = newBoardPath
+                    runtime.boardsByPath[newBoardPath]?.threads.append(thread)
+                }
+            }
+
+        case "wired.board.thread_deleted":
+            guard let uuid = message.uuid(forField: "wired.board.thread") else { break }
+            await MainActor.run {
+                if let thread = runtime.thread(uuid: uuid) {
+                    runtime.boardsByPath[thread.boardPath]?.threads.removeAll { $0.uuid == uuid }
+                    runtime.connectionController.updateNotificationsBadge()
+                }
+            }
+
+        case "wired.board.reaction_added", "wired.board.reaction_removed":
+            guard
+                let threadUUID = message.uuid(forField: "wired.board.thread"),
+                let emoji      = message.string(forField: "wired.board.reaction.emoji"),
+                let count      = message.uint32(forField: "wired.board.reaction.count")
+            else { break }
+            let postUUID = message.uuid(forField: "wired.board.post")
+            let nick     = message.string(forField: "wired.board.reaction.nick")
+            let added    = message.name == "wired.board.reaction_added"
+            await MainActor.run {
+                runtime.applyReactionBroadcast(
+                    threadUUID: threadUUID,
+                    postUUID: postUUID,
+                    emoji: emoji,
+                    count: Int(count),
+                    added: added,
+                    nick: nick
+                )
+
+                // Fire event notification only for incoming reactions (not our own).
+                if added, let reactorNick = nick, reactorNick != runtime.currentNick {
+                    let subject = runtime.thread(uuid: threadUUID)?.subject ?? "a thread"
+                    self.triggerEvent(
+                        .boardReactionReceived,
+                        runtime: runtime,
+                        subtitle: reactorNick,
+                        body: "\(reactorNick) reacted with \(emoji) to \(subject)",
+                        chatText: nil
+                    )
+                }
+            }
+
+        default:
+            break
+        }
+    }
+    
+    
+    // MARK: -
+    @MainActor private func parseChat(from message: P7Message) -> Chat? {
+        guard
+            let id = message.uint32(forField: "wired.chat.id"),
+            let name = message.string(forField: "wired.chat.name")
+        else {
+            return nil
+        }
+
+        return .init(
+            id: id,
+            name: name
+        )
+    }
+    
+    @MainActor private func parseUser(from message: P7Message) -> User? {
+        guard
+            let id = message.uint32(forField: "wired.user.id"),
+            let nick = message.string(forField: "wired.user.nick"),
+            let icon = message.data(forField: "wired.user.icon"),
+            let idle = message.bool(forField: "wired.user.idle")
+        else {
+            return nil
+        }
+        
+        let user = User(
+            id: id,
+            nick: nick,
+            status: message.string(forField: "wired.user.status"),
+            icon: icon,
+            idle: idle,
+        )
+
+        user.color = message.enumeration(forField: "wired.account.color")
+            ?? message.uint32(forField: "wired.account.color")
+            ?? 0
+
+        return user
+    }
+
+    @MainActor
+    @discardableResult
+    private func upsertUser(_ user: User, in chat: Chat) -> Bool {
+        if let existing = chat.users.first(where: { $0.id == user.id }) {
+            existing.nick = user.nick
+            existing.status = user.status
+            existing.icon = user.icon
+            existing.idle = user.idle
+            existing.color = user.color
+            return false
+        }
+
+        chat.users.append(user)
+        return true
+    }
+
+    @MainActor public func updateUserInfo(from message: P7Message, in runtime: ConnectionRuntime) async {
+        if let userID = message.uint32(forField: "wired.user.id") {
+            for chat in runtime.chats {
+                if let user = chat.users.first(where: { $0.id == userID }) {
+                    if let login = message.string(forField: "wired.user.login") {
+                        await MainActor.run {
+                            user.login = login
+                        }
+                    }
+                    
+                    if let ip = message.string(forField: "wired.user.ip") {
+                        await MainActor.run {
+                            user.ipAddress = ip
+                        }
+                    }
+                    
+                    if let host = message.string(forField: "wired.user.host") {
+                        await MainActor.run {
+                            user.host = host
+                        }
+                    }
+                    
+                    if let cipherName = message.string(forField: "wired.user.cipher.name") {
+                        await MainActor.run {
+                            user.cipherName = cipherName
+                        }
+                    }
+                    
+                    if let cipherBits = message.string(forField: "wired.user.cipher.bits") {
+                        await MainActor.run {
+                            user.cipherBits = cipherBits
+                        }
+                    }
+                    
+                    if let appVersion = message.string(forField: "wired.info.application.version") {
+                        await MainActor.run {
+                            user.appVersion = appVersion
+                        }
+                    }
+                    
+                    if let appBuild = message.string(forField: "wired.info.application.build") {
+                        await MainActor.run {
+                            user.appBuild = appBuild
+                        }
+                    }
+                    
+                    if let osName = message.string(forField: "wired.info.os.name") {
+                        await MainActor.run {
+                            user.osName = osName
+                        }
+                    }
+                    
+                    if let osVersion = message.string(forField: "wired.info.os.version") {
+                        await MainActor.run {
+                            user.osVersion = osVersion
+                        }
+                    }
+                    
+                    if let arch = message.string(forField: "wired.info.arch") {
+                        await MainActor.run {
+                            user.arch = arch
+                        }
+                    }
+                    
+                    if let loginTime = message.date(forField: "wired.user.login_time") {
+                        await MainActor.run {
+                            user.loginTime = loginTime
+                        }
+                    }
+                    
+                    if let idleTime = message.date(forField: "wired.user.idle_time") {
+                        await MainActor.run {
+                            user.idleTime = idleTime
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: -
+    
+    @MainActor
+    func triggerTransferStartedEvent(for transfer: Transfer) {
+        let name = transfer.name
+        let associatedRuntime: ConnectionRuntime?
+        if let connectionID = transfer.connectionID {
+            associatedRuntime = runtime(for: connectionID)
+        } else {
+            associatedRuntime = nil
+        }
+        triggerEvent(
+            .transferStarted,
+            runtime: associatedRuntime,
+            subtitle: name,
+            body: "Transfer started.",
+            chatText: "Transfer started: \(name)"
+        )
+    }
+
+    @MainActor
+    func triggerTransferFinishedEvent(for transfer: Transfer) {
+        let name = transfer.name
+        let associatedRuntime: ConnectionRuntime?
+        if let connectionID = transfer.connectionID {
+            associatedRuntime = runtime(for: connectionID)
+        } else {
+            associatedRuntime = nil
+        }
+        triggerEvent(
+            .transferFinished,
+            runtime: associatedRuntime,
+            subtitle: name,
+            body: "Transfer finished.",
+            chatText: "Transfer finished: \(name)"
+        )
+    }
+
+    @MainActor
+    private func triggerEvent(
+        _ tag: WiredEventTag,
+        runtime: ConnectionRuntime?,
+        chat: Chat? = nil,
+        subtitle: String? = nil,
+        body: String? = nil,
+        chatText: String? = nil
+    ) {
+        let config = WiredEventsStore.configuration(for: tag)
+        let effectiveSubtitle = subtitle ?? runtimeDisplayName(runtime)
+        let effectiveBody = body ?? tag.title
+        let volume = WiredEventsStore.loadVolume()
+
+        if config.playSound {
+            playConfiguredSound(name: config.sound, volume: volume)
+        }
+
+#if os(macOS)
+        if config.bounceInDock {
+            NSApp.requestUserAttention(.informationalRequest)
+        }
+#endif
+
+        if config.notificationCenter {
+            sendNotification(title: tag.title, subtitle: effectiveSubtitle, text: effectiveBody)
+        }
+
+        if config.postInChat, let runtime, let chatText {
+            postEventInChat(text: chatText, chat: chat, runtime: runtime)
+        }
+
+        if config.showAlert {
+            // TODO: Implement per-event in-app alert dialog behavior equivalent to legacy WiredClient WCEventsShowDialog.
+        }
+    }
+
+    @MainActor
+    private func isHighlightedChat(text: String, runtime: ConnectionRuntime) -> Bool {
+        guard let nick = runtime.currentNick, !nick.isEmpty else { return false }
+        return text.range(of: nick, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    }
+
+    @MainActor
+    private func postEventInChat(text: String, chat: Chat?, runtime: ConnectionRuntime) {
+        guard let chat = chat ?? runtime.chat(withID: 1) else { return }
+        let user = User(id: 0, nick: "Events", icon: Data(), idle: false)
+        appendChatMessage(
+            ChatEvent(chat: chat, user: user, type: .event, text: text),
+            to: chat
+        )
+    }
+
+    @MainActor
+    private func appendChatMessage(_ message: ChatEvent, to chat: Chat) {
+        chat.messages.append(message)
+    }
+
+    @MainActor
+    private func handleModerationBroadcast(_ message: P7Message, kind: String, in runtime: ConnectionRuntime) {
+        guard let chatID = message.uint32(forField: "wired.chat.id"),
+              let targetUserID = message.uint32(forField: "wired.user.disconnected_id"),
+              let chat = runtime.chat(withID: chatID) else {
+            return
+        }
+
+        runtime.clearIncomingChatTyping(chatID: chatID, userID: targetUserID)
+        let currentNick = runtime.currentNick
+        let removedUser = removeUser(withID: targetUserID, from: chat)
+        let displayName: String
+        let eventUser: User
+
+        if let removedUser {
+            displayName = removedUser.nick
+            eventUser = User(
+                id: removedUser.id,
+                nick: removedUser.nick,
+                status: removedUser.status,
+                icon: removedUser.icon,
+                idle: removedUser.idle
+            )
+            eventUser.color = removedUser.color
+        } else {
+            displayName = targetUserID == runtime.userID ? (currentNick ?? "You") : "User \(targetUserID)"
+            eventUser = User(id: targetUserID, nick: displayName, icon: Data(), idle: false)
+        }
+
+        let reason = (message.string(forField: "wired.user.disconnect_message") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = targetUserID == runtime.userID ? "You were \(kind)" : "\(displayName) was \(kind)"
+        let text = reason.isEmpty ? "\(prefix)." : "\(prefix): \(reason)"
+
+        appendChatMessage(
+            ChatEvent(chat: chat, user: eventUser, type: .event, text: text),
+            to: chat
+        )
+
+        runtime.refreshPrivateChatName(chat)
+
+        if targetUserID == runtime.userID {
+            let title: String
+            switch kind {
+            case "kicked":
+                title = "Kicked"
+            case "banned":
+                title = "Banned"
+            default:
+                title = "Disconnected"
+            }
+
+            runtime.moderationNotice = ModerationNotice(title: title, message: text)
+            chat.joined = false
+            chat.users.removeAll()
+
+            if !chat.isPrivate, runtime.selectedChatID == chat.id {
+                runtime.selectedChatID = 1
+            }
+        }
+    }
+
+    @MainActor
+    private func removeUser(withID userID: UInt32, from chat: Chat) -> User? {
+        guard let index = chat.users.firstIndex(where: { $0.id == userID }) else {
+            return nil
+        }
+
+        let user = chat.users.remove(at: index)
+        return user
+    }
+
+    private func playConfiguredSound(name: String?, volume: Float) {
+#if os(macOS)
+        let soundName = name ?? WiredEventsStore.defaultSoundName
+        guard let sound = NSSound(named: NSSound.Name(soundName)) else { return }
+        sound.volume = volume
+        sound.play()
+#endif
+    }
+
+    private func sendNotification(title: String, subtitle: String, text: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.subtitle = subtitle
+        content.body = text
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    private func runtimeDisplayName(_ runtime: ConnectionRuntime?) -> String {
+        guard let runtime else { return "Server" }
+        return withStateLock {
+            configurationsByID[runtime.id]?.name ?? "Server"
+        }
+    }
+    
+    @MainActor public func updateNotificationsBadge() {
+        let count = runtimeStores.reduce(0) {
+            $0 + $1.totalUnreadNotifications
+        }
+        notificationsRevision &+= 1
+
+        UNUserNotificationCenter.current().setBadgeCount(count)
+
+        #if os(macOS)
+        NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
+        #endif
+    }
+}

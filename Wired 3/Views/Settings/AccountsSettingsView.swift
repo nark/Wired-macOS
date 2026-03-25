@@ -1,0 +1,1686 @@
+import SwiftUI
+import WiredSwift
+
+private func accountPrivilegesIncludingColorFromSpec() -> [String] {
+    var privileges = spec?.accountPrivileges ?? []
+
+    if spec?.fieldsByName["wired.account.color"] != nil,
+       !privileges.contains("wired.account.color") {
+        privileges.append("wired.account.color")
+    }
+
+    return privileges
+}
+
+enum AccountFilter: String, CaseIterable, Identifiable {
+    case all
+    case users
+    case groups
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: return "Tous"
+        case .users: return "Utilisateurs"
+        case .groups: return "Groupes"
+        }
+    }
+}
+
+enum AccountDetailTab: String, CaseIterable, Identifiable {
+    case account
+    case permissions
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .account: return "Compte"
+        case .permissions: return "Permissions"
+        }
+    }
+}
+
+enum AccountType: String, CaseIterable, Identifiable {
+    case user
+    case group
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .user: return "Utilisateur"
+        case .group: return "Groupe"
+        }
+    }
+}
+
+struct AccountSummary: Identifiable, Hashable {
+    var id: String { "\(type.rawValue):\(name)" }
+
+    let type: AccountType
+    let name: String
+    let fullName: String
+    let comment: String
+    let creationTime: Date?
+    let modificationTime: Date?
+    let loginTime: Date?
+    let editedBy: String
+    let downloads: UInt32
+    let uploads: UInt32
+    let downloadTransferred: UInt64
+    let uploadTransferred: UInt64
+    let color: UInt32
+}
+
+struct AccountEditor {
+    var type: AccountType
+    var canEditIdentity: Bool
+    var originalName: String
+    var name: String
+    var identity: String
+    var fullName: String
+    var comment: String
+    var originalPassword: String
+    var password: String
+    var primaryGroup: String
+    var secondaryGroups: [String]
+    var editedBy: String
+    var creationTime: Date?
+    var modificationTime: Date?
+    var loginTime: Date?
+    var downloads: UInt32
+    var uploads: UInt32
+    var downloadTransferred: UInt64
+    var uploadTransferred: UInt64
+    var privilegesBool: [String: Bool]
+    var privilegesUInt32: [String: UInt32]
+
+    var secondaryGroupsString: String {
+        get { secondaryGroups.joined(separator: ", ") }
+        set {
+            secondaryGroups = newValue
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+    }
+}
+
+struct AccountCreationDraft: Identifiable {
+    let id = UUID()
+
+    var type: AccountType
+    var name: String = ""
+    var fullName: String = ""
+    var comment: String = ""
+    var password: String = ""
+    var primaryGroup: String = ""
+    var secondaryGroupsText: String = ""
+
+    var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedFullName: String {
+        fullName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedComment: String {
+        comment.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedPrimaryGroup: String {
+        primaryGroup.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var secondaryGroups: [String] {
+        secondaryGroupsText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+}
+
+@MainActor
+final class AccountsSettingsViewModel: ObservableObject {
+    @Published var users: [AccountSummary] = []
+    @Published var groups: [AccountSummary] = []
+    @Published var selectedID: String?
+    @Published var selectedFilter: AccountFilter = .all
+    @Published var selectedDetailTab: AccountDetailTab = .account
+    @Published var searchText: String = ""
+    @Published var editor: AccountEditor?
+    @Published var isLoading = false
+    @Published var isSaving = false
+    @Published var isMutating = false
+    @Published var error: Error?
+
+    private weak var runtime: ConnectionRuntime?
+    private var isSubscribedToAccountChanges = false
+
+    func configure(runtime: ConnectionRuntime) {
+        self.runtime = runtime
+    }
+
+    func subscribeToAccountChangesIfNeeded() async {
+        guard !isSubscribedToAccountChanges else { return }
+        guard let connection = runtime?.connection as? AsyncConnection else { return }
+
+        let message = P7Message(withName: "wired.account.subscribe_accounts", spec: spec!)
+
+        do {
+            let response = try await connection.sendAsync(message)
+            if let response, response.name == "wired.error" {
+                let errorName = response.string(forField: "wired.error.string") ?? ""
+                if errorName == "wired.error.already_subscribed" {
+                    isSubscribedToAccountChanges = true
+                    return
+                }
+                throw WiredError(message: response)
+            }
+
+            isSubscribedToAccountChanges = true
+        } catch {
+            if isServerError(error, named: "wired.error.already_subscribed") {
+                isSubscribedToAccountChanges = true
+                return
+            }
+            self.error = error
+        }
+    }
+
+    func unsubscribeFromAccountChangesIfNeeded() async {
+        guard isSubscribedToAccountChanges else { return }
+        guard let connection = runtime?.connection as? AsyncConnection else { return }
+
+        let message = P7Message(withName: "wired.account.unsubscribe_accounts", spec: spec!)
+
+        do {
+            let response = try await connection.sendAsync(message)
+            if let response, response.name == "wired.error" {
+                let errorName = response.string(forField: "wired.error.string") ?? ""
+                if errorName == "wired.error.not_subscribed" {
+                    isSubscribedToAccountChanges = false
+                    return
+                }
+                throw WiredError(message: response)
+            }
+
+            isSubscribedToAccountChanges = false
+        } catch {
+            if isServerError(error, named: "wired.error.not_subscribed") {
+                isSubscribedToAccountChanges = false
+                return
+            }
+            self.error = error
+        }
+    }
+
+    var canListAccounts: Bool {
+        runtime?.hasPrivilege("wired.account.account.list_accounts") ?? false
+    }
+
+    var canReadAccounts: Bool {
+        runtime?.hasPrivilege("wired.account.account.read_accounts") ?? false
+    }
+
+    var canEditUsers: Bool {
+        runtime?.hasPrivilege("wired.account.account.edit_users") ?? false
+    }
+
+    var canEditGroups: Bool {
+        runtime?.hasPrivilege("wired.account.account.edit_groups") ?? false
+    }
+
+    var canCreateUsers: Bool {
+        runtime?.hasPrivilege("wired.account.account.create_users") ?? false
+    }
+
+    var canDeleteUsers: Bool {
+        runtime?.hasPrivilege("wired.account.account.delete_users") ?? false
+    }
+
+    var canCreateGroups: Bool {
+        runtime?.hasPrivilege("wired.account.account.create_groups") ?? false
+    }
+
+    var canDeleteGroups: Bool {
+        runtime?.hasPrivilege("wired.account.account.delete_groups") ?? false
+    }
+
+    var filteredAccounts: [AccountSummary] {
+        let source: [AccountSummary]
+
+        switch selectedFilter {
+        case .all:
+            source = users + groups
+        case .users:
+            source = users
+        case .groups:
+            source = groups
+        }
+
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return sortedAccounts(source)
+        }
+
+        return source
+            .filter { $0.name.localizedCaseInsensitiveContains(trimmed) || $0.fullName.localizedCaseInsensitiveContains(trimmed) }
+            .sorted(by: accountComparator)
+    }
+
+    private func sortedAccounts(_ source: [AccountSummary]) -> [AccountSummary] {
+        source.sorted(by: accountComparator)
+    }
+
+    private func accountComparator(_ lhs: AccountSummary, _ rhs: AccountSummary) -> Bool {
+        if selectedFilter == .all, lhs.type != rhs.type {
+            return lhs.type == .user
+        }
+
+        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+
+    func loadAccountsIfNeeded() async {
+        guard users.isEmpty, groups.isEmpty else { return }
+        await reloadAccounts()
+    }
+
+    func reloadAccounts() async {
+        guard let connection = runtime?.connection as? AsyncConnection else { return }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            async let loadedUsers = loadUsers(connection: connection)
+            async let loadedGroups = loadGroups(connection: connection)
+
+            users = try await loadedUsers
+            groups = try await loadedGroups
+
+            let allIDs = Set((users + groups).map(\.id))
+            if let selectedID, !allIDs.contains(selectedID) {
+                self.selectedID = nil
+                self.editor = nil
+            }
+
+            if self.selectedID == nil {
+                self.selectedID = filteredAccounts.first?.id
+            }
+
+            await readSelectedAccountIfNeeded()
+        } catch {
+            self.error = error
+        }
+    }
+
+    func readSelectedAccountIfNeeded() async {
+        guard let selected = filteredAccounts.first(where: { $0.id == selectedID }) else {
+            editor = nil
+            return
+        }
+
+        guard let connection = runtime?.connection as? AsyncConnection else { return }
+
+        do {
+            switch selected.type {
+            case .user:
+                editor = try await readUser(name: selected.name, connection: connection)
+            case .group:
+                editor = try await readGroup(name: selected.name, connection: connection)
+            }
+        } catch {
+            self.error = error
+        }
+    }
+
+    func saveSelectedAccount() async {
+        guard let editor else { return }
+        guard let connection = runtime?.connection as? AsyncConnection else { return }
+
+        isSaving = true
+        defer { isSaving = false }
+
+        do {
+            switch editor.type {
+            case .user:
+                guard canEditUsers else { return }
+                try await editUser(editor, connection: connection)
+            case .group:
+                guard canEditGroups else { return }
+                try await editGroup(editor, connection: connection)
+            }
+
+            await reloadAccounts()
+            selectedID = "\(editor.type.rawValue):\(editor.name)"
+            await readSelectedAccountIfNeeded()
+        } catch {
+            self.error = error
+        }
+    }
+
+    func createAccount(from draft: AccountCreationDraft) async -> Bool {
+        guard let connection = runtime?.connection as? AsyncConnection else { return false }
+
+        isMutating = true
+        defer { isMutating = false }
+
+        do {
+            switch draft.type {
+            case .user:
+                guard canCreateUsers else { return false }
+                try await createUser(draft, connection: connection)
+            case .group:
+                guard canCreateGroups else { return false }
+                try await createGroup(draft, connection: connection)
+            }
+
+            if selectedFilter != .all {
+                selectedFilter = filter(for: draft.type)
+            }
+
+            selectedDetailTab = .account
+            await reloadAccounts()
+            selectedID = "\(draft.type.rawValue):\(draft.trimmedName)"
+            await readSelectedAccountIfNeeded()
+            return true
+        } catch {
+            self.error = error
+            return false
+        }
+    }
+
+    func deleteAccount(_ account: AccountSummary) async {
+        guard let connection = runtime?.connection as? AsyncConnection else { return }
+
+        isMutating = true
+        defer { isMutating = false }
+
+        do {
+            switch account.type {
+            case .user:
+                guard canDeleteUsers else { return }
+                try await deleteUser(named: account.name, disconnectUsers: true, connection: connection)
+            case .group:
+                guard canDeleteGroups else { return }
+                try await deleteGroup(named: account.name, connection: connection)
+            }
+
+            await reloadAccounts()
+        } catch {
+            self.error = error
+        }
+    }
+
+    func togglePermission(_ key: String, enabled: Bool) {
+        guard var editor else { return }
+        editor.privilegesBool[key] = enabled
+        self.editor = editor
+    }
+
+    func setPermission(_ key: String, value: UInt32) {
+        guard var editor else { return }
+        editor.privilegesUInt32[key] = value
+        self.editor = editor
+    }
+
+    private func loadUsers(connection: AsyncConnection) async throws -> [AccountSummary] {
+        let message = P7Message(withName: "wired.account.list_users", spec: spec!)
+
+        var values: [AccountSummary] = []
+
+        for try await response in try connection.sendAndWaitMany(message) {
+            if response.name == "wired.error" {
+                throw WiredError(message: response)
+            }
+
+            if response.name == "wired.account.user_list" {
+                values.append(parseUserSummary(message: response))
+            }
+        }
+
+        return values.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending })
+    }
+
+    private func loadGroups(connection: AsyncConnection) async throws -> [AccountSummary] {
+        let message = P7Message(withName: "wired.account.list_groups", spec: spec!)
+
+        var values: [AccountSummary] = []
+
+        for try await response in try connection.sendAndWaitMany(message) {
+            if response.name == "wired.error" {
+                throw WiredError(message: response)
+            }
+
+            if response.name == "wired.account.group_list" {
+                values.append(parseGroupSummary(message: response))
+            }
+        }
+
+        return values.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending })
+    }
+
+    private func readUser(name: String, connection: AsyncConnection) async throws -> AccountEditor {
+        let message = P7Message(withName: "wired.account.read_user", spec: spec!)
+        message.addParameter(field: "wired.account.name", value: name)
+
+        for try await response in try connection.sendAndWaitMany(message) {
+            if response.name == "wired.error" {
+                throw WiredError(message: response)
+            }
+
+            if response.name == "wired.account.user" {
+                return parseUserEditor(message: response)
+            }
+        }
+
+        throw NSError(domain: "Wired3.Accounts", code: 1, userInfo: [NSLocalizedDescriptionKey: "Aucune réponse wired.account.user reçue"])
+    }
+
+    private func readGroup(name: String, connection: AsyncConnection) async throws -> AccountEditor {
+        let message = P7Message(withName: "wired.account.read_group", spec: spec!)
+        message.addParameter(field: "wired.account.name", value: name)
+
+        for try await response in try connection.sendAndWaitMany(message) {
+            if response.name == "wired.error" {
+                throw WiredError(message: response)
+            }
+
+            if response.name == "wired.account.group" {
+                return parseGroupEditor(message: response)
+            }
+        }
+
+        throw NSError(domain: "Wired3.Accounts", code: 2, userInfo: [NSLocalizedDescriptionKey: "Aucune réponse wired.account.group reçue"])
+    }
+
+    private func editUser(_ editor: AccountEditor, connection: AsyncConnection) async throws {
+        let message = P7Message(withName: "wired.account.edit_user", spec: spec!)
+        message.addParameter(field: "wired.account.name", value: editor.originalName)
+
+        if editor.name != editor.originalName {
+            message.addParameter(field: "wired.account.new_name", value: editor.name)
+        }
+
+        message.addParameter(field: "wired.account.full_name", value: editor.fullName)
+        message.addParameter(field: "wired.account.comment", value: editor.comment)
+        message.addParameter(field: "wired.account.group", value: editor.primaryGroup)
+        message.addParameter(field: "wired.account.groups", value: editor.secondaryGroups)
+        message.addParameter(field: "wired.account.password", value: passwordForAccountEdit(editor))
+        if editor.canEditIdentity {
+            let identity = editor.identity.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !identity.isEmpty {
+                message.addParameter(field: "wired.account.identity", value: identity)
+            }
+        }
+
+        for privilege in accountPrivilegesIncludingColorFromSpec() {
+            guard let field = spec?.fieldsByName[privilege] else { continue }
+            switch field.type {
+            case .bool:
+                message.addParameter(field: privilege, value: editor.privilegesBool[privilege] ?? false)
+            case .enum32, .uint32:
+                message.addParameter(field: privilege, value: editor.privilegesUInt32[privilege] ?? 0)
+            default:
+                break
+            }
+        }
+
+        let response = try await connection.sendAsync(message)
+
+        if let response, response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    private func createUser(_ draft: AccountCreationDraft, connection: AsyncConnection) async throws {
+        let message = P7Message(withName: "wired.account.create_user", spec: spec!)
+        message.addParameter(field: "wired.account.name", value: draft.trimmedName)
+        message.addParameter(field: "wired.account.full_name", value: draft.trimmedFullName)
+        message.addParameter(field: "wired.account.comment", value: draft.trimmedComment)
+        message.addParameter(field: "wired.account.group", value: draft.trimmedPrimaryGroup)
+        message.addParameter(field: "wired.account.groups", value: draft.secondaryGroups)
+        message.addParameter(field: "wired.account.password", value: draft.password.sha256())
+
+        let response = try await connection.sendAsync(message)
+
+        if let response, response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    private func passwordForAccountEdit(_ editor: AccountEditor) -> String {
+        if editor.password.isEmpty {
+            return "".sha256()
+        }
+
+        if editor.password == editor.originalPassword {
+            return editor.originalPassword
+        }
+
+        return editor.password.sha256()
+    }
+
+    private func editGroup(_ editor: AccountEditor, connection: AsyncConnection) async throws {
+        let message = P7Message(withName: "wired.account.edit_group", spec: spec!)
+        message.addParameter(field: "wired.account.name", value: editor.originalName)
+
+        if editor.name != editor.originalName {
+            message.addParameter(field: "wired.account.new_name", value: editor.name)
+        }
+
+        message.addParameter(field: "wired.account.comment", value: editor.comment)
+
+        for privilege in accountPrivilegesIncludingColorFromSpec() {
+            guard let field = spec?.fieldsByName[privilege] else { continue }
+            switch field.type {
+            case .bool:
+                message.addParameter(field: privilege, value: editor.privilegesBool[privilege] ?? false)
+            case .enum32, .uint32:
+                message.addParameter(field: privilege, value: editor.privilegesUInt32[privilege] ?? 0)
+            default:
+                break
+            }
+        }
+
+        let response = try await connection.sendAsync(message)
+
+        if let response, response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    private func createGroup(_ draft: AccountCreationDraft, connection: AsyncConnection) async throws {
+        let message = P7Message(withName: "wired.account.create_group", spec: spec!)
+        message.addParameter(field: "wired.account.name", value: draft.trimmedName)
+        message.addParameter(field: "wired.account.comment", value: draft.trimmedComment)
+
+        let response = try await connection.sendAsync(message)
+
+        if let response, response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    private func deleteUser(named name: String, disconnectUsers: Bool, connection: AsyncConnection) async throws {
+        let message = P7Message(withName: "wired.account.delete_user", spec: spec!)
+        message.addParameter(field: "wired.account.name", value: name)
+        message.addParameter(field: "wired.account.disconnect_users", value: disconnectUsers)
+
+        let response = try await connection.sendAsync(message)
+
+        if let response, response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    private func deleteGroup(named name: String, connection: AsyncConnection) async throws {
+        let message = P7Message(withName: "wired.account.delete_group", spec: spec!)
+        message.addParameter(field: "wired.account.name", value: name)
+
+        let response = try await connection.sendAsync(message)
+
+        if let response, response.name == "wired.error" {
+            throw WiredError(message: response)
+        }
+    }
+
+    private func parseUserSummary(message: P7Message) -> AccountSummary {
+        AccountSummary(
+            type: .user,
+            name: message.string(forField: "wired.account.name") ?? "",
+            fullName: message.string(forField: "wired.account.full_name") ?? "",
+            comment: message.string(forField: "wired.account.comment") ?? "",
+            creationTime: message.date(forField: "wired.account.creation_time"),
+            modificationTime: message.date(forField: "wired.account.modification_time"),
+            loginTime: message.date(forField: "wired.account.login_time"),
+            editedBy: message.string(forField: "wired.account.edited_by") ?? "",
+            downloads: message.uint32(forField: "wired.account.downloads") ?? 0,
+            uploads: message.uint32(forField: "wired.account.uploads") ?? 0,
+            downloadTransferred: message.uint64(forField: "wired.account.download_transferred") ?? 0,
+            uploadTransferred: message.uint64(forField: "wired.account.upload_transferred") ?? 0,
+            color: message.enumeration(forField: "wired.account.color")
+                ?? message.uint32(forField: "wired.account.color")
+                ?? 0
+        )
+    }
+
+    private func parseGroupSummary(message: P7Message) -> AccountSummary {
+        AccountSummary(
+            type: .group,
+            name: message.string(forField: "wired.account.name") ?? "",
+            fullName: "",
+            comment: message.string(forField: "wired.account.comment") ?? "",
+            creationTime: message.date(forField: "wired.account.creation_time"),
+            modificationTime: message.date(forField: "wired.account.modification_time"),
+            loginTime: nil,
+            editedBy: message.string(forField: "wired.account.edited_by") ?? "",
+            downloads: 0,
+            uploads: 0,
+            downloadTransferred: 0,
+            uploadTransferred: 0,
+            color: message.enumeration(forField: "wired.account.color")
+                ?? message.uint32(forField: "wired.account.color")
+                ?? 0
+        )
+    }
+
+    private func parseUserEditor(message: P7Message) -> AccountEditor {
+        var privilegesBool: [String: Bool] = [:]
+        var privilegesUInt32: [String: UInt32] = [:]
+
+        for privilege in accountPrivilegesIncludingColorFromSpec() {
+            guard let field = spec?.fieldsByName[privilege] else { continue }
+            switch field.type {
+            case .bool:
+                privilegesBool[privilege] = message.bool(forField: privilege) ?? false
+            case .enum32, .uint32:
+                privilegesUInt32[privilege] = message.uint32(forField: privilege) ?? 0
+            default:
+                break
+            }
+        }
+
+        return AccountEditor(
+            type: .user,
+            canEditIdentity: false,
+            originalName: message.string(forField: "wired.account.name") ?? "",
+            name: message.string(forField: "wired.account.name") ?? "",
+            identity: message.string(forField: "wired.account.identity") ?? "",
+            fullName: message.string(forField: "wired.account.full_name") ?? "",
+            comment: message.string(forField: "wired.account.comment") ?? "",
+            originalPassword: message.string(forField: "wired.account.password") ?? "",
+            password: message.string(forField: "wired.account.password") ?? "",
+            primaryGroup: message.string(forField: "wired.account.group") ?? "",
+            secondaryGroups: message.stringList(forField: "wired.account.groups") ?? [],
+            editedBy: message.string(forField: "wired.account.edited_by") ?? "",
+            creationTime: message.date(forField: "wired.account.creation_time"),
+            modificationTime: message.date(forField: "wired.account.modification_time"),
+            loginTime: message.date(forField: "wired.account.login_time"),
+            downloads: message.uint32(forField: "wired.account.downloads") ?? 0,
+            uploads: message.uint32(forField: "wired.account.uploads") ?? 0,
+            downloadTransferred: message.uint64(forField: "wired.account.download_transferred") ?? 0,
+            uploadTransferred: message.uint64(forField: "wired.account.upload_transferred") ?? 0,
+            privilegesBool: privilegesBool,
+            privilegesUInt32: privilegesUInt32
+        )
+    }
+
+    private func parseGroupEditor(message: P7Message) -> AccountEditor {
+        var privilegesBool: [String: Bool] = [:]
+        var privilegesUInt32: [String: UInt32] = [:]
+
+        for privilege in accountPrivilegesIncludingColorFromSpec() {
+            guard let field = spec?.fieldsByName[privilege] else { continue }
+            switch field.type {
+            case .bool:
+                privilegesBool[privilege] = message.bool(forField: privilege) ?? false
+            case .enum32, .uint32:
+                privilegesUInt32[privilege] = message.uint32(forField: privilege) ?? 0
+            default:
+                break
+            }
+        }
+
+        return AccountEditor(
+            type: .group,
+            canEditIdentity: false,
+            originalName: message.string(forField: "wired.account.name") ?? "",
+            name: message.string(forField: "wired.account.name") ?? "",
+            identity: "",
+            fullName: "",
+            comment: message.string(forField: "wired.account.comment") ?? "",
+            originalPassword: "",
+            password: "",
+            primaryGroup: "",
+            secondaryGroups: [],
+            editedBy: message.string(forField: "wired.account.edited_by") ?? "",
+            creationTime: message.date(forField: "wired.account.creation_time"),
+            modificationTime: message.date(forField: "wired.account.modification_time"),
+            loginTime: nil,
+            downloads: 0,
+            uploads: 0,
+            downloadTransferred: 0,
+            uploadTransferred: 0,
+            privilegesBool: privilegesBool,
+            privilegesUInt32: privilegesUInt32
+        )
+    }
+
+    private func isServerError(_ error: Error, named expected: String) -> Bool {
+        if let asyncError = error as? AsyncConnectionError,
+           case let .serverError(message) = asyncError {
+            let name = (message.string(forField: "wired.error.string") ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return name == expected.lowercased()
+        }
+
+        if let wiredError = error as? WiredError {
+            return wiredError.message
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() == expected.lowercased()
+        }
+
+        return false
+    }
+
+    private func filter(for type: AccountType) -> AccountFilter {
+        switch type {
+        case .user:
+            return .users
+        case .group:
+            return .groups
+        }
+    }
+}
+
+struct AccountsSettingsView: View {
+    @StateObject private var viewModel = AccountsSettingsViewModel()
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var creationDraft: AccountCreationDraft?
+    @State private var accountPendingDeletion: AccountSummary?
+
+    let runtime: ConnectionRuntime
+
+    var body: some View {
+        content
+            .overlay {
+                if isBusy {
+                    ProgressView()
+                }
+            }
+            .task {
+                viewModel.configure(runtime: runtime)
+                await viewModel.loadAccountsIfNeeded()
+                await viewModel.subscribeToAccountChangesIfNeeded()
+            }
+            .onDisappear {
+                Task {
+                    await viewModel.unsubscribeFromAccountChangesIfNeeded()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .wiredAccountAccountsChanged)) { notification in
+                guard let runtimeID = notification.userInfo?["runtimeID"] as? UUID else { return }
+                guard runtimeID == runtime.id else { return }
+
+                Task {
+                    await viewModel.reloadAccounts()
+                }
+            }
+            .onChange(of: viewModel.selectedID) { _, _ in
+                Task { await viewModel.readSelectedAccountIfNeeded() }
+            }
+            .errorAlert(error: Binding(
+                get: { viewModel.error },
+                set: { viewModel.error = $0 }
+            ),
+            source: "Accounts Settings",
+            serverName: nil,
+            connectionID: runtime.id)
+            .sheet(item: $creationDraft) { draft in
+                AccountCreationSheet(initialType: draft.type) { createdDraft in
+                    await viewModel.createAccount(from: createdDraft)
+                } onDismiss: {
+                    creationDraft = nil
+                }
+            }
+            .alert(
+                deletionAlertTitle,
+                isPresented: Binding(
+                    get: { accountPendingDeletion != nil },
+                    set: { if !$0 { accountPendingDeletion = nil } }
+                ),
+                presenting: accountPendingDeletion
+            ) { account in
+                Button("Annuler", role: .cancel) {
+                    accountPendingDeletion = nil
+                }
+                Button("Supprimer", role: .destructive) {
+                    accountPendingDeletion = nil
+                    Task {
+                        await viewModel.deleteAccount(account)
+                    }
+                }
+            } message: { account in
+                Text(deletionAlertMessage(for: account))
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        #if os(macOS)
+        HSplitView {
+            accountSidebar
+            .frame(minWidth: 230, idealWidth: 260, maxWidth: 320, maxHeight: .infinity, alignment: .topLeading)
+
+            detailView
+                .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .layoutPriority(1)
+        }
+        #else
+        if horizontalSizeClass == .compact {
+            NavigationStack {
+                accountCompactList
+                    .navigationTitle("Comptes")
+            }
+        } else {
+            NavigationSplitView {
+                accountSidebar
+                    .navigationTitle("Comptes")
+            } detail: {
+                detailView
+            }
+        }
+        #endif
+    }
+
+    private var accountSidebar: some View {
+        VStack(spacing: 8) {
+            Picker("Type", selection: $viewModel.selectedFilter) {
+                ForEach(AccountFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+
+            List(selection: $viewModel.selectedID) {
+                ForEach(viewModel.filteredAccounts) { account in
+                    accountRow(account)
+                        .tag(account.id)
+                }
+            }
+            .listStyle(.inset)
+
+            HStack {
+                Menu {
+                    Button {
+                        creationDraft = AccountCreationDraft(type: .user)
+                    } label: {
+                        Label("Utilisateur", systemImage: "person.badge.plus")
+                    }
+                    .disabled(!viewModel.canCreateUsers || isBusy)
+
+                    Button {
+                        creationDraft = AccountCreationDraft(type: .group)
+                    } label: {
+                        Label("Groupe", systemImage: "person.3.sequence")
+                    }
+                    .disabled(!viewModel.canCreateGroups || isBusy)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .help("Ajouter")
+                .disabled(!canCreateAccounts || isBusy)
+
+                Button {
+                    accountPendingDeletion = selectedAccount
+                } label: {
+                    Image(systemName: "minus")
+                }
+                .help("Supprimer")
+                .disabled(!canDeleteSelectedAccount || isBusy)
+
+                Button {
+                    Task { await viewModel.reloadAccounts() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Recharger")
+                .disabled(isBusy)
+
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+        }
+    }
+
+    #if os(iOS)
+    private var accountCompactList: some View {
+        VStack(spacing: 8) {
+            Picker("Type", selection: $viewModel.selectedFilter) {
+                ForEach(AccountFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+
+            List(viewModel.filteredAccounts) { account in
+                NavigationLink(value: account.id) {
+                    accountRow(account)
+                }
+            }
+            .listStyle(.inset)
+            .navigationDestination(for: String.self) { accountID in
+                detailView
+                    .navigationTitle(accountName(for: accountID))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .task(id: accountID) {
+                        if viewModel.selectedID != accountID {
+                            viewModel.selectedID = accountID
+                        }
+                        await viewModel.readSelectedAccountIfNeeded()
+                    }
+            }
+
+            HStack {
+                Menu {
+                    Button {
+                        creationDraft = AccountCreationDraft(type: .user)
+                    } label: {
+                        Label("Utilisateur", systemImage: "person.badge.plus")
+                    }
+                    .disabled(!viewModel.canCreateUsers || isBusy)
+
+                    Button {
+                        creationDraft = AccountCreationDraft(type: .group)
+                    } label: {
+                        Label("Groupe", systemImage: "person.3.sequence")
+                    }
+                    .disabled(!viewModel.canCreateGroups || isBusy)
+                } label: {
+                    Label("Ajouter", systemImage: "plus")
+                }
+                .disabled(!canCreateAccounts || isBusy)
+
+                Button {
+                    accountPendingDeletion = selectedAccount
+                } label: {
+                    Label("Supprimer", systemImage: "minus")
+                }
+                .disabled(!canDeleteSelectedAccount || isBusy)
+
+                Button {
+                    Task { await viewModel.reloadAccounts() }
+                } label: {
+                    Label("Recharger", systemImage: "arrow.clockwise")
+                }
+                .disabled(isBusy)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+        }
+    }
+    #endif
+
+    private func accountRow(_ account: AccountSummary) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: account.type == .group ? "person.3" : "person")
+            if account.name == "admin" {
+                Text(account.name)
+                    .fontWeight(.bold)
+                    .foregroundStyle(accountSummaryColor(account.color))
+            } else {
+                Text(account.name)
+                    .foregroundStyle(accountSummaryColor(account.color))
+            }
+        }
+    }
+
+    private func accountName(for id: String) -> String {
+        viewModel.filteredAccounts.first(where: { $0.id == id })?.name ?? "Compte"
+    }
+
+    private var selectedAccount: AccountSummary? {
+        viewModel.filteredAccounts.first(where: { $0.id == viewModel.selectedID })
+    }
+
+    private var canCreateAccounts: Bool {
+        viewModel.canCreateUsers || viewModel.canCreateGroups
+    }
+
+    private var canDeleteSelectedAccount: Bool {
+        guard let selectedAccount else { return false }
+
+        switch selectedAccount.type {
+        case .user:
+            return viewModel.canDeleteUsers
+        case .group:
+            return viewModel.canDeleteGroups
+        }
+    }
+
+    private var isBusy: Bool {
+        viewModel.isLoading || viewModel.isSaving || viewModel.isMutating
+    }
+
+    private var deletionAlertTitle: String {
+        guard let accountPendingDeletion else { return "Supprimer le compte" }
+        return accountPendingDeletion.type == .user ? "Supprimer l'utilisateur" : "Supprimer le groupe"
+    }
+
+    private func deletionAlertMessage(for account: AccountSummary) -> String {
+        switch account.type {
+        case .user:
+            return "L'utilisateur \"\(account.name)\" sera supprimé. Les sessions actives seront déconnectées si nécessaire."
+        case .group:
+            return "Le groupe \"\(account.name)\" sera supprimé."
+        }
+    }
+
+    @ViewBuilder
+    private var detailView: some View {
+        if !viewModel.canListAccounts {
+            ContentUnavailableView("Accès refusé", systemImage: "lock", description: Text("Permission requise: wired.account.account.list_accounts"))
+        } else if viewModel.filteredAccounts.isEmpty {
+            ContentUnavailableView("Aucun compte", systemImage: "person.2")
+        } else if let editor = viewModel.editor {
+            VStack(spacing: 12) {
+                Picker("", selection: $viewModel.selectedDetailTab) {
+                    ForEach(AccountDetailTab.allCases) { tab in
+                        Text(tab.title).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 180)
+                .padding(.top, 14)
+
+                switch viewModel.selectedDetailTab {
+                case .account:
+                    AccountEditorForm(editor: editor) { updated in
+                        viewModel.editor = updated
+                    }
+                case .permissions:
+                    AccountPermissionsForm(
+                        editor: editor,
+                        onToggle: { key, value in
+                            viewModel.togglePermission(key, enabled: value)
+                        },
+                        onSetUInt32: { key, value in
+                            viewModel.setPermission(key, value: value)
+                        }
+                    )
+                }
+
+                HStack {
+                    Spacer()
+                    Button("Sauvegarder") {
+                        Task { await viewModel.saveSelectedAccount() }
+                    }
+                    .disabled(!canSave(editor: editor))
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+        } else {
+            ContentUnavailableView("Sélectionne un compte", systemImage: "person.crop.square")
+        }
+    }
+
+    private func canSave(editor: AccountEditor) -> Bool {
+        if viewModel.isSaving {
+            return false
+        }
+
+        switch editor.type {
+        case .user:
+            return viewModel.canEditUsers
+        case .group:
+            return viewModel.canEditGroups
+        }
+    }
+}
+
+private struct AccountEditorForm: View {
+    let editor: AccountEditor
+    let onUpdate: (AccountEditor) -> Void
+
+    private let formatter = ByteCountFormatter()
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                GroupBox {
+                    VStack(spacing: 10) {
+                        row(label: "Type") {
+                            Text(editor.type == .group ? "Groupe" : "Utilisateur")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        editableRow(label: "Nom", text: editor.name) { value in
+                            var copy = editor
+                            copy.name = value
+                            onUpdate(copy)
+                        }
+
+                        editableRow(label: "Nom complet", text: editor.fullName) { value in
+                            var copy = editor
+                            copy.fullName = value
+                            onUpdate(copy)
+                        }
+
+                        if editor.type == .user {
+                            if editor.canEditIdentity {
+                                editableRow(label: "Identity", text: editor.identity) { value in
+                                    var copy = editor
+                                    copy.identity = value
+                                    onUpdate(copy)
+                                }
+                            } else {
+                                row(label: "Identity") {
+                                    Text(editor.identity.isEmpty ? "-" : editor.identity)
+                                        .textSelection(.enabled)
+                                        .foregroundStyle(editor.identity.isEmpty ? .secondary : .primary)
+                                }
+                            }
+
+                            row(label: "Mot de passe") {
+                                HStack(spacing: 4) {
+                                    SecureField("", text: Binding(
+                                        get: { editor.password },
+                                        set: { value in
+                                            var copy = editor
+                                            copy.password = value
+                                            onUpdate(copy)
+                                        }
+                                    ))
+                                    .textFieldStyle(.roundedBorder)
+                                    if !editor.password.isEmpty {
+                                        Button {
+                                            var copy = editor
+                                            copy.password = ""
+                                            onUpdate(copy)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Supprimer le mot de passe")
+                                    }
+                                }
+                            }
+
+                            editableRow(label: "Groupe primaire", text: editor.primaryGroup) { value in
+                                var copy = editor
+                                copy.primaryGroup = value
+                                onUpdate(copy)
+                            }
+
+                            editableRow(label: "Groupes secondaires", text: editor.secondaryGroupsString) { value in
+                                var copy = editor
+                                copy.secondaryGroupsString = value
+                                onUpdate(copy)
+                            }
+                        }
+
+                        editableMultilineRow(label: "Commentaire", text: editor.comment) { value in
+                            var copy = editor
+                            copy.comment = value
+                            onUpdate(copy)
+                        }
+                    }
+                    .padding(8)
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 6) {
+                        dateLine("Création", value: editor.creationTime)
+                        dateLine("Modification", value: editor.modificationTime)
+                        dateLine("Dernière connexion", value: editor.loginTime)
+                        line("Modifié par", value: editor.editedBy)
+                        line("Téléchargements", value: "\(editor.downloads) terminé, \(formatBytes(editor.downloadTransferred)) transféré")
+                        line("Téléversements", value: "\(editor.uploads) terminé, \(formatBytes(editor.uploadTransferred)) transféré")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private func row<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .frame(width: 140, alignment: .trailing)
+                .foregroundStyle(.secondary)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func editableRow(label: String, text: String, onChange: @escaping (String) -> Void) -> some View {
+        row(label: label) {
+            TextField("", text: Binding(get: { text }, set: onChange))
+                .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private func editableSecureRow(label: String, text: String, onChange: @escaping (String) -> Void) -> some View {
+        row(label: label) {
+            SecureField("", text: Binding(get: { text }, set: onChange))
+                .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private func editableMultilineRow(label: String, text: String, onChange: @escaping (String) -> Void) -> some View {
+        row(label: label) {
+            TextEditor(text: Binding(get: { text }, set: onChange))
+                .frame(minHeight: 70)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(.quaternary)
+                )
+        }
+    }
+
+    private func line(_ label: String, value: String) -> some View {
+        HStack {
+            Text("\(label):")
+                .foregroundStyle(.secondary)
+            Text(value)
+        }
+    }
+
+    private func dateLine(_ label: String, value: Date?) -> some View {
+        line(label, value: value.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "-")
+    }
+
+    private func formatBytes(_ value: UInt64) -> String {
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(value))
+    }
+}
+
+private struct AccountPermissionsForm: View {
+    let editor: AccountEditor
+    let onToggle: (String, Bool) -> Void
+    let onSetUInt32: (String, UInt32) -> Void
+
+    private var groupedPrivileges: [(PermissionCategory, [String])] {
+        var buckets: [PermissionCategory: [String]] = [:]
+
+        for key in accountPrivilegesIncludingColorFromSpec() {
+            guard let field = spec?.fieldsByName[key] else { continue }
+            guard field.type == .bool || field.type == .enum32 || field.type == .uint32 else { continue }
+
+            let category = PermissionCategory.category(for: key)
+            buckets[category, default: []].append(key)
+        }
+
+        var result: [(PermissionCategory, [String])] = []
+
+        for category in PermissionCategory.displayOrder {
+            let keys = (buckets[category] ?? []).sorted(by: permissionSortKey)
+            if !keys.isEmpty {
+                result.append((category, keys))
+            }
+        }
+
+        return result
+    }
+
+    private func permissionSortKey(_ lhs: String, _ rhs: String) -> Bool {
+        permissionDisplayName(lhs).localizedCaseInsensitiveCompare(permissionDisplayName(rhs)) == .orderedAscending
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Permissions")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+
+            List {
+                ForEach(groupedPrivileges, id: \.0) { category, keys in
+                    Section(category.title) {
+                        ForEach(keys, id: \.self) { key in
+                            if spec?.fieldsByName[key]?.type == .bool {
+                                HStack {
+                                    Text(permissionDisplayName(key))
+                                        .font(.system(size: 12))
+                                    Spacer()
+                                    Toggle(
+                                        "",
+                                        isOn: Binding(
+                                            get: { editor.privilegesBool[key] ?? false },
+                                            set: { onToggle(key, $0) }
+                                        )
+                                    )
+                                    .labelsHidden()
+                                }
+                            } else {
+                                HStack {
+                                    Text(permissionDisplayName(key))
+                                        .font(.system(size: 12))
+                                    Spacer()
+
+                                    if key == "wired.account.color" {
+                                        Picker(
+                                            "",
+                                            selection: Binding(
+                                                get: { editor.privilegesUInt32[key] ?? 0 },
+                                                set: { onSetUInt32(key, $0) }
+                                            )
+                                        ) {
+                                            ForEach(WiredAccountColor.allCases) { option in
+                                                HStack(spacing: 8) {
+                                                    Circle()
+                                                        .fill(option.color)
+                                                        .frame(width: 10, height: 10)
+                                                    Text(option.title)
+                                                }
+                                                .tag(option.rawValue)
+                                            }
+                                        }
+                                        .labelsHidden()
+                                        .pickerStyle(.menu)
+                                        .frame(width: 150, alignment: .trailing)
+                                    } else {
+                                        TextField(
+                                            "",
+                                            value: Binding(
+                                                get: { editor.privilegesUInt32[key] ?? 0 },
+                                                set: { onSetUInt32(key, $0) }
+                                            ),
+                                            format: .number
+                                        )
+                                        .frame(width: 90)
+                                        .multilineTextAlignment(.trailing)
+                                        .textFieldStyle(.roundedBorder)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.inset)
+        }
+    }
+}
+
+private enum PermissionCategory: String, CaseIterable, Hashable {
+    case basic
+    case files
+    case messages
+    case transfers
+    case boards
+    case users
+    case accounts
+    case administration
+    case tracker
+    case limits
+    case other
+
+    static var displayOrder: [PermissionCategory] {
+        [.basic, .files, .messages, .transfers, .boards, .users, .accounts, .administration, .tracker, .limits, .other]
+    }
+
+    var title: String {
+        switch self {
+        case .basic: return "Basic"
+        case .files: return "Files"
+        case .messages: return "Messages"
+        case .transfers: return "Transfers"
+        case .boards: return "Boards"
+        case .users: return "Users"
+        case .accounts: return "Accounts"
+        case .administration: return "Administration"
+        case .tracker: return "Tracker"
+        case .limits: return "Limits"
+        case .other: return "Other"
+        }
+    }
+
+    static func category(for key: String) -> PermissionCategory {
+        if key == "wired.account.color" ||
+            key.hasPrefix("wired.account.chat.create_") ||
+            key == "wired.account.chat.set_topic" ||
+            key == "wired.account.user.cannot_set_nick" ||
+            key == "wired.account.user.get_info" {
+            return .basic
+        }
+
+        if key.hasPrefix("wired.account.message.") {
+            return .messages
+        }
+
+        if key.hasPrefix("wired.account.transfer.") {
+            if key.hasSuffix("_limit") || key.hasSuffix("_speed_limit") {
+                return .limits
+            }
+            return .transfers
+        }
+
+        if key == "wired.account.files" || key.hasPrefix("wired.account.file.") {
+            if key.hasSuffix("_limit") {
+                return .limits
+            }
+            return .files
+        }
+
+        if key.hasPrefix("wired.account.board.") {
+            return .boards
+        }
+
+        if key.hasPrefix("wired.account.tracker.") {
+            return .tracker
+        }
+
+        if key == "wired.account.chat.kick_users" ||
+            key == "wired.account.user.disconnect_users" ||
+            key == "wired.account.user.ban_users" ||
+            key == "wired.account.user.cannot_be_disconnected" ||
+            key == "wired.account.user.get_users" {
+            return .users
+        }
+
+        if key.hasPrefix("wired.account.account.") {
+            return .accounts
+        }
+
+        if key.hasPrefix("wired.account.log.") ||
+            key.hasPrefix("wired.account.events.") ||
+            key.hasPrefix("wired.account.settings.") ||
+            key.hasPrefix("wired.account.banlist.") {
+            return .administration
+        }
+
+        if key.hasSuffix("_limit") {
+            return .limits
+        }
+
+        return .other
+    }
+}
+
+private func permissionDisplayName(_ key: String) -> String {
+    if key == "wired.account.color" {
+        return "Color"
+    }
+
+    let short = key.replacingOccurrences(of: "wired.account.", with: "")
+    let words = short
+        .split(separator: ".")
+        .joined(separator: " ")
+        .split(separator: "_")
+        .map { $0.capitalized }
+
+    return words.joined(separator: " ")
+}
+
+private enum WiredAccountColor: UInt32, CaseIterable, Identifiable {
+    case black = 0
+    case red = 1
+    case orange = 2
+    case green = 3
+    case blue = 4
+    case purple = 5
+
+    var id: UInt32 { rawValue }
+
+    var title: String {
+        switch self {
+        case .black: return "Black"
+        case .red: return "Red"
+        case .orange: return "Orange"
+        case .green: return "Green"
+        case .blue: return "Blue"
+        case .purple: return "Purple"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .black: return .black
+        case .red: return .red
+        case .orange: return .orange
+        case .green: return .green
+        case .blue: return .blue
+        case .purple: return .purple
+        }
+    }
+}
+
+private func accountSummaryColor(_ value: UInt32) -> Color {
+    WiredAccountColor(rawValue: value)?.color ?? .primary
+}
+
+private struct AccountCreationSheet: View {
+    let onCreate: @MainActor (AccountCreationDraft) async -> Bool
+    let onDismiss: () -> Void
+
+    @State private var draft: AccountCreationDraft
+    @State private var isSaving = false
+
+    init(
+        initialType: AccountType,
+        onCreate: @escaping @MainActor (AccountCreationDraft) async -> Bool,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.onCreate = onCreate
+        self.onDismiss = onDismiss
+        _draft = State(initialValue: AccountCreationDraft(type: initialType))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(draft.type == .user ? "Ajouter un utilisateur" : "Ajouter un groupe")
+                .font(.title3.weight(.semibold))
+
+            Picker("Type", selection: $draft.type) {
+                ForEach(AccountType.allCases) { type in
+                    Text(type.title).tag(type)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Nom")
+                    .font(.headline)
+
+                TextField("Nom du compte", text: $draft.name)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            if draft.type == .user {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Nom complet")
+                        .font(.headline)
+
+                    TextField("Nom complet", text: $draft.fullName)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Mot de passe")
+                        .font(.headline)
+
+                    SecureField("Mot de passe initial", text: $draft.password)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Groupe primaire")
+                        .font(.headline)
+
+                    TextField("Optionnel", text: $draft.primaryGroup)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Groupes secondaires")
+                        .font(.headline)
+
+                    TextField("Séparés par des virgules", text: $draft.secondaryGroupsText)
+                        .textFieldStyle(.roundedBorder)
+
+                    Text("Exemple: staff, moderators")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Commentaire")
+                    .font(.headline)
+
+                TextEditor(text: $draft.comment)
+                    .frame(minHeight: 90)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(.quaternary)
+                    )
+            }
+
+            HStack {
+                Spacer()
+
+                Button("Annuler") {
+                    onDismiss()
+                }
+                .disabled(isSaving)
+
+                Button("Créer") {
+                    create()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canCreate || isSaving)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 420)
+    }
+
+    private var canCreate: Bool {
+        guard !draft.trimmedName.isEmpty else { return false }
+
+        if draft.type == .user {
+            return !draft.password.isEmpty
+        }
+
+        return true
+    }
+
+    private func create() {
+        guard canCreate else { return }
+
+        isSaving = true
+
+        Task {
+            let didCreate = await onCreate(draft)
+
+            await MainActor.run {
+                isSaving = false
+                if didCreate {
+                    onDismiss()
+                }
+            }
+        }
+    }
+}

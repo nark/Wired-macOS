@@ -1,97 +1,168 @@
 {
-  "object": {
-    "pins": [
-      {
-        "package": "AEXML",
-        "repositoryURL": "https://github.com/tadija/AEXML.git",
-        "state": {
-          "branch": null,
-          "revision": "8623e73b193386909566a9ca20203e33a09af142",
-          "version": "4.5.0"
-        }
-      },
-      {
-        "package": "CryptorRSA",
-        "repositoryURL": "https://github.com/IBM-Swift/BlueRSA",
-        "state": {
-          "branch": null,
-          "revision": "8ea901f2582296837d88f882b0fa5a0601759598",
-          "version": "1.0.35"
-        }
-      },
-      {
-        "package": "CryptoSwift",
-        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift.git",
-        "state": {
-          "branch": null,
-          "revision": "39f08ac5269361a50c08ce1e2f41989bfc4b1ec8",
-          "version": "1.3.1"
-        }
-      },
-      {
-        "package": "CZlib",
-        "repositoryURL": "https://github.com/IBM-Swift/CZlib.git",
-        "state": {
-          "branch": null,
-          "revision": "a781e6ef055fb8f0d608fe30a28e6a0f62ae498b",
-          "version": "0.1.2"
-        }
-      },
-      {
-        "package": "Gzip",
-        "repositoryURL": "https://github.com/1024jp/GzipSwift",
-        "state": {
-          "branch": null,
-          "revision": "ba0b6cb51cc6202f896e469b87d2889a46b10d1b",
-          "version": "5.1.1"
-        }
-      },
-      {
-        "package": "KeychainAccess",
-        "repositoryURL": "https://github.com/kishikawakatsumi/KeychainAccess",
-        "state": {
-          "branch": null,
-          "revision": "b920ad7df3c73189dcdd4aa05c540849b2010dbf",
-          "version": "4.1.0"
-        }
-      },
-      {
-        "package": "Preferences",
-        "repositoryURL": "https://github.com/sindresorhus/Preferences",
-        "state": {
-          "branch": null,
-          "revision": "139484818fe4b6b89823fa462cab686b3a419928",
-          "version": "1.0.1"
-        }
-      },
-      {
-        "package": "Reachability",
-        "repositoryURL": "https://github.com/ashleymills/Reachability.swift",
-        "state": {
-          "branch": null,
-          "revision": "98e968e7b6c1318fb61df23e347bc319761e8acb",
-          "version": "5.0.0"
-        }
-      },
-      {
-        "package": "SocketSwift",
-        "repositoryURL": "https://github.com/BiAtoms/Socket.swift.git",
-        "state": {
-          "branch": null,
-          "revision": "36911c13adfe12859ed43dcba878052b1897fcd3",
-          "version": "2.4.0"
-        }
-      },
-      {
-        "package": "WiredSwift",
-        "repositoryURL": "https://github.com/nark/WiredSwift.git",
-        "state": {
-          "branch": "master",
-          "revision": "b607e55da7d1db9eaba3a8a50850b738bccad212",
-          "version": null
-        }
+  "originHash" : "a1e97ef85da37a4309a552c61a82b46305737b4d1b80aac30dc3c03f84ddb625",
+  "pins" : [
+    {
+      "identity" : "aexml",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tadija/AEXML.git",
+      "state" : {
+        "revision" : "db806756c989760b35108146381535aec231092b",
+        "version" : "4.7.0"
       }
-    ]
-  },
-  "version": 1
+    },
+    {
+      "identity" : "configuration",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Kitura/Configuration.git",
+      "state" : {
+        "revision" : "75fb96405263e72a2ed4546dceebe0993b92eb79",
+        "version" : "3.1.0"
+      }
+    },
+    {
+      "identity" : "cryptoswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
+      "state" : {
+        "revision" : "e45a26384239e028ec87fbcc788f513b67e10d8f",
+        "version" : "1.9.0"
+      }
+    },
+    {
+      "identity" : "datacompression",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mw99/DataCompression.git",
+      "state" : {
+        "revision" : "16f858982a077451ce3bdbd9144d3073ec85b6e4",
+        "version" : "3.9.0"
+      }
+    },
+    {
+      "identity" : "debouncedonchange",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Tunous/DebouncedOnChange",
+      "state" : {
+        "revision" : "29a60e088293845364294ebc270831997e2a5873",
+        "version" : "2.0.0"
+      }
+    },
+    {
+      "identity" : "filekit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Kitura/FileKit.git",
+      "state" : {
+        "revision" : "9d3ddb89a16d388eaad0db5e17c4682b767bd48f",
+        "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "grdb.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/groue/GRDB.swift.git",
+      "state" : {
+        "revision" : "2cf6c756e1e5ef6901ebae16576a7e4e4b834622",
+        "version" : "6.29.3"
+      }
+    },
+    {
+      "identity" : "keychain-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/evgenyneu/keychain-swift",
+      "state" : {
+        "revision" : "5e1b02b6a9dac2a759a1d5dbc175c86bd192a608",
+        "version" : "24.0.0"
+      }
+    },
+    {
+      "identity" : "keychainaccess",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kishikawakatsumi/KeychainAccess",
+      "state" : {
+        "revision" : "84e546727d66f1adc5439debad16270d0fdd04e7",
+        "version" : "4.2.2"
+      }
+    },
+    {
+      "identity" : "loggerapi",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Kitura/LoggerAPI.git",
+      "state" : {
+        "revision" : "4e6b45e850ffa275e8e26a24c6454fd709d5b6ac",
+        "version" : "2.0.0"
+      }
+    },
+    {
+      "identity" : "preferences",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sindresorhus/Preferences",
+      "state" : {
+        "revision" : "139484818fe4b6b89823fa462cab686b3a419928",
+        "version" : "1.0.1"
+      }
+    },
+    {
+      "identity" : "queuer",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FabrizioBrancati/Queuer.git",
+      "state" : {
+        "revision" : "52515108d0ac4616d9e15ffcc7ad986e300d31ff",
+        "version" : "2.1.1"
+      }
+    },
+    {
+      "identity" : "reachability.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ashleymills/Reachability.swift",
+      "state" : {
+        "revision" : "c01bbdf2d633cf049ae1ed1a68a2020a8bda32e2",
+        "version" : "5.1.0"
+      }
+    },
+    {
+      "identity" : "sparkle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sparkle-project/Sparkle",
+      "state" : {
+        "revision" : "2a98381dfe72e24bf593c5c06d2c4fc1763c3f19",
+        "version" : "2.3.0"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "6b2aa2748a7881eebb9f84fb10c01293e15b52ca",
+        "version" : "0.5.0"
+      }
+    },
+    {
+      "identity" : "swift-asn1",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-asn1.git",
+      "state" : {
+        "revision" : "810496cf121e525d660cd0ea89a758740476b85f",
+        "version" : "1.5.1"
+      }
+    },
+    {
+      "identity" : "swift-crypto",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-crypto.git",
+      "state" : {
+        "revision" : "95ba0316a9b733e92bb6b071255ff46263bbe7dc",
+        "version" : "3.15.1"
+      }
+    },
+    {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "bc386b95f2a16ccd0150a8235e7c69eab2b866ca",
+        "version" : "1.8.0"
+      }
+    }
+  ],
+  "version" : 3
 }
