@@ -91,10 +91,15 @@ ARCHIVE_FLAGS=(
   -archivePath   "$ARCHIVE_PATH"
   SKIP_INSTALL=NO
   BUILD_LIBRARY_FOR_DISTRIBUTION=NO
-  # Developer ID signing doesn't require a provisioning profile;
-  # clear the specifier so xcodebuild never looks for one locally.
+  # Developer ID signing: no provisioning profile required.
   "PROVISIONING_PROFILE_SPECIFIER="
 )
+
+# The macOS team in project.pbxproj may differ from the local certificate;
+# override DEVELOPMENT_TEAM so xcodebuild uses whichever cert is in the keychain.
+if [[ -n "$EXPORT_TEAM" ]]; then
+  ARCHIVE_FLAGS+=("DEVELOPMENT_TEAM=$EXPORT_TEAM")
+fi
 
 BUILD_LOG="$(mktemp)"
 if ! xcodebuild archive "${ARCHIVE_FLAGS[@]}" 2>&1 | tee "$BUILD_LOG" | \
