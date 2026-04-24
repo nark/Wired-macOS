@@ -91,6 +91,9 @@ ARCHIVE_FLAGS=(
   -archivePath   "$ARCHIVE_PATH"
   SKIP_INSTALL=NO
   BUILD_LIBRARY_FOR_DISTRIBUTION=NO
+  # Developer ID signing doesn't require a provisioning profile;
+  # clear the specifier so xcodebuild never looks for one locally.
+  "PROVISIONING_PROFILE_SPECIFIER="
 )
 
 BUILD_LOG="$(mktemp)"
