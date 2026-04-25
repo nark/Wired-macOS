@@ -1356,10 +1356,13 @@ struct MainView: View {
     private func handleConnectionPrimaryAction(_ selection: Set<UUID>) {
         guard let id = selection.first else { return }
         if let bookmark = bookmark(for: id) {
-            // openOrSelectBookmark already handles all cases correctly:
-            // active → focus existing window; inactive + empty window → reuse it;
-            // inactive + occupied window → open a new tab.
-            openOrSelectBookmark(bookmark)
+            if isConnectionActive(id) {
+                // Already connected: focus the existing window/tab.
+                openOrSelectBookmark(bookmark)
+            } else {
+                // Not connected (first open or after disconnect): connect.
+                connectFromContextMenu(id)
+            }
             return
         }
 
