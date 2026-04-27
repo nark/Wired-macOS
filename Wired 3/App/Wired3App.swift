@@ -1037,7 +1037,11 @@ private struct AppRootView: View {
     var body: some View {
         MainView()
             .environment(trackerBrowser)
+#if os(macOS)
+            .frame(minWidth: 1400, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity, alignment: .topLeading)
+#else
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
+#endif
             .overlay(alignment: .bottomTrailing) {
                 ErrorToastOverlay()
                     .environment(errorToastCenter)
