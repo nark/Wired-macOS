@@ -17,6 +17,17 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────────
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Command Line Tools lack xcodebuild; prefer full Xcode.
+if [[ -z "${DEVELOPER_DIR:-}" ]]; then
+  for _xcode in /Applications/Xcode.app /Applications/Xcode-beta.app; do
+    if [[ -d "$_xcode/Contents/Developer" ]]; then
+      export DEVELOPER_DIR="$_xcode/Contents/Developer"
+      break
+    fi
+  done
+fi
+
 XCODEPROJ="$PROJECT_DIR/Wired-macOS.xcodeproj"
 SCHEME="Wired 3"
 BUILD_CONFIGURATION="Release"
@@ -24,7 +35,7 @@ BUNDLE_ID="fr.read-write.Wired3"
 DIST_DIR="$PROJECT_DIR/dist"
 ARCHIVE_PATH="$DIST_DIR/Wired3.xcarchive"
 EXPORT_PATH="$DIST_DIR/export"
-DOWNLOADS_DIR="$HOME/Downloads"
+DOWNLOADS_DIR="${HOME}/Downloads"
 NOTARIZE="${NOTARIZE:-}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 
