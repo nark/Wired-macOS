@@ -192,25 +192,20 @@ struct MainView: View {
                 guard case let .connection(connectionID) = newValue else { return }
 
 #if os(macOS)
-                // If the connection lives in its own tab, focus that tab and
-                // restore the sidebar selection to this window's connection.
+                // If the connection lives in its own tab, focus that tab and revert
+                // this window's sidebar selection to its own connection. Always return
+                // here — adopting the clicked connection in this window when another
+                // tab already hosts it would associate a single connection with two
+                // windows.
                 if connectionController.hasWindowAssociation(for: connectionID),
                    connectionController.focusWindow(for: connectionID) {
-                    let currentIsLive: Bool = {
-                        guard let id = windowConnectionID,
-                              let r = connectionController.runtime(for: id) else { return false }
-                        return r.status == .connected || r.status == .connecting
-                    }()
-                    if currentIsLive {
-                        listSelection = windowConnectionID.map(SidebarSelection.connection)
-                        return
-                    }
-                    // This window has no live connection — fall through and adopt the clicked one.
+                    listSelection = windowConnectionID.map(SidebarSelection.connection)
+                    return
                 }
 
-                // No window association, focusWindow failed, or this window's connection
-                // is gone (e.g. after a sibling tab closed). If the clicked connection is
-                // live, show it here with a single click.
+                // No window association or focusWindow failed (e.g. window association
+                // was cleared by a sibling tab close cascade). If the clicked connection
+                // is live, show it here with a single click.
                 if let r = connectionController.runtime(for: connectionID),
                    r.status == .connected || r.status == .connecting {
                     windowConnectionID = connectionID
