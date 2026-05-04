@@ -255,8 +255,15 @@ struct ChatUsersList: View {
                         .tag(offlineUser.login)
                 }
             }
-            .onChange(of: selectedOfflineLogin) { _, login in
-                guard let login else { return }
+            .contextMenu(forSelectionType: String.self) { selection in
+                Button("Send Private Message") {
+                    guard let login = selection.first else { return }
+                    openOfflinePrivateMessage(login: login)
+                }
+                .disabled(!runtime.hasPrivilege("wired.account.message.send_offline_messages")
+                          || selection.first == nil)
+            } primaryAction: { selection in
+                guard let login = selection.first else { return }
                 openOfflinePrivateMessage(login: login)
             }
         }
