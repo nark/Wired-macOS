@@ -1092,9 +1092,30 @@ final class ConnectionRuntime: Identifiable {
         return urlLogin.isEmpty ? nil : urlLogin
     }
 
+    /// Stable per-server account identifier ("<host>|<login>") used to scope
+    /// the offline-messaging Keychain entry. Returning a host-qualified value
+    /// avoids collisions when the same login exists on multiple Wired servers.
+    private var keypairAccountID: String? {
+        if let configuration = connectionController.configuration(for: id) {
+            let host = configuration.hostname.lowercased()
+            let login = configuration.login.lowercased()
+            guard !host.isEmpty, !login.isEmpty else { return nil }
+            return "\(host)|\(login)"
+        }
+        if let url = connection?.url {
+            let host = url.hostname.lowercased()
+            let login = url.login.lowercased()
+            guard !host.isEmpty, !login.isEmpty else { return nil }
+            return "\(host)|\(login)"
+        }
+        return nil
+    }
+
     func uploadPublicKey() async {
-        guard let login = currentLogin else { return }
-        let keyData = OfflineMessageKeyManager.shared.loadOrCreateKeyPair(for: login).publicKey.rawRepresentation
+        guard let accountID = keypairAccountID else { return }
+        let keyData = OfflineMessageKeyManager.shared
+            .loadOrCreateKeyPair(forAccount: accountID, legacyUsername: currentLogin)
+            .publicKey.rawRepresentation
         let msg = P7Message(withName: "wired.user.set_public_key", spec: spec)
         msg.addParameter(field: "wired.user.public_key", value: keyData)
         _ = try? await send(msg)
@@ -1106,9 +1127,16 @@ final class ConnectionRuntime: Identifiable {
 
         var displayText = text
         if isEncrypted {
-            if let login = currentLogin,
-               let privateKey = OfflineMessageKeyManager.shared.privateKey(for: login),
-               let decrypted = try? OfflineMessageCrypto.decrypt(blob: text, privateKey: privateKey) {
+            // Try the host-scoped key first, then fall back to the legacy login-only
+            // slot for any keypair created before account-scoping was introduced.
+            let candidates: [Curve25519.KeyAgreement.PrivateKey] = [
+                keypairAccountID.flatMap { OfflineMessageKeyManager.shared.privateKey(forAccount: $0) },
+                currentLogin.flatMap { OfflineMessageKeyManager.shared.privateKey(forAccount: $0) }
+            ].compactMap { $0 }
+
+            if let decrypted = candidates.lazy.compactMap({
+                try? OfflineMessageCrypto.decrypt(blob: text, privateKey: $0)
+            }).first {
                 displayText = decrypted
             } else {
                 displayText = "[Encrypted message — decryption key not available]"

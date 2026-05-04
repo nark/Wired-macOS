@@ -18,21 +18,36 @@ final class OfflineMessageKeyManager {
 
     private init() {}
 
-    // Returns the existing keypair or generates and stores a new one.
-    func loadOrCreateKeyPair(for username: String) -> Curve25519.KeyAgreement.PrivateKey {
-        if let existing = privateKey(for: username) {
+    /// Returns the existing keypair for the given account or generates a new one.
+    ///
+    /// `accountID` MUST disambiguate the user across servers — typically
+    /// `"<host>|<login>"`. A bare login is unsafe because the same login on
+    /// two different Wired servers would collide and overwrite each other.
+    ///
+    /// `legacyUsername`, when set, lets us upgrade users who previously stored
+    /// a key under just their login. If a legacy key is found, it is copied to
+    /// the new account-scoped slot so older messages remain decryptable.
+    func loadOrCreateKeyPair(forAccount accountID: String,
+                             legacyUsername: String? = nil) -> Curve25519.KeyAgreement.PrivateKey {
+        if let existing = privateKey(forAccount: accountID) {
             return existing
         }
+        if let legacy = legacyUsername,
+           let migrated = privateKey(forAccount: legacy) {
+            save(migrated, forAccount: accountID)
+            return migrated
+        }
         let newKey = Curve25519.KeyAgreement.PrivateKey()
-        save(newKey, for: username)
+        save(newKey, forAccount: accountID)
         return newKey
     }
 
-    func privateKey(for username: String) -> Curve25519.KeyAgreement.PrivateKey? {
+    /// Returns the stored keypair without creating a new one.
+    func privateKey(forAccount accountID: String) -> Curve25519.KeyAgreement.PrivateKey? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: accountPrefix + username,
+            kSecAttrAccount as String: accountPrefix + accountID,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -45,12 +60,9 @@ final class OfflineMessageKeyManager {
         return key
     }
 
-    func publicKeyData(for username: String) -> Data? {
-        loadOrCreateKeyPair(for: username).publicKey.rawRepresentation
-    }
-
-    private func save(_ key: Curve25519.KeyAgreement.PrivateKey, for username: String) {
-        let account = accountPrefix + username
+    @discardableResult
+    private func save(_ key: Curve25519.KeyAgreement.PrivateKey, forAccount accountID: String) -> Bool {
+        let account = accountPrefix + accountID
         let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -65,6 +77,6 @@ final class OfflineMessageKeyManager {
             kSecValueData as String: key.rawRepresentation,
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
-        SecItemAdd(addQuery as CFDictionary, nil)
+        return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
     }
 }
