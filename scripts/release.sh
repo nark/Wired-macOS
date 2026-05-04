@@ -96,10 +96,11 @@ mkdir -p "$EXPORT_PATH"
 echo "==> Archiving \"${SCHEME}\" (${BUILD_CONFIGURATION})"
 
 ARCHIVE_FLAGS=(
-  -project       "$XCODEPROJ"
-  -scheme        "$SCHEME"
-  -configuration "$BUILD_CONFIGURATION"
-  -archivePath   "$ARCHIVE_PATH"
+  -project                  "$XCODEPROJ"
+  -scheme                   "$SCHEME"
+  -configuration            "$BUILD_CONFIGURATION"
+  -archivePath              "$ARCHIVE_PATH"
+  -allowProvisioningUpdates
   SKIP_INSTALL=NO
   BUILD_LIBRARY_FOR_DISTRIBUTION=NO
   # Developer ID signing: no provisioning profile required.
