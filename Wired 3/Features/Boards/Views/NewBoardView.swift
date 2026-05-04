@@ -116,7 +116,7 @@ struct NewBoardView: View {
                         }
                     }
 
-                    Picker("Tout le monde", selection: $everyoneLevel) {
+                    Picker("Everyone", selection: $everyoneLevel) {
                         ForEach(PermissionLevel.allCases) { level in
                             Text(level.label).tag(level)
                         }
@@ -126,7 +126,7 @@ struct NewBoardView: View {
             .formStyle(.grouped)
             .overlay {
                 if isLoadingAccounts {
-                    ProgressView("Chargement des comptes…")
+                    ProgressView("Loading accounts…")
                 }
             }
 

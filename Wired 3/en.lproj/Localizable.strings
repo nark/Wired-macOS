@@ -34,6 +34,17 @@
 "Never" = "Never";
 "Date" = "Date";
 "Category" = "Category";
+"No" = "No";
+"Edit" = "Edit";
+"Remove" = "Remove";
+"Start" = "Start";
+"Pause" = "Pause";
+"Stop" = "Stop";
+"Size" = "Size";
+"Description" = "Description";
+"URL" = "URL";
+"Status" = "Status";
+"Info" = "Info";
 
 /* ── Monitor view ── */
 "Access Denied" = "Access Denied";
@@ -62,6 +73,34 @@
 "DL Speed" = "DL Speed";
 "Concurrent Uploads" = "Concurrent Uploads";
 "UL Speed" = "UL Speed";
+
+/* ── Navigation ── */
+"Favorites" = "Favorites";
+"Connections" = "Connections";
+"Trackers" = "Trackers";
+"Add Tracker" = "Add Tracker";
+"New Connection" = "New Connection";
+"Select an item" = "Select an item";
+"Chats" = "Chats";
+"Messages" = "Messages";
+"Boards" = "Boards";
+"Files" = "Files";
+"Bookmark" = "Bookmark";
+"Connect" = "Connect";
+"Tracker" = "Tracker";
+"Loading tracker…" = "Loading tracker…";
+"No servers listed" = "No servers listed";
+"Get Info" = "Get Info";
+"Add to Favorites" = "Add to Favorites";
+"Add to Trackers" = "Add to Trackers";
+"Connection" = "Connection";
+
+/* ── Connection state ── */
+"Connecting…" = "Connecting…";
+"Disconnected" = "Disconnected";
+"Connection unavailable" = "Connection unavailable";
+"Are you sure you want to disconnect from this server?" = "Are you sure you want to disconnect from this server?";
+"Disconnect and Close" = "Disconnect and Close";
 
 /* ── Tracker / Directory ── */
 "Each directory is registered as a `wired://host[:port]/Category` URL. The interface edits the parts and serializes them automatically." = "Each directory is registered as a `wired://host[:port]/Category` URL. The interface edits the parts and serializes them automatically.";
@@ -119,6 +158,48 @@
 "Comma-separated" = "Comma-separated";
 "Example: staff, moderators" = "Example: staff, moderators";
 
+/* ── Chat / User list ── */
+"Online" = "Online";
+"Offline" = "Offline";
+"Get Infos" = "Get Infos";
+"Send Private Message" = "Send Private Message";
+"Invite to Private Chat" = "Invite to Private Chat";
+"Kick" = "Kick";
+"Ban" = "Ban";
+"Kick User" = "Kick User";
+"Ban User" = "Ban User";
+"Chat here…" = "Chat here…";
+"Add a message or press Return to send…" = "Add a message or press Return to send…";
+
+/* ── User info panel ── */
+"App version" = "App version";
+"P7 Protocol" = "P7 Protocol";
+"Wired Protocol" = "Wired Protocol";
+"OS Name" = "OS Name";
+"OS Version" = "OS Version";
+"Arch" = "Arch";
+"IP Address" = "IP Address";
+"Hostname" = "Hostname";
+"Cipher" = "Cipher";
+"Login Time" = "Login Time";
+"Idle Time" = "Idle Time";
+"Transfer" = "Transfer";
+
+/* ── Messages ── */
+"Private Messages" = "Private Messages";
+"Broadcasts" = "Broadcasts";
+"No Results" = "No Results";
+"Select a Conversation" = "Select a Conversation";
+"No Conversation" = "No Conversation";
+"Open a conversation from the users list." = "Open a conversation from the users list.";
+"Choose a conversation from the filtered results." = "Choose a conversation from the filtered results.";
+"Try another search." = "Try another search.";
+"No broadcast permission" = "No broadcast permission";
+"User unavailable" = "User unavailable";
+"Broadcast message required…" = "Broadcast message required…";
+"Broadcast to all online users…" = "Broadcast to all online users…";
+"Type message here…" = "Type message here…";
+
 /* ── Smart Board Editor ── */
 "New Smart Board" = "New Smart Board";
 "Edit Smart Board" = "Edit Smart Board";
@@ -143,6 +224,16 @@
 "Preview" = "Preview";
 "Nothing to preview" = "Nothing to preview";
 
+/* ── Transfers ── */
+"Remove transfer?" = "Remove transfer?";
+"Remove Transfers" = "Remove Transfers";
+"Remove Transfer" = "Remove Transfer";
+"Are you sure you want to remove this transfer?" = "Are you sure you want to remove this transfer?";
+"Clear finished transfers" = "Clear finished transfers";
+"Show in Finder" = "Show in Finder";
+"Show Remote Location" = "Show Remote Location";
+"Unknown Server" = "Unknown Server";
+
 /* ── Files ── */
 "Unable to download \"%@\":\n%@" = "Unable to download \"%@\":\n%@";
 
@@ -160,3 +251,448 @@
 "Owner" = "Owner";
 "Owner access" = "Owner access";
 "Group access" = "Group access";
+
+/* ── Server Settings – General/Log tabs ── */
+"General" = "General";
+"Log" = "Log";
+"KB/s" = "KB/s";
+"bytes" = "bytes";
+"Unlimited" = "Unlimited";
+"0 = unlimited" = "0 = unlimited";
+"Effective Mode" = "Effective Mode";
+"Auto-reconnecting..." = "Auto-reconnecting...";
+
+/* ── Accounts – detail fields ── */
+"Identity" = "Identity";
+"Created" = "Created";
+"Modified" = "Modified";
+"Last Login" = "Last Login";
+"Modified By" = "Modified By";
+"Downloads" = "Downloads";
+"Uploads" = "Uploads";
+"Add User" = "Add User";
+"Add Group" = "Add Group";
+"Initial password" = "Initial password";
+
+/* ── Accounts – permission categories ── */
+"Basic" = "Basic";
+"Administration" = "Administration";
+"Limits" = "Limits";
+"Other" = "Other";
+"Color" = "Color";
+"Black" = "Black";
+"Red" = "Red";
+"Orange" = "Orange";
+"Green" = "Green";
+"Blue" = "Blue";
+"Purple" = "Purple";
+
+/* ── Server Info tab ── */
+"Application" = "Application";
+"Version" = "Version";
+"System" = "System";
+"OS" = "OS";
+"Architecture" = "Architecture";
+"Count" = "Count";
+"Uptime" = "Uptime";
+"Loading server information…" = "Loading server information…";
+"Verified Identity" = "Verified Identity";
+"Identity not verified" = "Identity not verified";
+
+/* ── File types ── */
+"File" = "File";
+"Directory" = "Directory";
+"Uploads Folder" = "Uploads Folder";
+"Drop Box" = "Drop Box";
+"Sync Folder" = "Sync Folder";
+
+/* ── File Info sheet ── */
+"File Info" = "File Info";
+"Close" = "Close";
+"Metadata" = "Metadata";
+"Label" = "Label";
+"Data" = "Data";
+"Resource" = "Resource";
+"Total" = "Total";
+"Folder" = "Folder";
+"Contains" = "Contains";
+"Folder Permissions" = "Folder Permissions";
+"Access" = "Access";
+"Everyone" = "Everyone";
+"Sync Policy" = "Sync Policy";
+"Max File Size" = "Max File Size";
+"Max Tree Size" = "Max Tree Size";
+"Exclude Patterns" = "Exclude Patterns";
+"Quota" = "Quota";
+"No Access" = "No Access";
+"Read & Write" = "Read & Write";
+"Read Only" = "Read Only";
+"Write Only" = "Write Only";
+"Disabled" = "Disabled";
+"Server → Client" = "Server → Client";
+"Client → Server" = "Client → Server";
+"Bidirectional" = "Bidirectional";
+
+/* ── App settings ── */
+"Icon" = "Icon";
+"Choose..." = "Choose...";
+"Nickname" = "Nickname";
+"Find" = "Find";
+"About Wired 3" = "About Wired 3";
+"Settings..." = "Settings...";
+
+/* ── Permission category ── */
+"Transfers" = "Transfers";
+
+/* ── Transfers – tooltips ── */
+"Play transfer" = "Play transfer";
+"Pause transfer" = "Pause transfer";
+"Stop transfer" = "Stop transfer";
+"Remove transfer" = "Remove transfer";
+
+/* ── Files ── */
+"Create Directory" = "Create Directory";
+"Delete File" = "Delete File";
+"Delete Files" = "Delete Files";
+"Are you sure you want to delete this file? This operation is not recoverable." = "Are you sure you want to delete this file? This operation is not recoverable.";
+"Are you sure you want to delete this selection? This operation is not recoverable." = "Are you sure you want to delete this selection? This operation is not recoverable.";
+"Upload Blocked" = "Upload Blocked";
+"Searching…" = "Searching…";
+
+/* ── Sync ── */
+"Deactivate Sync Pair" = "Deactivate Sync Pair";
+"Sync Error" = "Sync Error";
+"Sync Enabled" = "Sync Enabled";
+"Sync Triggered" = "Sync Triggered";
+"Sync Already Running" = "Sync Already Running";
+"Sync Disabled" = "Sync Disabled";
+"Your account is not allowed to activate sync pairs." = "Your account is not allowed to activate sync pairs.";
+"No active Wired connection available for sync activation." = "No active Wired connection available for sync activation.";
+"The selected sync folder is disabled for your account." = "The selected sync folder is disabled for your account.";
+"No active Wired connection available for sync deactivation." = "No active Wired connection available for sync deactivation.";
+
+/* ── Settings panes ── */
+"Chat" = "Chat";
+"Behavior" = "Behavior";
+"Check for active connections before closing" = "Check for active connections before closing";
+"Timestamp in Chats and Messages" = "Timestamp in Chats and Messages";
+"Every (min.)" = "Every (min.)";
+"Messages displayed" = "Messages displayed";
+"Timestamp every message" = "Timestamp every message";
+"Emoji" = "Emoji";
+"Substitute Emoji" = "Substitute Emoji";
+"Emoji Substitutions" = "Emoji Substitutions";
+"History" = "History";
+"Archive Chat Messages" = "Archive Chat Messages";
+"When enabled, chat messages are saved locally for later browsing in Chat History." = "When enabled, chat messages are saved locally for later browsing in Chat History.";
+"Highlights" = "Highlights";
+"No highlights yet." = "No highlights yet.";
+"Keyword" = "Keyword";
+"Delete Highlight?" = "Delete Highlight?";
+"This highlight has no keyword. Do you want to delete it?" = "This highlight has no keyword. Do you want to delete it?";
+"Do you want to delete the highlight for \"%@\"?" = "Do you want to delete the highlight for \"%@\"?";
+"Do you want to delete this highlight?" = "Do you want to delete this highlight?";
+"No emoji substitutions yet." = "No emoji substitutions yet.";
+"Code" = "Code";
+"Delete Emoji Substitution?" = "Delete Emoji Substitution?";
+"Do you want to delete this emoji substitution?" = "Do you want to delete this emoji substitution?";
+"Add Highlight" = "Add Highlight";
+"Add Substitution" = "Add Substitution";
+"Back" = "Back";
+"Download Folder" = "Download Folder";
+"Volume" = "Volume";
+"Event Configuration" = "Event Configuration";
+"Sound" = "Sound";
+"Bounce in Dock" = "Bounce in Dock";
+"Post in Chat" = "Post in Chat";
+"Alert" = "Alert";
+"Notification" = "Notification";
+"Events settings table is available on macOS." = "Events settings table is available on macOS.";
+"Activity" = "Activity";
+"Filter errors" = "Filter errors";
+"No Errors" = "No Errors";
+"No logged errors for the current filter." = "No logged errors for the current filter.";
+"Clear" = "Clear";
+
+/* ── Menu / Commands ── */
+"No Bookmarks" = "No Bookmarks";
+"Window Tab for Bookmark" = "Window Tab for Bookmark";
+"New Tab for Bookmark" = "New Tab for Bookmark";
+"Reconnect" = "Reconnect";
+"Show Server Info" = "Show Server Info";
+"Set Topic" = "Set Topic";
+"New Broadcast" = "New Broadcast";
+"Change password..." = "Change password...";
+
+/* ── Quit / Close alerts ── */
+"Active connections and transfers" = "Active connections and transfers";
+"There are %lld active connections and active transfers. Quitting now will stop transfers." = "There are %lld active connections and active transfers. Quitting now will stop transfers.";
+"Disconnect and Quit" = "Disconnect and Quit";
+"Active connection" = "Active connection";
+"Active connections" = "Active connections";
+"Do you want to disconnect the active connection before quitting?" = "Do you want to disconnect the active connection before quitting?";
+"Do you want to disconnect %lld active connections before quitting?" = "Do you want to disconnect %lld active connections before quitting?";
+"Active transfers are in progress." = "Active transfers are in progress.";
+"Quitting now will stop active transfers." = "Quitting now will stop active transfers.";
+"Quit Anyway" = "Quit Anyway";
+"Do you want to disconnect the active connection before closing this window/tab?" = "Do you want to disconnect the active connection before closing this window/tab?";
+"Do you want to disconnect %lld active connections before closing this window/tab?" = "Do you want to disconnect %lld active connections before closing this window/tab?";
+
+/* ── Windows ── */
+"Error Log" = "Error Log";
+"Chat History" = "Chat History";
+
+/* ── Sidebar / MainView ── */
+"Delete Bookmark" = "Delete Bookmark";
+"Delete Tracker" = "Delete Tracker";
+"Show Transfers" = "Show Transfers";
+
+/* ── Change Password ── */
+"New password" = "New password";
+"Confirm password" = "Confirm password";
+"Change" = "Change";
+"Your account was migrated from Wired 2.5. You must set a new password before you can use this server." = "Your account was migrated from Wired 2.5. You must set a new password before you can use this server.";
+"No active connection." = "No active connection.";
+"Server error." = "Server error.";
+
+/* ── Boards ── */
+"Mark as Read" = "Mark as Read";
+"Mark as Unread" = "Mark as Unread";
+"Mark as read" = "Mark as read";
+"Mark as unread" = "Mark as unread";
+"Loading boards…" = "Loading boards…";
+"No Boards" = "No Boards";
+"No Smart Boards" = "No Smart Boards";
+"SMART BOARDS" = "SMART BOARDS";
+"BOARDS" = "BOARDS";
+"Delete Smart Board" = "Delete Smart Board";
+"Rename Board" = "Rename Board";
+"Edit Permissions" = "Edit Permissions";
+"Move Board" = "Move Board";
+"Delete Board" = "Delete Board";
+"New Board" = "New Board";
+"Boards network activity" = "Boards network activity";
+"Mark all as read" = "Mark all as read";
+"No Matching Threads" = "No Matching Threads";
+"Searching boards…" = "Searching boards…";
+"No Search Results" = "No Search Results";
+"Loading threads…" = "Loading threads…";
+"No Threads" = "No Threads";
+"Select a Board" = "Select a Board";
+"Select a Thread" = "Select a Thread";
+"New" = "New";
+"Reply" = "Reply";
+"Edit Thread" = "Edit Thread";
+"Move Thread" = "Move Thread";
+"Delete Thread" = "Delete Thread";
+"Reveal in Board" = "Reveal in Board";
+"Delete board?" = "Delete board?";
+"Delete smart board?" = "Delete smart board?";
+"Delete thread?" = "Delete thread?";
+"Threads" = "Threads";
+"Posts" = "Posts";
+"New Thread" = "New Thread";
+"Subject" = "Subject";
+"Post" = "Post";
+"Re: %@" = "Re: %@";
+
+/* ── Board Sheets ── */
+"Board Permissions" = "Board Permissions";
+"Board" = "Board";
+"Loading permissions…" = "Loading permissions…";
+"Loading accounts…" = "Loading accounts…";
+"Path" = "Path";
+"Current" = "Current";
+"Rename" = "Rename";
+"Move" = "Move";
+"Destination Path" = "Destination Path";
+"Destination" = "Destination";
+"Board Name" = "Board Name";
+"Location" = "Location";
+"Parent" = "Parent";
+
+/* ── Permission display names (wired.account.*) ── */
+"wired.account.color" = "Color";
+"wired.account.login" = "Login";
+"wired.account.nick" = "Nickname";
+"wired.account.create_accounts" = "Create Accounts";
+"wired.account.delete_accounts" = "Delete Accounts";
+"wired.account.read_accounts" = "Read Accounts";
+"wired.account.modify_accounts" = "Modify Accounts";
+"wired.account.alter_password" = "Alter Password";
+"wired.account.read_groups" = "Read Groups";
+"wired.account.create_groups" = "Create Groups";
+"wired.account.delete_groups" = "Delete Groups";
+"wired.account.modify_groups" = "Modify Groups";
+"wired.account.file.list_files" = "List Files";
+"wired.account.file.search" = "Search";
+"wired.account.file.get_info" = "Get Info";
+"wired.account.file.create_directories" = "Create Directories";
+"wired.account.file.create_links" = "Create Links";
+"wired.account.file.move_files" = "Move Files";
+"wired.account.file.rename_files" = "Rename Files";
+"wired.account.file.set_type" = "Set Type";
+"wired.account.file.set_comment" = "Set Comment";
+"wired.account.file.set_permissions" = "Set Permissions";
+"wired.account.file.set_label" = "Set Label";
+"wired.account.file.delete_files" = "Delete Files";
+"wired.account.file.access_all_dropboxes" = "Access All Dropboxes";
+"wired.account.file.set_aliases" = "Set Aliases";
+"wired.account.file.recursive_list_files" = "Recursive List Files";
+"wired.account.user.get_users" = "Get Users";
+"wired.account.user.get_info" = "Get User Info";
+"wired.account.user.disconnect_users" = "Disconnect Users";
+"wired.account.user.kick_users" = "Kick Users";
+"wired.account.user.ban_users" = "Ban Users";
+"wired.account.user.cannot_be_disconnected" = "Cannot Be Disconnected";
+"wired.account.user.list_offline_users" = "List Offline Users";
+"wired.account.transfer.download_files" = "Download Files";
+"wired.account.transfer.upload_files" = "Upload Files";
+"wired.account.transfer.upload_anywhere" = "Upload Anywhere";
+"wired.account.transfer.upload_directories" = "Upload Directories";
+"wired.account.transfer.download_limit" = "Download Limit";
+"wired.account.transfer.upload_limit" = "Upload Limit";
+"wired.account.message.send_messages" = "Send Messages";
+"wired.account.message.broadcast" = "Broadcast";
+"wired.account.board.read_boards" = "Read Boards";
+"wired.account.board.add_boards" = "Add Boards";
+"wired.account.board.move_boards" = "Move Boards";
+"wired.account.board.rename_boards" = "Rename Boards";
+"wired.account.board.delete_boards" = "Delete Boards";
+"wired.account.board.get_board_info" = "Get Board Info";
+"wired.account.board.set_board_info" = "Set Board Info";
+"wired.account.board.add_threads" = "Add Threads";
+"wired.account.board.move_threads" = "Move Threads";
+"wired.account.board.delete_all_threads_and_posts" = "Delete All Threads and Posts";
+"wired.account.board.delete_own_threads_and_posts" = "Delete Own Threads and Posts";
+"wired.account.board.edit_all_threads_and_posts" = "Edit All Threads and Posts";
+"wired.account.board.edit_own_threads_and_posts" = "Edit Own Threads and Posts";
+"wired.account.board.add_posts" = "Add Posts";
+"wired.account.board.delete_all_posts" = "Delete All Posts";
+"wired.account.board.edit_own_posts" = "Edit Own Posts";
+"wired.account.board.search_boards" = "Search Boards";
+"wired.account.administration.take_screenshots" = "Take Screenshots";
+"wired.account.administration.rename_server" = "Rename Server";
+"wired.account.administration.send_serverinfo" = "Send Server Info";
+"wired.account.administration.get_server_info" = "Get Server Info";
+"wired.account.administration.set_server_banner" = "Set Server Banner";
+"wired.account.tracker.list_servers" = "List Servers";
+"wired.account.tracker.register_servers" = "Register Servers";
+"wired.account.banlist.get_bans" = "Get Bans";
+"wired.account.banlist.add_bans" = "Add Bans";
+"wired.account.banlist.delete_bans" = "Delete Bans";
+
+/* ── File preview panel ── */
+"No Selection" = "No Selection";
+"Executable" = "Executable";
+"1 item" = "1 item";
+"%lld items" = "%lld items";
+"Sync Pair" = "Sync Pair";
+"Pair" = "Pair";
+"Active" = "Active";
+"Inactive" = "Inactive";
+"Mode" = "Mode";
+"Checking…" = "Checking…";
+"Paused" = "Paused";
+"Syncing…" = "Syncing…";
+"Reconnecting" = "Reconnecting";
+"Error" = "Error";
+
+/* ── Chat privileges ── */
+"wired.account.chat.kick_users" = "Kick Users";
+"wired.account.chat.set_topic" = "Set Topic";
+"wired.account.chat.create_chats" = "Create Chats";
+"wired.account.chat.create_public_chats" = "Create Public Chats";
+"wired.account.chat.delete_public_chats" = "Delete Public Chats";
+
+/* ── User privileges (additions) ── */
+"wired.account.user.cannot_set_nick" = "Cannot Set Nick";
+
+/* ── Message privileges (additions) ── */
+"wired.account.message.send_offline_messages" = "Send Offline Messages";
+
+/* ── Board privileges (additions) ── */
+"wired.account.board.add_reactions" = "Add Reactions";
+
+/* ── File privileges (additions) ── */
+"wired.account.file.search_files" = "Search Files";
+"wired.account.file.set_executable" = "Set Executable";
+"wired.account.file.recursive_list_depth_limit" = "Recursive List Depth Limit";
+"wired.account.file.sync.sync_files" = "Sync Files";
+"wired.account.file.sync.delete_remote" = "Delete Remote Files";
+
+/* ── Transfer privileges (additions) ── */
+"wired.account.transfer.download_speed_limit" = "Download Speed Limit";
+"wired.account.transfer.upload_speed_limit" = "Upload Speed Limit";
+
+/* ── Attachment privileges ── */
+"wired.account.attachment.upload" = "Upload Attachments";
+
+/* ── Account management privileges ── */
+"wired.account.account.change_password" = "Change Password";
+"wired.account.account.list_accounts" = "List Accounts";
+"wired.account.account.read_accounts" = "Read Accounts";
+"wired.account.account.create_users" = "Create Users";
+"wired.account.account.edit_users" = "Edit Users";
+"wired.account.account.delete_users" = "Delete Users";
+"wired.account.account.create_groups" = "Create Groups";
+"wired.account.account.edit_groups" = "Edit Groups";
+"wired.account.account.delete_groups" = "Delete Groups";
+"wired.account.account.raise_account_privileges" = "Raise Account Privileges";
+
+/* ── Log / Events / Settings privileges ── */
+"wired.account.log.view_log" = "View Log";
+"wired.account.events.view_events" = "View Events";
+"wired.account.settings.get_settings" = "Get Settings";
+"wired.account.settings.set_settings" = "Set Settings";
+
+/* ── Files toolbar ── */
+"Display Mode" = "Display Mode";
+"Navigate Backward" = "Navigate Backward";
+"Navigate Forward" = "Navigate Forward";
+"Reload Files" = "Reload Files";
+"Download File(s)" = "Download File(s)";
+"Upload File(s)" = "Upload File(s)";
+"Create Folder" = "Create Folder";
+"Delete File(s)" = "Delete File(s)";
+
+/* ── Files overwrite alert ── */
+"File Already Exists" = "File Already Exists";
+"A file already exists at:\n%@\n\nOverwrite it?" = "A file already exists at:\n%@\n\nOverwrite it?";
+"Do you want to overwrite \"%@\"?" = "Do you want to overwrite \"%@\"?";
+"Overwrite" = "Overwrite";
+
+/* ── Quick Look alert ── */
+"Download Preview?" = "Download Preview?";
+"Download Previews?" = "Download Previews?";
+"%@ is not cached yet and is larger than 512 KB.\nWired will fetch a lightweight Quick Look preview from the server." = "%@ is not cached yet and is larger than 512 KB.\nWired will fetch a lightweight Quick Look preview from the server.";
+"%lld selected files are not cached yet and are larger than 512 KB.\nWired will fetch lightweight Quick Look previews from the server." = "%lld selected files are not cached yet and are larger than 512 KB.\nWired will fetch lightweight Quick Look previews from the server.";
+"Quick Look Error" = "Quick Look Error";
+
+/* ── Files column headers ── */
+"Kind" = "Kind";
+
+/* ── Files context menu ── */
+"Quick Look" = "Quick Look";
+"New Folder" = "New Folder";
+"Upload…" = "Upload…";
+
+/* ── Sync context menu ── */
+"Activate Sync Pair" = "Activate Sync Pair";
+"Sync Now" = "Sync Now";
+"Sync Status: Pair inactive" = "Sync Status: Pair inactive";
+"Sync Status: Paused" = "Sync Status: Paused";
+"Sync Status: Connecting…" = "Sync Status: Connecting…";
+"Sync Status: Connected" = "Sync Status: Connected";
+"Sync Status: Syncing…" = "Sync Status: Syncing…";
+"Sync Status: Reconnecting…" = "Sync Status: Reconnecting…";
+"Sync Status: Updating…" = "Sync Status: Updating…";
+
+/* ── Sync tooltips ── */
+"Sync status pending" = "Sync status pending";
+"Sync paused" = "Sync paused";
+"Sync in progress" = "Sync in progress";
+"Sync reconnecting" = "Sync reconnecting";
+"Sync connected" = "Sync connected";
+"Sync error" = "Sync error";
+"Sync inactive" = "Sync inactive";

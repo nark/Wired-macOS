@@ -191,20 +191,20 @@ final class FilesQuickLookController: NSObject, QLPreviewPanelDataSource, QLPrev
         let alert = NSAlert()
         alert.alertStyle = .informational
         if items.count == 1, let item = items.first {
-            alert.messageText = "Download Preview?"
-            alert.informativeText = """
-            \(item.name) is not cached yet and is larger than 512 KB.
-            Wired will fetch a lightweight Quick Look preview from the server.
-            """
+            alert.messageText = NSLocalizedString("Download Preview?", comment: "")
+            let format = NSLocalizedString(
+                "%@ is not cached yet and is larger than 512 KB.\nWired will fetch a lightweight Quick Look preview from the server.",
+                comment: "")
+            alert.informativeText = String(format: format, item.name)
         } else {
-            alert.messageText = "Download Previews?"
-            alert.informativeText = """
-            \(items.count) selected files are not cached yet and are larger than 512 KB.
-            Wired will fetch lightweight Quick Look previews from the server.
-            """
+            alert.messageText = NSLocalizedString("Download Previews?", comment: "")
+            let format = NSLocalizedString(
+                "%lld selected files are not cached yet and are larger than 512 KB.\nWired will fetch lightweight Quick Look previews from the server.",
+                comment: "")
+            alert.informativeText = String(format: format, Int64(items.count))
         }
-        alert.addButton(withTitle: "Preview")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: NSLocalizedString("Preview", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
 
         return alert.runModal() == .alertFirstButtonReturn
     }
@@ -214,7 +214,7 @@ final class FilesQuickLookController: NSObject, QLPreviewPanelDataSource, QLPrev
         let nsError = error as NSError
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Quick Look Error"
+        alert.messageText = NSLocalizedString("Quick Look Error", comment: "")
         alert.informativeText = nsError.localizedDescription
         if let window = windowProvider() {
             alert.beginSheetModal(for: window)

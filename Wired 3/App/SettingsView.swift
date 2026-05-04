@@ -26,10 +26,10 @@ struct SettingsView: View {
 
         var title: String {
             switch self {
-            case .general: return "General"
-            case .chat: return "Chat"
-            case .files: return "Files"
-            case .events: return "Events"
+            case .general: return NSLocalizedString("General", comment: "")
+            case .chat: return NSLocalizedString("Chat", comment: "")
+            case .files: return NSLocalizedString("Files", comment: "")
+            case .events: return NSLocalizedString("Events", comment: "")
             }
         }
 

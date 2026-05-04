@@ -14,12 +14,12 @@ private enum ServerSettingsCategory: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general: return "Settings"
-        case .monitor: return "Monitor"
-        case .events: return "Events"
-        case .log: return "Log"
-        case .accounts: return "Accounts"
-        case .bans: return "Bans"
+        case .general: return NSLocalizedString("Settings", comment: "")
+        case .monitor: return NSLocalizedString("Monitor", comment: "")
+        case .events: return NSLocalizedString("Events", comment: "")
+        case .log: return NSLocalizedString("Log", comment: "")
+        case .accounts: return NSLocalizedString("Accounts", comment: "")
+        case .bans: return NSLocalizedString("Bans", comment: "")
         }
     }
 
@@ -1076,7 +1076,7 @@ private struct GeneralServerSettingsView: View {
 
     private func trackerField<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             content()
@@ -1085,7 +1085,7 @@ private struct GeneralServerSettingsView: View {
 
     private func settingsNumericRow(_ label: String, value: Binding<Int>) -> some View {
         HStack(spacing: 8) {
-            Text("\(label) :")
+            Text("\(NSLocalizedString(label, comment: "")) :")
                 .frame(width: 170, alignment: .trailing)
                 .foregroundStyle(.secondary)
             TextField("", value: value, format: .number)
@@ -1097,7 +1097,7 @@ private struct GeneralServerSettingsView: View {
 
     private func speedLimitRow(_ label: String, value: Binding<Int>) -> some View {
         HStack(spacing: 8) {
-            Text("\(label) :")
+            Text("\(NSLocalizedString(label, comment: "")) :")
                 .frame(width: 140, alignment: .trailing)
                 .foregroundStyle(.secondary)
             TextField("", value: value, format: .number)
@@ -1117,7 +1117,7 @@ private struct GeneralServerSettingsView: View {
     ) -> some View {
         HStack(alignment: alignment, spacing: 10) {
             if labelWidth > 0 {
-                Text(label.isEmpty ? " " : "\(label) :")
+                Text(label.isEmpty ? " " : "\(NSLocalizedString(label, comment: "")) :")
                     .frame(width: labelWidth, alignment: .trailing)
                     .foregroundStyle(.secondary)
             }

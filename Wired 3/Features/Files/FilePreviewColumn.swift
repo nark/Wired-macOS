@@ -81,7 +81,7 @@ struct FilePreviewColumn: View {
             }
             if item.type == .file && item.executable {
                 cardDivider
-                metaRow("Executable", "Yes")
+                metaRow("Executable", NSLocalizedString("Yes", comment: ""))
             }
             if item.type.isDirectoryLike {
                 cardDivider
@@ -196,7 +196,7 @@ struct FilePreviewColumn: View {
                 HStack(spacing: 5) {
                     Image(systemName: icon)
                         .font(.caption2).fontWeight(.semibold)
-                    Text(title)
+                    Text(LocalizedStringKey(title))
                         .font(.caption).fontWeight(.semibold)
                 }
                 .foregroundStyle(.secondary)
@@ -214,7 +214,7 @@ struct FilePreviewColumn: View {
 
     private func metaRow(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.caption).foregroundStyle(.secondary)
             Spacer()
             Text(value)
@@ -235,7 +235,10 @@ struct FilePreviewColumn: View {
 
     private func containsString(for item: FileItem) -> String {
         guard item.hasDirectoryCount else { return "-" }
-        return item.directoryCount == 1 ? "1 item" : "\(item.directoryCount) items"
+        if item.directoryCount == 1 {
+            return NSLocalizedString("1 item", comment: "")
+        }
+        return String(format: NSLocalizedString("%lld items", comment: ""), Int64(item.directoryCount))
     }
 }
 
@@ -250,21 +253,21 @@ private struct SyncStatusInfo {
     static func from(_ status: SyncPairStatusDisplay) -> SyncStatusInfo {
         switch status {
         case .hidden, .inactive:
-            return .init(label: "Inactive",     icon: "link.circle",                        color: .secondary, spinning: false)
+            return .init(label: NSLocalizedString("Inactive", comment: ""),     icon: "link.circle",                        color: .secondary, spinning: false)
         case .checking:
-            return .init(label: "Checking…",    icon: "",                                   color: .secondary, spinning: true)
+            return .init(label: NSLocalizedString("Checking…", comment: ""),    icon: "",                                   color: .secondary, spinning: true)
         case .paused:
-            return .init(label: "Paused",       icon: "pause.circle.fill",                  color: .orange,    spinning: false)
+            return .init(label: NSLocalizedString("Paused", comment: ""),       icon: "pause.circle.fill",                  color: .orange,    spinning: false)
         case .connecting:
-            return .init(label: "Connecting…",  icon: "",                                   color: .blue,      spinning: true)
+            return .init(label: NSLocalizedString("Connecting…", comment: ""),  icon: "",                                   color: .blue,      spinning: true)
         case .connected:
-            return .init(label: "Connected",    icon: "checkmark.circle.fill",              color: .green,     spinning: false)
+            return .init(label: NSLocalizedString("Connected", comment: ""),    icon: "checkmark.circle.fill",              color: .green,     spinning: false)
         case .syncing:
-            return .init(label: "Syncing…",     icon: "",                                   color: .blue,      spinning: true)
+            return .init(label: NSLocalizedString("Syncing…", comment: ""),     icon: "",                                   color: .blue,      spinning: true)
         case .reconnecting:
-            return .init(label: "Reconnecting", icon: "",                                   color: .orange,    spinning: true)
+            return .init(label: NSLocalizedString("Reconnecting", comment: ""), icon: "",                                   color: .orange,    spinning: true)
         case .error:
-            return .init(label: "Error",        icon: "exclamationmark.triangle.fill",      color: .red,       spinning: false)
+            return .init(label: NSLocalizedString("Error", comment: ""),        icon: "exclamationmark.triangle.fill",      color: .red,       spinning: false)
         }
     }
 }
@@ -276,13 +279,13 @@ private struct SyncModeLabel {
     static func from(_ mode: SyncModeValue) -> SyncModeLabel {
         switch mode {
         case .disabled:
-            return .init(title: "Disabled",         icon: "slash.circle")
+            return .init(title: NSLocalizedString("Disabled", comment: ""),        icon: "slash.circle")
         case .serverToClient:
-            return .init(title: "Server → Client",  icon: "arrow.down.circle")
+            return .init(title: NSLocalizedString("Server → Client", comment: ""), icon: "arrow.down.circle")
         case .clientToServer:
-            return .init(title: "Client → Server",  icon: "arrow.up.circle")
+            return .init(title: NSLocalizedString("Client → Server", comment: ""), icon: "arrow.up.circle")
         case .bidirectional:
-            return .init(title: "Bidirectional",    icon: "arrow.2.circlepath")
+            return .init(title: NSLocalizedString("Bidirectional", comment: ""),   icon: "arrow.2.circlepath")
         }
     }
 }

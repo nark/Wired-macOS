@@ -50,11 +50,11 @@ final class DragPlaceholderPromiseDelegate: NSObject, NSFilePromiseProviderDeleg
     @MainActor
     private func askOverwrite(path: String) -> Bool {
         let alert = NSAlert()
-        alert.messageText = "File Already Exists"
-        alert.informativeText = "Do you want to overwrite \"\(path)\"?"
+        alert.messageText = NSLocalizedString("File Already Exists", comment: "")
+        alert.informativeText = String(format: NSLocalizedString("Do you want to overwrite \"%@\"?", comment: ""), path)
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Overwrite")
-        alert.addButton(withTitle: "Stop")
+        alert.addButton(withTitle: NSLocalizedString("Overwrite", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Stop", comment: ""))
         return alert.runModal() == .alertFirstButtonReturn
     }
 

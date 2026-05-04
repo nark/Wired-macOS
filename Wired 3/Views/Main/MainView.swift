@@ -1804,11 +1804,11 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
         }
 
         let alert = NSAlert()
-        alert.messageText = "Active connection"
-        alert.informativeText = "Do you want to disconnect the active connection before closing this window/tab?"
+        alert.messageText = NSLocalizedString("Active connection", comment: "")
+        alert.informativeText = NSLocalizedString("Do you want to disconnect the active connection before closing this window/tab?", comment: "")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Disconnect and Close")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: NSLocalizedString("Disconnect and Close", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
 
         switch alert.runModal() {
         case .alertFirstButtonReturn:

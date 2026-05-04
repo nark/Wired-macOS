@@ -86,7 +86,7 @@ struct ChangePasswordView: View {
     private func submit() async {
         guard let runtime = controller.runtime(for: connectionID),
               let connection = runtime.connection as? AsyncConnection else {
-            errorMessage = "No active connection."
+            errorMessage = NSLocalizedString("No active connection.", comment: "")
             return
         }
 
@@ -100,7 +100,7 @@ struct ChangePasswordView: View {
         do {
             let response = try await connection.sendAsync(message)
             if let response, response.name == "wired.error" {
-                errorMessage = response.string(forField: "wired.error.string") ?? "Server error."
+                errorMessage = response.string(forField: "wired.error.string") ?? NSLocalizedString("Server error.", comment: "")
                 isLoading = false
                 return
             }

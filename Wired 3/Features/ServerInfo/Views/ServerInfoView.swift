@@ -105,7 +105,7 @@ struct ServerInfoView: View {
             }
             .padding(.top, 4)
         } label: {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
@@ -116,7 +116,7 @@ struct ServerInfoView: View {
     @ViewBuilder
     private func infoRow(_ label: String, value: String) -> some View {
         GridRow {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
                 .gridColumnAlignment(.leading)
@@ -133,7 +133,7 @@ struct ServerInfoView: View {
     @ViewBuilder
     private func infoTimerRow(_ label: String, since date: Date) -> some View {
         GridRow {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
                 .gridColumnAlignment(.leading)

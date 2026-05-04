@@ -100,7 +100,7 @@ struct EditBoardPermissionsView: View {
                     }
                     .disabled(isLoading || isSaving)
 
-                    Picker("Tout le monde", selection: $everyoneLevel) {
+                    Picker("Everyone", selection: $everyoneLevel) {
                         ForEach(PermissionLevel.allCases) { level in
                             Text(level.label).tag(level)
                         }

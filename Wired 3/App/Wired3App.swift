@@ -60,22 +60,25 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
 
         let alert = NSAlert()
         if !activeConnectionIDs.isEmpty && hasActiveTransfers {
-            alert.messageText = "Active connections and transfers"
-            alert.informativeText = "There are \(activeConnectionIDs.count) active connections and active transfers. Quitting now will stop transfers."
-            alert.addButton(withTitle: "Disconnect and Quit")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = NSLocalizedString("Active connections and transfers", comment: "")
+            let format = NSLocalizedString(
+                "There are %lld active connections and active transfers. Quitting now will stop transfers.",
+                comment: "")
+            alert.informativeText = String.localizedStringWithFormat(format, activeConnectionIDs.count)
+            alert.addButton(withTitle: NSLocalizedString("Disconnect and Quit", comment: ""))
+            alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
         } else if !activeConnectionIDs.isEmpty {
-            alert.messageText = activeConnectionIDs.count == 1 ? "Active connection" : "Active connections"
+            alert.messageText = activeConnectionIDs.count == 1 ? NSLocalizedString("Active connection", comment: "") : NSLocalizedString("Active connections", comment: "")
             alert.informativeText = activeConnectionIDs.count == 1
-                ? "Do you want to disconnect the active connection before quitting?"
-                : "Do you want to disconnect \(activeConnectionIDs.count) active connections before quitting?"
-            alert.addButton(withTitle: "Disconnect and Quit")
-            alert.addButton(withTitle: "Cancel")
+                ? NSLocalizedString("Do you want to disconnect the active connection before quitting?", comment: "")
+                : String.localizedStringWithFormat(NSLocalizedString("Do you want to disconnect %lld active connections before quitting?", comment: ""), activeConnectionIDs.count)
+            alert.addButton(withTitle: NSLocalizedString("Disconnect and Quit", comment: ""))
+            alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
         } else {
-            alert.messageText = "Active transfers are in progress."
-            alert.informativeText = "Quitting now will stop active transfers."
-            alert.addButton(withTitle: "Quit Anyway")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = NSLocalizedString("Active transfers are in progress.", comment: "")
+            alert.informativeText = NSLocalizedString("Quitting now will stop active transfers.", comment: "")
+            alert.addButton(withTitle: NSLocalizedString("Quit Anyway", comment: ""))
+            alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
         }
         alert.alertStyle = .warning
         switch alert.runModal() {
@@ -405,7 +408,7 @@ private enum OverlayGlyphs {
             (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String) ??
             (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String) ??
             "App"
-        return "About \(appName)"
+        return NSLocalizedString("About \(appName)", comment: "")
     }
 
     static var leftLine: String { decode([163, 140, 143, 147, 133, 192, 148, 136, 133, 192, 151, 143, 146, 140, 132, 204], key: 0xE0) }

@@ -21,9 +21,9 @@ enum AccountFilter: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .all: return "All"
-        case .users: return "Users"
-        case .groups: return "Groups"
+        case .all: return NSLocalizedString("All", comment: "")
+        case .users: return NSLocalizedString("Users", comment: "")
+        case .groups: return NSLocalizedString("Groups", comment: "")
         }
     }
 }
@@ -36,8 +36,8 @@ enum AccountDetailTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .account: return "Account"
-        case .permissions: return "Permissions"
+        case .account: return NSLocalizedString("Account", comment: "")
+        case .permissions: return NSLocalizedString("Permissions", comment: "")
         }
     }
 }
@@ -50,8 +50,8 @@ enum AccountType: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .user: return "User"
-        case .group: return "Group"
+        case .user: return NSLocalizedString("User", comment: "")
+        case .group: return NSLocalizedString("Group", comment: "")
         }
     }
 }
@@ -1242,7 +1242,7 @@ private struct AccountEditorForm: View {
 
     private func row<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
         HStack(alignment: .top) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .frame(width: 140, alignment: .trailing)
                 .foregroundStyle(.secondary)
             content()
@@ -1277,7 +1277,7 @@ private struct AccountEditorForm: View {
 
     private func line(_ label: String, value: String) -> some View {
         HStack {
-            Text("\(label):")
+            Text("\(NSLocalizedString(label, comment: "")):")
                 .foregroundStyle(.secondary)
             Text(value)
         }
@@ -1423,17 +1423,17 @@ private enum PermissionCategory: String, CaseIterable, Hashable {
 
     var title: String {
         switch self {
-        case .basic: return "Basic"
-        case .files: return "Files"
-        case .messages: return "Messages"
-        case .transfers: return "Transfers"
-        case .boards: return "Boards"
-        case .users: return "Users"
-        case .accounts: return "Accounts"
-        case .administration: return "Administration"
-        case .tracker: return "Tracker"
-        case .limits: return "Limits"
-        case .other: return "Other"
+        case .basic: return NSLocalizedString("Basic", comment: "")
+        case .files: return NSLocalizedString("Files", comment: "")
+        case .messages: return NSLocalizedString("Messages", comment: "")
+        case .transfers: return NSLocalizedString("Transfers", comment: "")
+        case .boards: return NSLocalizedString("Boards", comment: "")
+        case .users: return NSLocalizedString("Users", comment: "")
+        case .accounts: return NSLocalizedString("Accounts", comment: "")
+        case .administration: return NSLocalizedString("Administration", comment: "")
+        case .tracker: return NSLocalizedString("Tracker", comment: "")
+        case .limits: return NSLocalizedString("Limits", comment: "")
+        case .other: return NSLocalizedString("Other", comment: "")
         }
     }
 
@@ -1504,20 +1504,17 @@ private enum PermissionCategory: String, CaseIterable, Hashable {
 }
 
 private func permissionDisplayName(_ key: String) -> String {
-    if key == "wired.account.color" {
-        return "Color"
+    let localized = NSLocalizedString(key, comment: "")
+    if localized != key {
+        return localized
     }
-    if key == "wired.account.user.list_offline_users" {
-        return "List Offline Users"
-    }
-
+    // Fallback: derive a readable name from the protocol key
     let short = key.replacingOccurrences(of: "wired.account.", with: "")
     let words = short
         .split(separator: ".")
         .joined(separator: " ")
         .split(separator: "_")
         .map { $0.capitalized }
-
     return words.joined(separator: " ")
 }
 
@@ -1533,12 +1530,12 @@ private enum WiredAccountColor: UInt32, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .black: return "Black"
-        case .red: return "Red"
-        case .orange: return "Orange"
-        case .green: return "Green"
-        case .blue: return "Blue"
-        case .purple: return "Purple"
+        case .black: return NSLocalizedString("Black", comment: "")
+        case .red: return NSLocalizedString("Red", comment: "")
+        case .orange: return NSLocalizedString("Orange", comment: "")
+        case .green: return NSLocalizedString("Green", comment: "")
+        case .blue: return NSLocalizedString("Blue", comment: "")
+        case .purple: return NSLocalizedString("Purple", comment: "")
         }
     }
 

@@ -20,10 +20,10 @@ private enum DropboxAccessLevel: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .denied:    return "No Access"
-        case .readWrite: return "Read & Write"
-        case .readOnly:  return "Read Only"
-        case .writeOnly: return "Write Only"
+        case .denied:    return NSLocalizedString("No Access", comment: "")
+        case .readWrite: return NSLocalizedString("Read & Write", comment: "")
+        case .readOnly:  return NSLocalizedString("Read Only", comment: "")
+        case .writeOnly: return NSLocalizedString("Write Only", comment: "")
         }
     }
 
@@ -50,10 +50,10 @@ private enum SyncAccessMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .disabled:       return "Disabled"
-        case .serverToClient: return "Server → Client"
-        case .clientToServer: return "Client → Server"
-        case .bidirectional:  return "Bidirectional"
+        case .disabled:       return NSLocalizedString("Disabled", comment: "")
+        case .serverToClient: return NSLocalizedString("Server → Client", comment: "")
+        case .clientToServer: return NSLocalizedString("Client → Server", comment: "")
+        case .bidirectional:  return NSLocalizedString("Bidirectional", comment: "")
         }
     }
 
@@ -390,7 +390,7 @@ struct FileInfoSheet: View {
 
     private var folderCard: some View {
         infoCard(title: "Folder", systemImage: "folder") {
-            infoRow("Contains", "\(info.directoryCount) items")
+            infoRow("Contains", String(format: NSLocalizedString("%lld items", comment: ""), Int64(info.directoryCount)))
             cardDivider
             HStack {
                 Text("Type")
@@ -466,7 +466,7 @@ struct FileInfoSheet: View {
         accessBinding: Binding<DropboxAccessLevel>
     ) -> some View {
         HStack(spacing: 8) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.subheadline)
                 .frame(width: labelWidth, alignment: .leading)
 
@@ -541,7 +541,7 @@ struct FileInfoSheet: View {
     /// Row for a byte-size quota field. Shows a TextField (numeric) + unit label.
     private func quotaByteRow(_ label: String, bytes: Binding<UInt64>) -> some View {
         HStack {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.subheadline)
                 .frame(width: 100, alignment: .leading)
             Spacer()
@@ -555,7 +555,7 @@ struct FileInfoSheet: View {
                 Text("bytes")
                     .font(.subheadline).foregroundStyle(.secondary)
             } else {
-                Text(bytes.wrappedValue == 0 ? "Unlimited" : ByteCountFormatter.string(fromByteCount: Int64(bytes.wrappedValue), countStyle: .file))
+                Text(bytes.wrappedValue == 0 ? NSLocalizedString("Unlimited", comment: "") : ByteCountFormatter.string(fromByteCount: Int64(bytes.wrappedValue), countStyle: .file))
                     .font(.subheadline)
             }
         }
@@ -564,7 +564,7 @@ struct FileInfoSheet: View {
 
     private func syncModeRow(_ label: String, _ binding: Binding<SyncAccessMode>) -> some View {
         HStack {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.subheadline)
                 .frame(width: labelWidth, alignment: .leading)
             Spacer()
@@ -590,7 +590,7 @@ struct FileInfoSheet: View {
 
     private func infoRow(_ label: String, _ value: String) -> some View {
         HStack {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.subheadline).foregroundStyle(.secondary)
             Spacer()
             Text(value)
@@ -605,7 +605,7 @@ struct FileInfoSheet: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Label(title, systemImage: systemImage)
+            Label(LocalizedStringKey(title), systemImage: systemImage)
                 .font(.caption).fontWeight(.semibold)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 14).padding(.vertical, 8)

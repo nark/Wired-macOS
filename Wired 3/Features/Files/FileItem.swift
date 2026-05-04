@@ -20,15 +20,15 @@ enum FileType: UInt32, CustomStringConvertible {
     var description: String {
         switch self {
         case .file:
-            "File"
+            NSLocalizedString("File", comment: "")
         case .directory:
-            "Directory"
+            NSLocalizedString("Directory", comment: "")
         case .uploads:
-            "Uploads"
+            NSLocalizedString("Uploads Folder", comment: "")
         case .dropbox:
-            "Drop Box"
+            NSLocalizedString("Drop Box", comment: "")
         case .sync:
-            "Sync"
+            NSLocalizedString("Sync Folder", comment: "")
         }
     }
 

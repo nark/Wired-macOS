@@ -292,6 +292,7 @@
 		CC100004FA00000100213277 /* ChatHistoryDayList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatHistoryDayList.swift; sourceTree = "<group>"; };
 		CC100005FA00000100213277 /* ChatHistoryMessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatHistoryMessagesView.swift; sourceTree = "<group>"; };
 		CC100006FA00000100213277 /* ArchiveMessageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveMessageBubbleView.swift; sourceTree = "<group>"; };
+		F69436752FA4A557005137D5 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -756,8 +757,8 @@
 			knownRegions = (
 				en,
 				Base,
-				de,
 				fr,
+				de,
 			);
 			mainGroup = 4C74285522DCECE800D6E6F9;
 			packageReferences = (
@@ -1000,6 +1001,7 @@
 			children = (
 				84F9192333CB2A6EFE6941E0 /* en */,
 				5D426E2D2F723AA85053E8C8 /* fr */,
+				F69436752FA4A557005137D5 /* de */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";

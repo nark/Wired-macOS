@@ -227,7 +227,7 @@ struct AppKitFileColumnTableView: NSViewRepresentable {
         }
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("ColumnName"))
-        column.title = "Name"
+        column.title = NSLocalizedString("Name", comment: "")
         column.minWidth = 220
         column.width = 300
         column.resizingMask = .autoresizingMask
@@ -484,36 +484,36 @@ struct AppKitFileColumnTableView: NSViewRepresentable {
                 statusIcon?.isHidden = true
                 statusSpinner?.isHidden = false
                 statusSpinner?.startAnimation(nil)
-                cell.toolTip = "Sync status pending"
+                cell.toolTip = NSLocalizedString("Sync status pending", comment: "")
             case .paused:
                 statusSpinner?.stopAnimation(nil)
                 statusIcon?.isHidden = false
                 statusIcon?.contentTintColor = .secondaryLabelColor
                 statusIcon?.image = NSImage(systemSymbolName: "pause.circle", accessibilityDescription: "Pair paused")
-                cell.toolTip = "Sync paused"
+                cell.toolTip = NSLocalizedString("Sync paused", comment: "")
             case .connecting, .syncing, .reconnecting:
                 statusIcon?.isHidden = true
                 statusSpinner?.isHidden = false
                 statusSpinner?.startAnimation(nil)
-                cell.toolTip = parent.syncPairStatusForItem(item) == .reconnecting ? "Sync reconnecting" : "Sync in progress"
+                cell.toolTip = parent.syncPairStatusForItem(item) == .reconnecting ? NSLocalizedString("Sync reconnecting", comment: "") : NSLocalizedString("Sync in progress", comment: "")
             case .connected:
                 statusSpinner?.stopAnimation(nil)
                 statusIcon?.isHidden = false
                 statusIcon?.contentTintColor = .systemGreen
                 statusIcon?.image = NSImage(systemSymbolName: "link.circle.fill", accessibilityDescription: "Pair connected")
-                cell.toolTip = "Sync connected"
+                cell.toolTip = NSLocalizedString("Sync connected", comment: "")
             case .error(let message):
                 statusSpinner?.stopAnimation(nil)
                 statusIcon?.isHidden = false
                 statusIcon?.contentTintColor = .systemOrange
                 statusIcon?.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Pair error")
-                cell.toolTip = message ?? "Sync error"
+                cell.toolTip = message ?? NSLocalizedString("Sync error", comment: "")
             case .inactive:
                 statusSpinner?.stopAnimation(nil)
                 statusIcon?.isHidden = false
                 statusIcon?.contentTintColor = .secondaryLabelColor
                 statusIcon?.image = NSImage(systemSymbolName: "link.circle", accessibilityDescription: "Pair inactive")
-                cell.toolTip = "Sync inactive"
+                cell.toolTip = NSLocalizedString("Sync inactive", comment: "")
             }
             return cell
         }
@@ -843,39 +843,39 @@ struct AppKitFileColumnTableView: NSViewRepresentable {
         func makeContextMenu() -> NSMenu {
             let menu = NSMenu()
             menu.autoenablesItems = false
-            var item = menu.addItem(withTitle: "Get Info", action: #selector(contextGetInfo), keyEquivalent: "")
+            var item = menu.addItem(withTitle: NSLocalizedString("Get Info", comment: ""), action: #selector(contextGetInfo), keyEquivalent: "")
             item.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
-            
-            item = menu.addItem(withTitle: "Quick Look", action: #selector(contextQuickLook), keyEquivalent: "")
+
+            item = menu.addItem(withTitle: NSLocalizedString("Quick Look", comment: ""), action: #selector(contextQuickLook), keyEquivalent: "")
             item.image = NSImage(systemSymbolName: "eye", accessibilityDescription: nil)
-            
+
             menu.addItem(NSMenuItem.separator())
-            item = menu.addItem(withTitle: "New Folder", action: #selector(contextNewFolder), keyEquivalent: "")
+            item = menu.addItem(withTitle: NSLocalizedString("New Folder", comment: ""), action: #selector(contextNewFolder), keyEquivalent: "")
             item.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: nil)
-            
-            item = menu.addItem(withTitle: "Download", action: #selector(contextDownload), keyEquivalent: "")
+
+            item = menu.addItem(withTitle: NSLocalizedString("Download", comment: ""), action: #selector(contextDownload), keyEquivalent: "")
             item.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
-            
-            item = menu.addItem(withTitle: "Upload…", action: #selector(contextUpload), keyEquivalent: "")
+
+            item = menu.addItem(withTitle: NSLocalizedString("Upload…", comment: ""), action: #selector(contextUpload), keyEquivalent: "")
             item.image = NSImage(systemSymbolName: "arrow.up.circle", accessibilityDescription: nil)
 
             menu.addItem(makeLabelSubmenuItem(target: self))
 
             menu.addItem(NSMenuItem.separator())
-            item = menu.addItem(withTitle: "Delete", action: #selector(contextDelete), keyEquivalent: "")
+            item = menu.addItem(withTitle: NSLocalizedString("Delete", comment: ""), action: #selector(contextDelete), keyEquivalent: "")
             item.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
-            
+
             menu.addItem(NSMenuItem.separator())
-            let statusItem = menu.addItem(withTitle: "Sync Status: Pair inactive", action: nil, keyEquivalent: "")
+            let statusItem = menu.addItem(withTitle: NSLocalizedString("Sync Status: Pair inactive", comment: ""), action: nil, keyEquivalent: "")
             statusItem.tag = SyncContextMenuItemTag.status
-            let toggleItem = menu.addItem(withTitle: "Activate Sync Pair", action: #selector(contextToggleSyncPair), keyEquivalent: "")
+            let toggleItem = menu.addItem(withTitle: NSLocalizedString("Activate Sync Pair", comment: ""), action: #selector(contextToggleSyncPair), keyEquivalent: "")
             toggleItem.tag = SyncContextMenuItemTag.toggle
             toggleItem.image = NSImage(systemSymbolName: "link", accessibilityDescription: nil)
-            
-            let syncNowItem = menu.addItem(withTitle: "Sync Now", action: #selector(contextSyncNow), keyEquivalent: "")
+
+            let syncNowItem = menu.addItem(withTitle: NSLocalizedString("Sync Now", comment: ""), action: #selector(contextSyncNow), keyEquivalent: "")
             syncNowItem.tag = SyncContextMenuItemTag.syncNow
             syncNowItem.image = NSImage(systemSymbolName: "arrow.trianglehead.2.clockwise", accessibilityDescription: nil)
-            
+
             for item in menu.items {
                 item.target = self
             }
@@ -905,15 +905,15 @@ struct AppKitFileColumnTableView: NSViewRepresentable {
             }
 
             let selected = selectedItems()
-            menu.item(withTitle: "Quick Look")?.isEnabled = selected.contains(where: { RemoteQuickLookSupport.isPreviewable($0) })
-            menu.item(withTitle: "Download")?.isEnabled = selected.contains(where: { parent.canDownloadForItem($0) })
-            menu.item(withTitle: "Delete")?.isEnabled = selected.contains(where: { parent.canDeleteForItem($0) })
-            menu.item(withTitle: "Upload…")?.isEnabled = parent.canUploadToDirectory(contextDirectoryTarget)
+            menu.item(withTitle: NSLocalizedString("Quick Look", comment: ""))?.isEnabled = selected.contains(where: { RemoteQuickLookSupport.isPreviewable($0) })
+            menu.item(withTitle: NSLocalizedString("Download", comment: ""))?.isEnabled = selected.contains(where: { parent.canDownloadForItem($0) })
+            menu.item(withTitle: NSLocalizedString("Delete", comment: ""))?.isEnabled = selected.contains(where: { parent.canDeleteForItem($0) })
+            menu.item(withTitle: NSLocalizedString("Upload…", comment: ""))?.isEnabled = parent.canUploadToDirectory(contextDirectoryTarget)
             let canGetSelectedInfo: Bool = {
                 guard selected.count == 1, let item = selected.first else { return false }
                 return parent.canGetInfoForItem(item)
             }()
-            menu.item(withTitle: "Get Info")?.isEnabled = canGetSelectedInfo
+            menu.item(withTitle: NSLocalizedString("Get Info", comment: ""))?.isEnabled = canGetSelectedInfo
             let selectedSyncItem: FileItem? = {
                 guard selected.count == 1, let item = selected.first, item.type == .sync else { return nil }
                 return item
@@ -923,46 +923,46 @@ struct AppKitFileColumnTableView: NSViewRepresentable {
             if let syncStatusItem = menu.item(withTag: SyncContextMenuItemTag.status) {
                 switch syncState {
                 case .paused:
-                    syncStatusItem.title = "Sync Status: Paused"
+                    syncStatusItem.title = NSLocalizedString("Sync Status: Paused", comment: "")
                 case .connecting:
-                    syncStatusItem.title = "Sync Status: Connecting…"
+                    syncStatusItem.title = NSLocalizedString("Sync Status: Connecting…", comment: "")
                 case .connected:
-                    syncStatusItem.title = "Sync Status: Connected"
+                    syncStatusItem.title = NSLocalizedString("Sync Status: Connected", comment: "")
                 case .syncing:
-                    syncStatusItem.title = "Sync Status: Syncing…"
+                    syncStatusItem.title = NSLocalizedString("Sync Status: Syncing…", comment: "")
                 case .reconnecting:
-                    syncStatusItem.title = "Sync Status: Reconnecting…"
+                    syncStatusItem.title = NSLocalizedString("Sync Status: Reconnecting…", comment: "")
                 case .error(let message):
                     syncStatusItem.title = "Sync Status: Error\(message.map { " - \($0)" } ?? "")"
                 case .inactive:
-                    syncStatusItem.title = "Sync Status: Pair inactive"
+                    syncStatusItem.title = NSLocalizedString("Sync Status: Pair inactive", comment: "")
                 case .checking:
-                    syncStatusItem.title = "Sync Status: Updating…"
+                    syncStatusItem.title = NSLocalizedString("Sync Status: Updating…", comment: "")
                 case .hidden:
-                    syncStatusItem.title = "Sync Status: Pair inactive"
+                    syncStatusItem.title = NSLocalizedString("Sync Status: Pair inactive", comment: "")
                 }
                 syncStatusItem.isHidden = selectedSyncItem == nil
                 syncStatusItem.isEnabled = false
             }
             if let toggleItem = menu.item(withTag: SyncContextMenuItemTag.toggle) {
                 if selectedSyncItem == nil {
-                    toggleItem.title = "Activate Sync Pair"
+                    toggleItem.title = NSLocalizedString("Activate Sync Pair", comment: "")
                     toggleItem.isEnabled = false
                 } else if syncState == .checking {
-                    toggleItem.title = pairExists ? "Deactivate Sync Pair" : "Activate Sync Pair"
+                    toggleItem.title = pairExists ? NSLocalizedString("Deactivate Sync Pair", comment: "") : NSLocalizedString("Activate Sync Pair", comment: "")
                     toggleItem.isEnabled = false
                 } else if pairExists {
-                    toggleItem.title = "Deactivate Sync Pair"
+                    toggleItem.title = NSLocalizedString("Deactivate Sync Pair", comment: "")
                     toggleItem.isEnabled = true
                 } else {
-                    toggleItem.title = "Activate Sync Pair"
+                    toggleItem.title = NSLocalizedString("Activate Sync Pair", comment: "")
                     toggleItem.isEnabled = true
                 }
                 toggleItem.isHidden = selectedSyncItem == nil
             }
             menu.item(withTag: SyncContextMenuItemTag.syncNow)?.isHidden = selectedSyncItem == nil
             menu.item(withTag: SyncContextMenuItemTag.syncNow)?.isEnabled = selectedSyncItem != nil && pairExists && syncState != .checking
-            menu.item(withTitle: "New Folder")?.isEnabled = parent.canCreateFolderInDirectory(contextDirectoryTarget)
+            menu.item(withTitle: NSLocalizedString("New Folder", comment: ""))?.isEnabled = parent.canCreateFolderInDirectory(contextDirectoryTarget)
             if let labelItem = menu.item(withTag: LabelContextMenuItemTag.submenu) {
                 labelItem.isEnabled = parent.canSetLabel && !selectedItems().isEmpty
             }

@@ -413,7 +413,9 @@ struct BoardsView: View {
     }
 
     private func threadReadStateLabel(for thread: BoardThread) -> String {
-        thread.unreadPostsCount + thread.unreadReactionCount > 0 ? "Mark as Read" : "Mark as Unread"
+        thread.unreadPostsCount + thread.unreadReactionCount > 0
+            ? NSLocalizedString("Mark as Read", comment: "")
+            : NSLocalizedString("Mark as Unread", comment: "")
     }
 
     private func toggleThreadReadState(_ thread: BoardThread) {
@@ -664,7 +666,7 @@ struct BoardsView: View {
                 .navigationTitle("Boards")
         } else if selectedThreadUUID == nil {
             threadsList
-                .navigationTitle(selectedBoard?.name ?? selectedSmartBoard?.name ?? "Threads")
+                .navigationTitle(selectedBoard?.name ?? selectedSmartBoard?.name ?? NSLocalizedString("Threads", comment: ""))
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         Button("Boards") {
@@ -676,7 +678,7 @@ struct BoardsView: View {
                 }
         } else {
             postsDetail
-                .navigationTitle(selectedThread?.subject ?? "Posts")
+                .navigationTitle(selectedThread?.subject ?? NSLocalizedString("Posts", comment: ""))
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         Button("Threads") {

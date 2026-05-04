@@ -1,0 +1,695 @@
+/* Wired 3 – German Localizable.strings */
+
+/* ── Navigation / Server Settings categories ── */
+"Settings" = "Einstellungen";
+"Monitor" = "Monitor";
+"Events" = "Ereignisse";
+"Accounts" = "Konten";
+"Bans" = "Sperren";
+
+/* ── General ── */
+"Cancel" = "Abbrechen";
+"Save" = "Sichern";
+"Delete" = "Löschen";
+"OK" = "OK";
+"Reload" = "Neu laden";
+"Refresh" = "Aktualisieren";
+"Add" = "Hinzufügen";
+"Create" = "Erstellen";
+"Disconnect" = "Trennen";
+"Search" = "Suchen";
+"Filter" = "Filter";
+"Type" = "Typ";
+"Name" = "Name";
+"Password" = "Passwort";
+"Group" = "Gruppe";
+"User" = "Benutzer";
+"Account" = "Konto";
+"Permissions" = "Berechtigungen";
+"Comment" = "Kommentar";
+"All" = "Alle";
+"Level" = "Ebene";
+"Never" = "Nie";
+"Date" = "Datum";
+"Category" = "Kategorie";
+"No" = "Nein";
+"Edit" = "Bearbeiten";
+"Remove" = "Entfernen";
+"Start" = "Starten";
+"Pause" = "Pause";
+"Stop" = "Stoppen";
+"Size" = "Größe";
+"Description" = "Beschreibung";
+"URL" = "URL";
+"Status" = "Status";
+"Info" = "Info";
+
+/* ── Monitor view ── */
+"Access Denied" = "Zugriff verweigert";
+"Required permission: wired.account.user.get_users" = "Erforderliche Berechtigung: wired.account.user.get_users";
+"Users" = "Benutzer";
+"Download" = "Download";
+"Upload" = "Upload";
+"Search user" = "Benutzer suchen";
+"No Users" = "Keine Benutzer";
+"No user matches the current filter." = "Kein Benutzer entspricht dem aktuellen Filter.";
+"Disconnect User" = "Benutzer trennen";
+"Message" = "Nachricht";
+"Optional message" = "Optionale Nachricht";
+"Idle" = "Inaktiv";
+"Connected" = "Verbunden";
+
+/* ── Server Settings ── */
+"Required permission: wired.account.settings.get_settings" = "Erforderliche Berechtigung: wired.account.settings.get_settings";
+"Loading Settings" = "Einstellungen werden geladen";
+"Retrieving server permissions and settings…" = "Serverberechtigungen und Einstellungen werden abgerufen…";
+"Server Name" = "Servername";
+"Banner" = "Banner";
+"Max size 400x64" = "Maximale Größe 400x64";
+"Choose an image…" = "Bild auswählen…";
+"Concurrent Downloads" = "Gleichzeitige Downloads";
+"DL Speed" = "DL-Geschwindigkeit";
+"Concurrent Uploads" = "Gleichzeitige Uploads";
+"UL Speed" = "UL-Geschwindigkeit";
+
+/* ── Navigation ── */
+"Favorites" = "Favoriten";
+"Connections" = "Verbindungen";
+"Trackers" = "Tracker";
+"Add Tracker" = "Tracker hinzufügen";
+"New Connection" = "Neue Verbindung";
+"Select an item" = "Element auswählen";
+"Chats" = "Chats";
+"Messages" = "Nachrichten";
+"Boards" = "Boards";
+"Files" = "Dateien";
+"Bookmark" = "Lesezeichen";
+"Connect" = "Verbinden";
+"Tracker" = "Tracker";
+"Loading tracker…" = "Tracker wird geladen…";
+"No servers listed" = "Keine Server aufgeführt";
+"Get Info" = "Infos anzeigen";
+"Add to Favorites" = "Zu Favoriten hinzufügen";
+"Add to Trackers" = "Zu Trackern hinzufügen";
+"Connection" = "Verbindung";
+
+/* ── Connection state ── */
+"Connecting…" = "Verbinde…";
+"Disconnected" = "Getrennt";
+"Connection unavailable" = "Verbindung nicht verfügbar";
+"Are you sure you want to disconnect from this server?" = "Möchten Sie wirklich vom Server trennen?";
+"Disconnect and Close" = "Trennen und schließen";
+
+/* ── Tracker / Directory ── */
+"Each directory is registered as a `wired://host[:port]/Category` URL. The interface edits the parts and serializes them automatically." = "Jedes Verzeichnis wird als `wired://Host[:Port]/Kategorie`-URL registriert. Die Oberfläche bearbeitet die Teile und serialisiert sie automatisch.";
+"Add Directory" = "Verzeichnis hinzufügen";
+"When enabled, this server responds to `wired.tracker.*` messages and exposes the categories below." = "Wenn aktiviert, antwortet dieser Server auf `wired.tracker.*`-Nachrichten und zeigt die unten aufgeführten Kategorien an.";
+"Directory Categories" = "Verzeichniskategorien";
+"New Category" = "Neue Kategorie";
+"Register server with the following directories" = "Server bei folgenden Verzeichnissen registrieren";
+"Enable Directory" = "Verzeichnis aktivieren";
+"Directory %lld" = "Verzeichnis %lld";
+"Host" = "Host";
+"Login" = "Benutzername";
+"Port" = "Port";
+"Registered URL" = "Registrierte URL";
+
+/* ── Bans ── */
+"No Bans" = "Keine Sperren";
+"Required permission: wired.account.banlist.get_bans" = "Erforderliche Berechtigung: wired.account.banlist.get_bans";
+"Add Ban" = "Sperre hinzufügen";
+"IP" = "IP";
+"Exact IPs, wildcards, CIDR and network masks are supported." = "Genaue IPs, Platzhalter, CIDR und Netzwerkmasken werden unterstützt.";
+"Expires" = "Läuft ab";
+
+/* ── Events ── */
+"Recent Events" = "Neueste Ereignisse";
+"Required permission: wired.account.events.view_events" = "Erforderliche Berechtigung: wired.account.events.view_events";
+"No Events" = "Keine Ereignisse";
+"Period" = "Zeitraum";
+"Nick" = "Nick";
+"All Nicks" = "Alle Nicks";
+"All Logins" = "Alle Benutzernamen";
+"All IPs" = "Alle IPs";
+"All Categories" = "Alle Kategorien";
+"All Levels" = "Alle Ebenen";
+"Section under development" = "Abschnitt in Entwicklung";
+
+/* ── Log ── */
+"No Entries" = "Keine Einträge";
+"Required permission: wired.account.log.view_log" = "Erforderliche Berechtigung: wired.account.log.view_log";
+
+/* ── Accounts ── */
+"Groups" = "Gruppen";
+"Delete Account" = "Konto löschen";
+"Delete User" = "Benutzer löschen";
+"Delete Group" = "Gruppe löschen";
+"Required permission: wired.account.account.list_accounts" = "Erforderliche Berechtigung: wired.account.account.list_accounts";
+"No Accounts" = "Keine Konten";
+"Select an Account" = "Konto auswählen";
+"Remove Password" = "Passwort entfernen";
+"Account Name" = "Kontoname";
+"Full Name" = "Vollständiger Name";
+"Primary Group" = "Primäre Gruppe";
+"Optional" = "Optional";
+"Secondary Groups" = "Sekundäre Gruppen";
+"Comma-separated" = "Kommagetrennt";
+"Example: staff, moderators" = "Beispiel: staff, moderators";
+
+/* ── Chat / User list ── */
+"Online" = "Online";
+"Offline" = "Offline";
+"Get Infos" = "Infos anzeigen";
+"Send Private Message" = "Private Nachricht senden";
+"Invite to Private Chat" = "In privaten Chat einladen";
+"Kick" = "Rauswerfen";
+"Ban" = "Sperren";
+"Kick User" = "Benutzer rauswerfen";
+"Ban User" = "Benutzer sperren";
+"Chat here…" = "Hier chatten…";
+"Add a message or press Return to send…" = "Nachricht eingeben oder Return drücken zum Senden…";
+
+/* ── User info panel ── */
+"App version" = "App-Version";
+"P7 Protocol" = "P7-Protokoll";
+"Wired Protocol" = "Wired-Protokoll";
+"OS Name" = "Betriebssystem";
+"OS Version" = "BS-Version";
+"Arch" = "Architektur";
+"IP Address" = "IP-Adresse";
+"Hostname" = "Hostname";
+"Cipher" = "Verschlüsselung";
+"Login Time" = "Anmeldezeit";
+"Idle Time" = "Inaktiv seit";
+"Transfer" = "Übertragung";
+
+/* ── Messages ── */
+"Private Messages" = "Private Nachrichten";
+"Broadcasts" = "Rundsendungen";
+"No Results" = "Keine Ergebnisse";
+"Select a Conversation" = "Konversation auswählen";
+"No Conversation" = "Keine Konversation";
+"Open a conversation from the users list." = "Öffne eine Konversation aus der Benutzerliste.";
+"Choose a conversation from the filtered results." = "Wähle eine Konversation aus den gefilterten Ergebnissen.";
+"Try another search." = "Versuche eine andere Suche.";
+"No broadcast permission" = "Keine Broadcast-Berechtigung";
+"User unavailable" = "Benutzer nicht verfügbar";
+"Broadcast message required…" = "Broadcast-Nachricht erforderlich…";
+"Broadcast to all online users…" = "An alle Online-Benutzer senden…";
+"Type message here…" = "Nachricht hier eingeben…";
+
+/* ── Smart Board Editor ── */
+"New Smart Board" = "Neues Smart Board";
+"Edit Smart Board" = "Smart Board bearbeiten";
+"Name:" = "Name:";
+"Thread Filters" = "Thread-Filter";
+"Board:" = "Board:";
+"All Boards" = "Alle Boards";
+"Subject:" = "Betreff:";
+"Reply:" = "Antwort:";
+"Nick:" = "Nick:";
+"Unread:" = "Ungelesen:";
+"Yes" = "Ja";
+
+/* ── Markdown Composer ── */
+"Bold" = "Fett";
+"Italic" = "Kursiv";
+"Inline Code" = "Inline-Code";
+"Link" = "Link";
+"Quote" = "Zitat";
+"List" = "Liste";
+"Preview" = "Vorschau";
+"Nothing to preview" = "Nichts zu zeigen";
+
+/* ── Transfers ── */
+"Remove transfer?" = "Übertragung entfernen?";
+"Remove Transfers" = "Übertragungen entfernen";
+"Remove Transfer" = "Übertragung entfernen";
+"Are you sure you want to remove this transfer?" = "Möchten Sie diese Übertragung wirklich entfernen?";
+"Clear finished transfers" = "Abgeschlossene Übertragungen leeren";
+"Show in Finder" = "Im Finder anzeigen";
+"Show Remote Location" = "Entfernten Speicherort anzeigen";
+"Unknown Server" = "Unbekannter Server";
+
+/* ── Files ── */
+"Unable to download \"%@\":\n%@" = "„%@\" kann nicht heruntergeladen werden:\n%@";
+
+/* ── Sort / Boards ── */
+"Sort threads" = "Threads sortieren";
+"Ascending" = "Aufsteigend";
+"Descending" = "Absteigend";
+
+/* ── User actions (kick/ban sheet) ── */
+"Expire" = "Ablaufen";
+"Expiration date" = "Ablaufdatum";
+
+/* ── Boards permissions ── */
+"None" = "Keine";
+"Owner" = "Eigentümer";
+"Owner access" = "Eigentümerzugriff";
+"Group access" = "Gruppenzugriff";
+
+/* ── Server Settings – Allgemein/Protokoll-Tabs ── */
+"General" = "Allgemein";
+"Log" = "Protokoll";
+"KB/s" = "KB/s";
+"bytes" = "Bytes";
+"Unlimited" = "Unbegrenzt";
+"0 = unlimited" = "0 = unbegrenzt";
+"Effective Mode" = "Effektiver Modus";
+"Auto-reconnecting..." = "Verbinde automatisch...";
+
+/* ── Konten – Detailfelder ── */
+"Identity" = "Identität";
+"Created" = "Erstellt";
+"Modified" = "Geändert";
+"Last Login" = "Letzter Login";
+"Modified By" = "Geändert von";
+"Downloads" = "Downloads";
+"Uploads" = "Uploads";
+"Add User" = "Benutzer hinzufügen";
+"Add Group" = "Gruppe hinzufügen";
+"Initial password" = "Initiales Passwort";
+
+/* ── Konten – Berechtigungskategorien ── */
+"Basic" = "Grundlegend";
+"Administration" = "Administration";
+"Limits" = "Limits";
+"Other" = "Sonstiges";
+"Color" = "Farbe";
+"Black" = "Schwarz";
+"Red" = "Rot";
+"Orange" = "Orange";
+"Green" = "Grün";
+"Blue" = "Blau";
+"Purple" = "Lila";
+
+/* ── Server-Info-Tab ── */
+"Application" = "Anwendung";
+"Version" = "Version";
+"System" = "System";
+"OS" = "Betriebssystem";
+"Architecture" = "Architektur";
+"Count" = "Anzahl";
+"Uptime" = "Laufzeit";
+"Loading server information…" = "Serverinformationen werden geladen…";
+"Verified Identity" = "Verifizierte Identität";
+"Identity not verified" = "Identität nicht verifiziert";
+
+/* ── Dateitypen ── */
+"File" = "Datei";
+"Directory" = "Ordner";
+"Uploads Folder" = "Upload-Ordner";
+"Drop Box" = "Ablagebox";
+"Sync Folder" = "Synchronisierungsordner";
+
+/* ── Dateiinfo-Fenster ── */
+"File Info" = "Dateiinfo";
+"Close" = "Schließen";
+"Metadata" = "Metadaten";
+"Label" = "Beschriftung";
+"Data" = "Daten";
+"Resource" = "Ressource";
+"Total" = "Gesamt";
+"Folder" = "Ordner";
+"Contains" = "Enthält";
+"Folder Permissions" = "Ordner-Berechtigungen";
+"Access" = "Zugriff";
+"Everyone" = "Alle";
+"Sync Policy" = "Sync-Richtlinie";
+"Max File Size" = "Maximale Dateigröße";
+"Max Tree Size" = "Maximale Verzeichnisgröße";
+"Exclude Patterns" = "Ausschlussmuster";
+"Quota" = "Kontingent";
+"No Access" = "Kein Zugriff";
+"Read & Write" = "Lesen und Schreiben";
+"Read Only" = "Nur lesen";
+"Write Only" = "Nur schreiben";
+"Disabled" = "Deaktiviert";
+"Server → Client" = "Server → Client";
+"Client → Server" = "Client → Server";
+"Bidirectional" = "Bidirektional";
+
+/* ── App-Einstellungen ── */
+"Icon" = "Symbol";
+"Choose..." = "Auswählen…";
+"Nickname" = "Spitzname";
+"Find" = "Suchen";
+"About Wired 3" = "Über Wired 3";
+"Settings..." = "Einstellungen…";
+
+/* ── Berechtigungskategorie ── */
+"Transfers" = "Übertragungen";
+
+/* ── Übertragungen – Tooltips ── */
+"Play transfer" = "Übertragung starten";
+"Pause transfer" = "Übertragung pausieren";
+"Stop transfer" = "Übertragung stoppen";
+"Remove transfer" = "Übertragung entfernen";
+
+/* ── Dateien ── */
+"Create Directory" = "Ordner erstellen";
+"Delete File" = "Datei löschen";
+"Delete Files" = "Dateien löschen";
+"Are you sure you want to delete this file? This operation is not recoverable." = "Möchten Sie diese Datei wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.";
+"Are you sure you want to delete this selection? This operation is not recoverable." = "Möchten Sie diese Auswahl wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.";
+"Upload Blocked" = "Upload blockiert";
+"Searching…" = "Suche läuft…";
+
+/* ── Synchronisation ── */
+"Deactivate Sync Pair" = "Synchronisierungspaar deaktivieren";
+"Sync Error" = "Sync-Fehler";
+"Sync Enabled" = "Sync aktiviert";
+"Sync Triggered" = "Sync ausgelöst";
+"Sync Already Running" = "Sync läuft bereits";
+"Sync Disabled" = "Sync deaktiviert";
+"Your account is not allowed to activate sync pairs." = "Ihr Konto darf keine Synchronisierungspaare aktivieren.";
+"No active Wired connection available for sync activation." = "Keine aktive Wired-Verbindung für die Sync-Aktivierung verfügbar.";
+"The selected sync folder is disabled for your account." = "Der gewählte Sync-Ordner ist für Ihr Konto deaktiviert.";
+"No active Wired connection available for sync deactivation." = "Keine aktive Wired-Verbindung für die Sync-Deaktivierung verfügbar.";
+
+/* ── Einstellungs-Tabs ── */
+"Chat" = "Chat";
+"Behavior" = "Verhalten";
+"Check for active connections before closing" = "Vor dem Schließen auf aktive Verbindungen prüfen";
+"Timestamp in Chats and Messages" = "Zeitstempel in Chats und Nachrichten";
+"Every (min.)" = "Alle (Min.)";
+"Messages displayed" = "Angezeigte Nachrichten";
+"Timestamp every message" = "Jede Nachricht mit Zeitstempel";
+"Emoji" = "Emoji";
+"Substitute Emoji" = "Emoji ersetzen";
+"Emoji Substitutions" = "Emoji-Ersetzungen";
+"History" = "Verlauf";
+"Archive Chat Messages" = "Chat-Nachrichten archivieren";
+"When enabled, chat messages are saved locally for later browsing in Chat History." = "Wenn aktiviert, werden Chat-Nachrichten lokal gespeichert und können später im Chat-Verlauf angezeigt werden.";
+"Highlights" = "Hervorhebungen";
+"No highlights yet." = "Noch keine Hervorhebungen.";
+"Keyword" = "Schlüsselwort";
+"Delete Highlight?" = "Hervorhebung löschen?";
+"This highlight has no keyword. Do you want to delete it?" = "Diese Hervorhebung hat kein Schlüsselwort. Möchten Sie sie löschen?";
+"Do you want to delete the highlight for \"%@\"?" = "Möchten Sie die Hervorhebung für \"%@\" löschen?";
+"Do you want to delete this highlight?" = "Möchten Sie diese Hervorhebung löschen?";
+"No emoji substitutions yet." = "Noch keine Emoji-Ersetzungen.";
+"Code" = "Code";
+"Delete Emoji Substitution?" = "Emoji-Ersetzung löschen?";
+"Do you want to delete this emoji substitution?" = "Möchten Sie diese Emoji-Ersetzung löschen?";
+"Add Highlight" = "Hervorhebung hinzufügen";
+"Add Substitution" = "Ersetzung hinzufügen";
+"Back" = "Zurück";
+"Download Folder" = "Download-Ordner";
+"Volume" = "Lautstärke";
+"Event Configuration" = "Ereigniskonfiguration";
+"Sound" = "Ton";
+"Bounce in Dock" = "Im Dock springen";
+"Post in Chat" = "Im Chat posten";
+"Alert" = "Hinweis";
+"Notification" = "Benachrichtigung";
+"Events settings table is available on macOS." = "Die Ereignistabelle ist auf macOS verfügbar.";
+"Activity" = "Aktivität";
+"Filter errors" = "Fehler filtern";
+"No Errors" = "Keine Fehler";
+"No logged errors for the current filter." = "Keine Fehler für den aktuellen Filter protokolliert.";
+"Clear" = "Leeren";
+
+/* ── Menübefehle ── */
+"No Bookmarks" = "Keine Lesezeichen";
+"Window Tab for Bookmark" = "Fenster-Tab für Lesezeichen";
+"New Tab for Bookmark" = "Neuer Tab für Lesezeichen";
+"Reconnect" = "Erneut verbinden";
+"Show Server Info" = "Serverinfo anzeigen";
+"Set Topic" = "Thema festlegen";
+"New Broadcast" = "Neue Rundsendung";
+"Change password..." = "Passwort ändern...";
+
+/* ── Beenden-/Schließen-Dialoge ── */
+"Active connections and transfers" = "Aktive Verbindungen und Übertragungen";
+"There are %lld active connections and active transfers. Quitting now will stop transfers." = "Es gibt %lld aktive Verbindungen und laufende Übertragungen. Beim Beenden werden die Übertragungen gestoppt.";
+"Disconnect and Quit" = "Trennen und beenden";
+"Active connection" = "Aktive Verbindung";
+"Active connections" = "Aktive Verbindungen";
+"Do you want to disconnect the active connection before quitting?" = "Möchten Sie die aktive Verbindung vor dem Beenden trennen?";
+"Do you want to disconnect %lld active connections before quitting?" = "Möchten Sie %lld aktive Verbindungen vor dem Beenden trennen?";
+"Active transfers are in progress." = "Aktive Übertragungen sind im Gange.";
+"Quitting now will stop active transfers." = "Beim Beenden werden aktive Übertragungen gestoppt.";
+"Quit Anyway" = "Trotzdem beenden";
+"Do you want to disconnect the active connection before closing this window/tab?" = "Möchten Sie die aktive Verbindung vor dem Schließen dieses Fensters/Tabs trennen?";
+"Do you want to disconnect %lld active connections before closing this window/tab?" = "Möchten Sie %lld aktive Verbindungen vor dem Schließen dieses Fensters/Tabs trennen?";
+
+/* ── Fenster ── */
+"Error Log" = "Fehlerprotokoll";
+"Chat History" = "Chat-Verlauf";
+
+/* ── Seitenleiste / Hauptansicht ── */
+"Delete Bookmark" = "Lesezeichen löschen";
+"Delete Tracker" = "Tracker löschen";
+"Show Transfers" = "Übertragungen anzeigen";
+
+/* ── Passwort ändern ── */
+"New password" = "Neues Passwort";
+"Confirm password" = "Passwort bestätigen";
+"Change" = "Ändern";
+"Your account was migrated from Wired 2.5. You must set a new password before you can use this server." = "Ihr Konto wurde von Wired 2.5 migriert. Sie müssen ein neues Passwort festlegen, bevor Sie diesen Server verwenden können.";
+"No active connection." = "Keine aktive Verbindung.";
+"Server error." = "Serverfehler.";
+
+/* ── Boards ── */
+"Mark as Read" = "Als gelesen markieren";
+"Mark as Unread" = "Als ungelesen markieren";
+"Mark as read" = "Als gelesen markieren";
+"Mark as unread" = "Als ungelesen markieren";
+"Loading boards…" = "Boards werden geladen…";
+"No Boards" = "Keine Boards";
+"No Smart Boards" = "Keine Smart Boards";
+"SMART BOARDS" = "SMART BOARDS";
+"BOARDS" = "BOARDS";
+"Delete Smart Board" = "Smart Board löschen";
+"Rename Board" = "Board umbenennen";
+"Edit Permissions" = "Berechtigungen bearbeiten";
+"Move Board" = "Board verschieben";
+"Delete Board" = "Board löschen";
+"New Board" = "Neues Board";
+"Boards network activity" = "Boards-Netzwerkaktivität";
+"Mark all as read" = "Alle als gelesen markieren";
+"No Matching Threads" = "Keine übereinstimmenden Themen";
+"Searching boards…" = "Boards werden durchsucht…";
+"No Search Results" = "Keine Suchergebnisse";
+"Loading threads…" = "Themen werden geladen…";
+"No Threads" = "Keine Themen";
+"Select a Board" = "Board auswählen";
+"Select a Thread" = "Thema auswählen";
+"New" = "Neu";
+"Reply" = "Antworten";
+"Edit Thread" = "Thema bearbeiten";
+"Move Thread" = "Thema verschieben";
+"Delete Thread" = "Thema löschen";
+"Reveal in Board" = "Im Board anzeigen";
+"Delete board?" = "Board löschen?";
+"Delete smart board?" = "Smart Board löschen?";
+"Delete thread?" = "Thema löschen?";
+"Threads" = "Themen";
+"Posts" = "Beiträge";
+"New Thread" = "Neues Thema";
+"Subject" = "Betreff";
+"Post" = "Posten";
+"Re: %@" = "Re: %@";
+
+/* ── Board-Sheets ── */
+"Board Permissions" = "Board-Berechtigungen";
+"Board" = "Board";
+"Loading permissions…" = "Berechtigungen werden geladen…";
+"Loading accounts…" = "Konten werden geladen…";
+"Path" = "Pfad";
+"Current" = "Aktuell";
+"Rename" = "Umbenennen";
+"Move" = "Verschieben";
+"Destination Path" = "Zielpfad";
+"Destination" = "Ziel";
+"Board Name" = "Board-Name";
+"Location" = "Ort";
+"Parent" = "Übergeordnet";
+
+/* ── Berechtigungsanzeigenamen (wired.account.*) ── */
+"wired.account.color" = "Farbe";
+"wired.account.login" = "Anmeldung";
+"wired.account.nick" = "Spitzname";
+"wired.account.create_accounts" = "Konten erstellen";
+"wired.account.delete_accounts" = "Konten löschen";
+"wired.account.read_accounts" = "Konten lesen";
+"wired.account.modify_accounts" = "Konten bearbeiten";
+"wired.account.alter_password" = "Passwort ändern";
+"wired.account.read_groups" = "Gruppen lesen";
+"wired.account.create_groups" = "Gruppen erstellen";
+"wired.account.delete_groups" = "Gruppen löschen";
+"wired.account.modify_groups" = "Gruppen bearbeiten";
+"wired.account.file.list_files" = "Dateien auflisten";
+"wired.account.file.search" = "Suchen";
+"wired.account.file.get_info" = "Infos abrufen";
+"wired.account.file.create_directories" = "Ordner erstellen";
+"wired.account.file.create_links" = "Links erstellen";
+"wired.account.file.move_files" = "Dateien verschieben";
+"wired.account.file.rename_files" = "Dateien umbenennen";
+"wired.account.file.set_type" = "Typ festlegen";
+"wired.account.file.set_comment" = "Kommentar festlegen";
+"wired.account.file.set_permissions" = "Berechtigungen festlegen";
+"wired.account.file.set_label" = "Beschriftung festlegen";
+"wired.account.file.delete_files" = "Dateien löschen";
+"wired.account.file.access_all_dropboxes" = "Alle Ablagefächer öffnen";
+"wired.account.file.set_aliases" = "Aliase festlegen";
+"wired.account.file.recursive_list_files" = "Dateien rekursiv auflisten";
+"wired.account.user.get_users" = "Benutzer abrufen";
+"wired.account.user.get_info" = "Benutzerinfos abrufen";
+"wired.account.user.disconnect_users" = "Benutzer trennen";
+"wired.account.user.kick_users" = "Benutzer rauswerfen";
+"wired.account.user.ban_users" = "Benutzer sperren";
+"wired.account.user.cannot_be_disconnected" = "Kann nicht getrennt werden";
+"wired.account.user.list_offline_users" = "Offline-Benutzer auflisten";
+"wired.account.transfer.download_files" = "Dateien herunterladen";
+"wired.account.transfer.upload_files" = "Dateien hochladen";
+"wired.account.transfer.upload_anywhere" = "Überall hochladen";
+"wired.account.transfer.upload_directories" = "Ordner hochladen";
+"wired.account.transfer.download_limit" = "Download-Limit";
+"wired.account.transfer.upload_limit" = "Upload-Limit";
+"wired.account.message.send_messages" = "Nachrichten senden";
+"wired.account.message.broadcast" = "Rundsendung";
+"wired.account.board.read_boards" = "Boards lesen";
+"wired.account.board.add_boards" = "Boards hinzufügen";
+"wired.account.board.move_boards" = "Boards verschieben";
+"wired.account.board.rename_boards" = "Boards umbenennen";
+"wired.account.board.delete_boards" = "Boards löschen";
+"wired.account.board.get_board_info" = "Board-Infos abrufen";
+"wired.account.board.set_board_info" = "Board-Infos festlegen";
+"wired.account.board.add_threads" = "Themen hinzufügen";
+"wired.account.board.move_threads" = "Themen verschieben";
+"wired.account.board.delete_all_threads_and_posts" = "Alle Themen und Beiträge löschen";
+"wired.account.board.delete_own_threads_and_posts" = "Eigene Themen und Beiträge löschen";
+"wired.account.board.edit_all_threads_and_posts" = "Alle Themen und Beiträge bearbeiten";
+"wired.account.board.edit_own_threads_and_posts" = "Eigene Themen und Beiträge bearbeiten";
+"wired.account.board.add_posts" = "Beiträge hinzufügen";
+"wired.account.board.delete_all_posts" = "Alle Beiträge löschen";
+"wired.account.board.edit_own_posts" = "Eigene Beiträge bearbeiten";
+"wired.account.board.search_boards" = "Boards durchsuchen";
+"wired.account.administration.take_screenshots" = "Screenshots aufnehmen";
+"wired.account.administration.rename_server" = "Server umbenennen";
+"wired.account.administration.send_serverinfo" = "Server-Infos senden";
+"wired.account.administration.get_server_info" = "Server-Infos abrufen";
+"wired.account.administration.set_server_banner" = "Server-Banner festlegen";
+"wired.account.tracker.list_servers" = "Server auflisten";
+"wired.account.tracker.register_servers" = "Server registrieren";
+"wired.account.banlist.get_bans" = "Sperren abrufen";
+"wired.account.banlist.add_bans" = "Sperren hinzufügen";
+"wired.account.banlist.delete_bans" = "Sperren löschen";
+
+/* ── File preview panel ── */
+"No Selection" = "Keine Auswahl";
+"Executable" = "Ausführbar";
+"1 item" = "1 Element";
+"%lld items" = "%lld Elemente";
+"Sync Pair" = "Sync-Paarung";
+"Pair" = "Paarung";
+"Active" = "Aktiv";
+"Inactive" = "Inaktiv";
+"Mode" = "Modus";
+"Checking…" = "Prüfe…";
+"Paused" = "Pausiert";
+"Syncing…" = "Synchronisiere…";
+"Reconnecting" = "Verbinde erneut";
+"Error" = "Fehler";
+
+/* ── Chat privileges ── */
+"wired.account.chat.kick_users" = "Benutzer aus Chat entfernen";
+"wired.account.chat.set_topic" = "Thema festlegen";
+"wired.account.chat.create_chats" = "Chats erstellen";
+"wired.account.chat.create_public_chats" = "Öffentliche Chats erstellen";
+"wired.account.chat.delete_public_chats" = "Öffentliche Chats löschen";
+
+/* ── User privileges (additions) ── */
+"wired.account.user.cannot_set_nick" = "Kann Spitzname nicht ändern";
+
+/* ── Message privileges (additions) ── */
+"wired.account.message.send_offline_messages" = "Offline-Nachrichten senden";
+
+/* ── Board privileges (additions) ── */
+"wired.account.board.add_reactions" = "Reaktionen hinzufügen";
+
+/* ── File privileges (additions) ── */
+"wired.account.file.search_files" = "Dateien suchen";
+"wired.account.file.set_executable" = "Als ausführbar markieren";
+"wired.account.file.recursive_list_depth_limit" = "Rekursive Listen-Tiefe";
+"wired.account.file.sync.sync_files" = "Dateien synchronisieren";
+"wired.account.file.sync.delete_remote" = "Remote-Dateien löschen";
+
+/* ── Transfer privileges (additions) ── */
+"wired.account.transfer.download_speed_limit" = "Download-Geschwindigkeitslimit";
+"wired.account.transfer.upload_speed_limit" = "Upload-Geschwindigkeitslimit";
+
+/* ── Attachment privileges ── */
+"wired.account.attachment.upload" = "Anhänge hochladen";
+
+/* ── Account management privileges ── */
+"wired.account.account.change_password" = "Passwort ändern";
+"wired.account.account.list_accounts" = "Konten auflisten";
+"wired.account.account.read_accounts" = "Konten lesen";
+"wired.account.account.create_users" = "Benutzer erstellen";
+"wired.account.account.edit_users" = "Benutzer bearbeiten";
+"wired.account.account.delete_users" = "Benutzer löschen";
+"wired.account.account.create_groups" = "Gruppen erstellen";
+"wired.account.account.edit_groups" = "Gruppen bearbeiten";
+"wired.account.account.delete_groups" = "Gruppen löschen";
+"wired.account.account.raise_account_privileges" = "Berechtigungen erhöhen";
+
+/* ── Log / Events / Settings privileges ── */
+"wired.account.log.view_log" = "Protokoll anzeigen";
+"wired.account.events.view_events" = "Ereignisse anzeigen";
+"wired.account.settings.get_settings" = "Einstellungen lesen";
+"wired.account.settings.set_settings" = "Einstellungen schreiben";
+
+/* ── Files toolbar ── */
+"Display Mode" = "Ansicht";
+"Navigate Backward" = "Zurück navigieren";
+"Navigate Forward" = "Vorwärts navigieren";
+"Reload Files" = "Dateien neu laden";
+"Download File(s)" = "Datei(en) herunterladen";
+"Upload File(s)" = "Datei(en) hochladen";
+"Create Folder" = "Ordner erstellen";
+"Delete File(s)" = "Datei(en) löschen";
+
+/* ── Files overwrite alert ── */
+"File Already Exists" = "Datei existiert bereits";
+"A file already exists at:\n%@\n\nOverwrite it?" = "Eine Datei existiert bereits unter:\n%@\n\nÜberschreiben?";
+"Do you want to overwrite \"%@\"?" = "Möchten Sie \"%@\" überschreiben?";
+"Overwrite" = "Überschreiben";
+
+/* ── Quick Look alert ── */
+"Download Preview?" = "Vorschau laden?";
+"Download Previews?" = "Vorschauen laden?";
+"%@ is not cached yet and is larger than 512 KB.\nWired will fetch a lightweight Quick Look preview from the server." = "%@ ist noch nicht zwischengespeichert und größer als 512 KB.\nWired lädt eine schlanke Schnellansicht vom Server.";
+"%lld selected files are not cached yet and are larger than 512 KB.\nWired will fetch lightweight Quick Look previews from the server." = "%lld ausgewählte Dateien sind noch nicht zwischengespeichert und größer als 512 KB.\nWired lädt schlanke Schnellansichten vom Server.";
+"Quick Look Error" = "Schnellansicht-Fehler";
+
+/* ── Files column headers ── */
+"Kind" = "Art";
+
+/* ── Files context menu ── */
+"Quick Look" = "Schnellansicht";
+"New Folder" = "Neuer Ordner";
+"Upload…" = "Hochladen…";
+
+/* ── Sync context menu ── */
+"Activate Sync Pair" = "Sync-Paarung aktivieren";
+"Sync Now" = "Jetzt synchronisieren";
+"Sync Status: Pair inactive" = "Sync-Status: Paarung inaktiv";
+"Sync Status: Paused" = "Sync-Status: Pausiert";
+"Sync Status: Connecting…" = "Sync-Status: Verbinde…";
+"Sync Status: Connected" = "Sync-Status: Verbunden";
+"Sync Status: Syncing…" = "Sync-Status: Synchronisiere…";
+"Sync Status: Reconnecting…" = "Sync-Status: Verbinde erneut…";
+"Sync Status: Updating…" = "Sync-Status: Aktualisiere…";
+
+/* ── Sync tooltips ── */
+"Sync status pending" = "Sync-Status ausstehend";
+"Sync paused" = "Sync pausiert";
+"Sync in progress" = "Sync läuft";
+"Sync reconnecting" = "Sync verbindet erneut";
+"Sync connected" = "Sync verbunden";
+"Sync error" = "Sync-Fehler";
+"Sync inactive" = "Sync inaktiv";

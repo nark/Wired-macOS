@@ -41,7 +41,7 @@ public struct BoardPathActionView: View {
     public var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.headline)
                 Spacer()
             }
@@ -63,7 +63,7 @@ public struct BoardPathActionView: View {
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button(actionLabel) { apply() }
+                Button(LocalizedStringKey(actionLabel)) { apply() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canSubmit)
             }

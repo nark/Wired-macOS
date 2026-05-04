@@ -30,7 +30,7 @@ extension FilesView {
             } label: {
                 Image(systemName: "chevron.left")
             }
-            .help("Navigate Backwark")
+            .help("Navigate Backward")
             .disabled(!canGoBack)
 
             Button {
@@ -170,11 +170,11 @@ extension FilesView {
     func askOverwrite(path: String) -> Bool {
 #if os(macOS)
         let alert = NSAlert()
-        alert.messageText = "File Already Exists"
-        alert.informativeText = "A file already exists at:\n\(path)\n\nOverwrite it?"
+        alert.messageText = NSLocalizedString("File Already Exists", comment: "")
+        alert.informativeText = String(format: NSLocalizedString("A file already exists at:\n%@\n\nOverwrite it?", comment: ""), path)
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Overwrite")
-        alert.addButton(withTitle: "Stop")
+        alert.addButton(withTitle: NSLocalizedString("Overwrite", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Stop", comment: ""))
         return alert.runModal() == .alertFirstButtonReturn
 #else
         return false

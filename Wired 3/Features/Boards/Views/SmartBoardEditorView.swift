@@ -68,7 +68,7 @@ struct SmartBoardEditorView: View {
     }
 
     private var title: String {
-        initialValue == nil ? "New Smart Board" : "Edit Smart Board"
+        initialValue == nil ? NSLocalizedString("New Smart Board", comment: "") : NSLocalizedString("Edit Smart Board", comment: "")
     }
 
     var body: some View {
