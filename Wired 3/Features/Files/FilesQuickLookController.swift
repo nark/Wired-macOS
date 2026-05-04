@@ -192,10 +192,16 @@ final class FilesQuickLookController: NSObject, QLPreviewPanelDataSource, QLPrev
         alert.alertStyle = .informational
         if items.count == 1, let item = items.first {
             alert.messageText = NSLocalizedString("Download Preview?", comment: "")
-            alert.informativeText = String(format: NSLocalizedString("%@ is not cached yet and is larger than 512 KB.\nWired will fetch a lightweight Quick Look preview from the server.", comment: ""), item.name)
+            let format = NSLocalizedString(
+                "%@ is not cached yet and is larger than 512 KB.\nWired will fetch a lightweight Quick Look preview from the server.",
+                comment: "")
+            alert.informativeText = String(format: format, item.name)
         } else {
             alert.messageText = NSLocalizedString("Download Previews?", comment: "")
-            alert.informativeText = String(format: NSLocalizedString("%lld selected files are not cached yet and are larger than 512 KB.\nWired will fetch lightweight Quick Look previews from the server.", comment: ""), Int64(items.count))
+            let format = NSLocalizedString(
+                "%lld selected files are not cached yet and are larger than 512 KB.\nWired will fetch lightweight Quick Look previews from the server.",
+                comment: "")
+            alert.informativeText = String(format: format, Int64(items.count))
         }
         alert.addButton(withTitle: NSLocalizedString("Preview", comment: ""))
         alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))

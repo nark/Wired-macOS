@@ -28,6 +28,14 @@ DOWNLOADS_DIR="$HOME/Downloads"
 NOTARIZE="${NOTARIZE:-}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 
+# Auto-load notary profile from ~/.wired-notary if not set via environment.
+# File format (shell-sourceable):  NOTARY_PROFILE="<your-profile>"
+if [[ -z "$NOTARY_PROFILE" && -f "${HOME}/.wired-notary" ]]; then
+  # shellcheck source=/dev/null
+  source "${HOME}/.wired-notary"
+  NOTARY_PROFILE="${NOTARY_PROFILE:-}"
+fi
+
 # ── Version: read from project.pbxproj ───────────────────────────────────────
 
 PBXPROJ="$XCODEPROJ/project.pbxproj"
@@ -74,6 +82,14 @@ else
   echo ""
 fi
 
+if [[ -n "$SIGNING_IDENTITY" && -z "$NOTARY_PROFILE" ]]; then
+  echo "    TIP: Notarization is disabled. To enable it, create ~/.wired-notary:"
+  echo "         NOTARY_PROFILE=\"<profile-name>\""
+  echo "         Then store the credentials once with:"
+  echo "         xcrun notarytool store-credentials \"<profile-name>\" --apple-id <id> --team-id <team>"
+  echo ""
+fi
+
 # ── Prepare output directories ────────────────────────────────────────────────
 
 mkdir -p "$DIST_DIR"
@@ -91,7 +107,15 @@ ARCHIVE_FLAGS=(
   -archivePath   "$ARCHIVE_PATH"
   SKIP_INSTALL=NO
   BUILD_LIBRARY_FOR_DISTRIBUTION=NO
+  # Developer ID signing: no provisioning profile required.
+  "PROVISIONING_PROFILE_SPECIFIER="
 )
+
+# The macOS team in project.pbxproj may differ from the local certificate;
+# override DEVELOPMENT_TEAM so xcodebuild uses whichever cert is in the keychain.
+if [[ -n "$EXPORT_TEAM" ]]; then
+  ARCHIVE_FLAGS+=("DEVELOPMENT_TEAM=$EXPORT_TEAM")
+fi
 
 BUILD_LOG="$(mktemp)"
 if ! xcodebuild archive "${ARCHIVE_FLAGS[@]}" 2>&1 | tee "$BUILD_LOG" | \

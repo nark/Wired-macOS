@@ -110,6 +110,8 @@
 		4CF01A922F20000100213277 /* FileInfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF01A912F20000100213277 /* FileInfoSheet.swift */; };
 		4CF01A942F200A1100213277 /* UploadsBadge.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4CF01A962F200A1100213277 /* UploadsBadge.icns */; };
 		4CF01A952F200A1100213277 /* DropBoxBadge.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4CF01A972F200A1100213277 /* DropBoxBadge.icns */; };
+		8483CA4B2F9CD0830071A0DC /* OfflineMessageCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8483CA492F9CD0830071A0DC /* OfflineMessageCrypto.swift */; };
+		8483CA4C2F9CD0830071A0DC /* OfflineMessageKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8483CA4A2F9CD0830071A0DC /* OfflineMessageKeyManager.swift */; };
 		AA1000012F90010000213277 /* TrackerBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000112F90010000213277 /* TrackerBookmark.swift */; };
 		AA1000022F90010000213277 /* TrackerBrowserController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000122F90010000213277 /* TrackerBrowserController.swift */; };
 		AA1000032F90010000213277 /* TrackerBookmarkFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000132F90010000213277 /* TrackerBookmarkFormView.swift */; };
@@ -262,6 +264,8 @@
 		4CF01A962F200A1100213277 /* UploadsBadge.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = UploadsBadge.icns; sourceTree = "<group>"; };
 		4CF01A972F200A1100213277 /* DropBoxBadge.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = DropBoxBadge.icns; sourceTree = "<group>"; };
 		5D426E2D2F723AA85053E8C8 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Localizable.strings; sourceTree = "<group>"; };
+		8483CA492F9CD0830071A0DC /* OfflineMessageCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageCrypto.swift; sourceTree = "<group>"; };
+		8483CA4A2F9CD0830071A0DC /* OfflineMessageKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineMessageKeyManager.swift; sourceTree = "<group>"; };
 		84F9192333CB2A6EFE6941E0 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		AA1000112F90010000213277 /* TrackerBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerBookmark.swift; sourceTree = "<group>"; };
 		AA1000122F90010000213277 /* TrackerBrowserController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerBrowserController.swift; sourceTree = "<group>"; };
@@ -356,6 +360,8 @@
 		4C0C2E032EF5659100213277 /* Connection */ = {
 			isa = PBXGroup;
 			children = (
+				8483CA492F9CD0830071A0DC /* OfflineMessageCrypto.swift */,
+				8483CA4A2F9CD0830071A0DC /* OfflineMessageKeyManager.swift */,
 				4C62A77D2F698AB500FB42E3 /* ServerTrustStore.swift */,
 				AA1000122F90010000213277 /* TrackerBrowserController.swift */,
 				4C0C2DF22EF482D600213277 /* SocketClient.swift */,
@@ -895,6 +901,8 @@
 				4C0C2E352EFDBD4000213277 /* SettingsView.swift in Sources */,
 				4CBF0A292F8CD448004196FD /* FilesServerInfos.swift in Sources */,
 				4C0C2E3A2F00421F00213277 /* ChatUsersList.swift in Sources */,
+				8483CA4B2F9CD0830071A0DC /* OfflineMessageCrypto.swift in Sources */,
+				8483CA4C2F9CD0830071A0DC /* OfflineMessageKeyManager.swift in Sources */,
 				4C0C2E632F15840000213277 /* TransferConnection.swift in Sources */,
 				4C62A8542F747E9600FB42E3 /* AccountsSettingsView.swift in Sources */,
 				4C0C2E542F110DC400213277 /* FilesView.swift in Sources */,
