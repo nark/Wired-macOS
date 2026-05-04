@@ -13,10 +13,10 @@ struct ServerInfoView: View {
 
     /// Stored TOFU fingerprint for this server, if any.
     private var serverTrustFingerprint: String? {
-        guard let hostname = runtime.connectionController.configuration(for: runtime.id)?.hostname else {
+        guard let config = runtime.connectionController.configuration(for: runtime.id) else {
             return nil
         }
-        return ServerTrustStore.storedFingerprint(host: hostname, port: 4871)
+        return ServerTrustStore.storedFingerprint(host: config.hostname, port: config.url.port)
     }
 
     var body: some View {
