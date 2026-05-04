@@ -61,7 +61,10 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         if !activeConnectionIDs.isEmpty && hasActiveTransfers {
             alert.messageText = NSLocalizedString("Active connections and transfers", comment: "")
-            alert.informativeText = String.localizedStringWithFormat(NSLocalizedString("There are %lld active connections and active transfers. Quitting now will stop transfers.", comment: ""), activeConnectionIDs.count)
+            let format = NSLocalizedString(
+                "There are %lld active connections and active transfers. Quitting now will stop transfers.",
+                comment: "")
+            alert.informativeText = String.localizedStringWithFormat(format, activeConnectionIDs.count)
             alert.addButton(withTitle: NSLocalizedString("Disconnect and Quit", comment: ""))
             alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
         } else if !activeConnectionIDs.isEmpty {
