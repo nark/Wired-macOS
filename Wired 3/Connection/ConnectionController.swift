@@ -1378,6 +1378,7 @@ final class ConnectionController {
                 runtime.userID = message.uint32(forField: "wired.user.id") ?? 0
                 runtime.resetBoards()
             }
+            await runtime.uploadPublicKey()
 
             let request = P7Message(withName: "wired.chat.get_chats", spec: spec)
             _ = try? await runtime.send(request)
@@ -1414,7 +1415,15 @@ final class ConnectionController {
 
             let privileges = parsedPrivileges
             await MainActor.run {
+                let previouslyHadOfflineList = runtime.hasPrivilege("wired.account.user.list_offline_users")
                 runtime.privileges = privileges
+                // If the offline-list privilege was just revoked, clear any cached
+                // entries so the panel disappears immediately. Otherwise the user
+                // would keep seeing a stale snapshot from their previous login.
+                let stillHasOfflineList = runtime.hasPrivilege("wired.account.user.list_offline_users")
+                if previouslyHadOfflineList && !stillHasOfflineList {
+                    runtime.offlineUsers = []
+                }
             }
 
             // Account or group privilege changes can alter board/thread/post visibility.
@@ -1865,6 +1874,36 @@ final class ConnectionController {
                     }
                 }
             }
+
+        case "wired.message.offline_message":
+            if let senderLogin = message.string(forField: "wired.message.offline.sender_login"),
+               let body = message.string(forField: "wired.message.message"),
+               let date = message.date(forField: "wired.message.offline.date") {
+                let senderNick = message.string(forField: "wired.message.offline.sender_nick")
+                let isEncrypted = message.bool(forField: "wired.message.offline.encrypted") ?? false
+                let displayName = senderNick ?? senderLogin
+                await MainActor.run {
+                    runtime.receiveOfflineMessage(fromLogin: senderLogin, senderNick: senderNick, text: body, date: date, isEncrypted: isEncrypted)
+                    self.triggerEvent(
+                        .messageReceived,
+                        runtime: runtime,
+                        subtitle: displayName,
+                        body: "New private message from \(displayName)",
+                        chatText: "Offline message from \(displayName)"
+                    )
+                }
+            }
+
+        case "wired.user.offline_list":
+            if let login = message.string(forField: "wired.message.offline.recipient_login") {
+                let nick = message.string(forField: "wired.user.nick")
+                await MainActor.run {
+                    runtime.receiveOfflineUserList(login: login, nick: nick)
+                }
+            }
+
+        case "wired.user.offline_list.done":
+            break
 
         case "wired.file.directory_changed":
             if let path = message.string(forField: "wired.file.path") {

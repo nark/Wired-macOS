@@ -24,6 +24,7 @@ struct ChatView: View {
 #endif
 #if os(macOS)
     @State private var isAttachmentDropTargeted = false
+    @AppStorage("userListWidth") private var userListWidth: Double = 200
 #endif
 
     private var chatInput: String {
@@ -169,12 +170,13 @@ struct ChatView: View {
             .contentMargins(.bottom, 30, for: .scrollIndicators)
 
 #if os(macOS)
-            Divider()
+            DraggableSidebarDivider(width: $userListWidth, minWidth: 120, maxWidth: 400, direction: -1)
 
             if let chatID = runtime.selectedChatID,
                let chat = runtime.chat(withID: chatID) {
                 ChatUsersList(chat: chat)
                     .environment(runtime)
+                    .frame(width: userListWidth)
             }
 #endif
         }
@@ -579,6 +581,52 @@ struct ConversationComposer: View {
         command.hint.isEmpty ? command.rawValue : command.rawValue + " "
     }
 }
+
+#if os(macOS)
+struct DraggableSidebarDivider: View {
+    @Binding var width: Double
+    var minWidth: Double = 120
+    var maxWidth: Double = 500
+    // +1: panel is left of divider (drag right = wider)
+    // -1: panel is right of divider (drag left = wider)
+    var direction: Double = 1
+
+    @State private var isDragging = false
+    @State private var dragStartWidth: Double = 0
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor))
+                .frame(width: 1)
+            Color.clear
+                .frame(width: 8)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if !isDragging {
+                                isDragging = true
+                                dragStartWidth = width
+                            }
+                            let delta = Double(value.translation.width)
+                            width = max(minWidth, min(maxWidth, dragStartWidth + direction * delta))
+                        }
+                        .onEnded { _ in
+                            isDragging = false
+                        }
+                )
+                .onHover { isHovered in
+                    if isHovered {
+                        NSCursor.resizeLeftRight.set()
+                    } else {
+                        NSCursor.arrow.set()
+                    }
+                }
+        }
+    }
+}
+#endif
 
 #if os(macOS)
 private struct ChatCommandSuggestionsView: View {

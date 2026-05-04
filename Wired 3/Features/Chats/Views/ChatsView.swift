@@ -22,6 +22,9 @@ struct ChatsView: View {
     @State var showEditPublicChatSheet = false
     @State var showDeletePublicChatConfirm = false
     @State private var chatIDToDelete: UInt32?
+    #if os(macOS)
+    @AppStorage("chatListWidth") private var chatListWidth: Double = 200
+    #endif
 
     private var normalizedSearchText: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -221,9 +224,9 @@ struct ChatsView: View {
                     }
                     .padding(9)
                 }
-                .frame(width: 200)
+                .frame(width: chatListWidth)
 
-                Divider()
+                DraggableSidebarDivider(width: $chatListWidth, minWidth: 120, maxWidth: 400)
 
                 Group {
                     if let chatID = runtime.selectedChatID,

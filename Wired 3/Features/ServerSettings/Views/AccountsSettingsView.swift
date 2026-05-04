@@ -1446,7 +1446,11 @@ private enum PermissionCategory: String, CaseIterable, Hashable {
             return .basic
         }
 
-        if key.hasPrefix("wired.account.message.") {
+        if key.hasPrefix("wired.account.message.")
+            || key == "wired.account.user.list_offline_users" {
+            // list_offline_users belongs to the offline-messaging feature even though
+            // its dotted name lives under wired.account.user.* — group it visually with
+            // the other Messages privileges rather than under generic Users management.
             return .messages
         }
 
@@ -1502,6 +1506,9 @@ private enum PermissionCategory: String, CaseIterable, Hashable {
 private func permissionDisplayName(_ key: String) -> String {
     if key == "wired.account.color" {
         return "Color"
+    }
+    if key == "wired.account.user.list_offline_users" {
+        return "List Offline Users"
     }
 
     let short = key.replacingOccurrences(of: "wired.account.", with: "")
