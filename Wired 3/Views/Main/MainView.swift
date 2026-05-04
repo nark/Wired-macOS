@@ -46,6 +46,7 @@ struct MainView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var bookmarks: [Bookmark]
     @Query private var trackerBookmarks: [TrackerBookmark]
@@ -191,12 +192,30 @@ struct MainView: View {
                 guard case let .connection(connectionID) = newValue else { return }
 
 #if os(macOS)
-                guard connectionController.hasWindowAssociation(for: connectionID) else { return }
-                if connectionController.focusWindow(for: connectionID) {
-                    listSelection = windowConnectionID.map(SidebarSelection.connection)
-                    return
+                // If the connection lives in its own tab, focus that tab and
+                // restore the sidebar selection to this window's connection.
+                if connectionController.hasWindowAssociation(for: connectionID),
+                   connectionController.focusWindow(for: connectionID) {
+                    let currentIsLive: Bool = {
+                        guard let id = windowConnectionID,
+                              let r = connectionController.runtime(for: id) else { return false }
+                        return r.status == .connected || r.status == .connecting
+                    }()
+                    if currentIsLive {
+                        listSelection = windowConnectionID.map(SidebarSelection.connection)
+                        return
+                    }
+                    // This window has no live connection — fall through and adopt the clicked one.
                 }
-                return
+
+                // No window association, focusWindow failed, or this window's connection
+                // is gone (e.g. after a sibling tab closed). If the clicked connection is
+                // live, show it here with a single click.
+                if let r = connectionController.runtime(for: connectionID),
+                   r.status == .connected || r.status == .connecting {
+                    windowConnectionID = connectionID
+                    connectionController.activeConnectionID = connectionID
+                }
 #endif
             }
         )
@@ -214,15 +233,23 @@ struct MainView: View {
                     checkBeforeClosing: checkActiveConnectionsBeforeClosingWindowTab,
                     connectionController: connectionController,
                     onWindowBecameKey: {
-                        listSelection = windowConnectionID.map(SidebarSelection.connection)
-                        connectionController.activeConnectionID = windowConnectionID
+                        if windowConnectionID != nil {
+                            listSelection = windowConnectionID.map(SidebarSelection.connection)
+                            connectionController.activeConnectionID = windowConnectionID
+                        } else {
+                            // State was reset (e.g. after a sibling tab closed and SwiftUI
+                            // re-evaluated this scene). Restore the connection context so the
+                            // view doesn't remain stuck on the connections list.
+                            restoreWindowConnectionIfNeeded()
+                        }
                     },
                     onWindowChanged: { window in
                         windowNumber = window.windowNumber
                     },
                     onTabBarVisibilityChanged: { isVisible in
                         isTabBarVisible = isVisible
-                    }
+                    },
+                    onRequestDismiss: { dismiss() }
                 )
                 .frame(width: 0, height: 0)
             )
@@ -239,8 +266,16 @@ struct MainView: View {
             .sheet(item: newConnectionSheetBinding) { draft in
                 NewConnectionFormView(draft: draft) { id in
                     connectionController.suppressPresentedNewConnectionSheet = true
-                    connectionController.requestedSelectionID = id
-                    openMainTab()
+                    if windowConnectionID == nil {
+                        // Reuse the current (empty) window — avoids a duplicate tab
+                        // that would also pick up the same connection via restoreWindowConnectionIfNeeded.
+                        windowConnectionID = id
+                        listSelection = .connection(id)
+                        connectionController.activeConnectionID = id
+                    } else {
+                        connectionController.requestedSelectionID = id
+                        openMainTab()
+                    }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                         connectionController.suppressPresentedNewConnectionSheet = false
                     }
@@ -945,11 +980,15 @@ struct MainView: View {
             return
         }
 
-        if let firstActive = connectionController.firstActiveConnectionID() {
-            windowConnectionID = firstActive
-            listSelection = .connection(firstActive)
-            connectionController.activeConnectionID = firstActive
-        }
+        // Prefer an actually-connected session. firstActiveConnectionID() may return
+        // the stale activeConnectionID whose task is still winding down but whose
+        // status is already .disconnected — which would show the wrong (dead) connection.
+        let id = connectionController.activeConnectedConnectionIDs().first
+            ?? connectionController.firstActiveConnectionID()
+        guard let id else { return }
+        windowConnectionID = id
+        listSelection = .connection(id)
+        connectionController.activeConnectionID = id
     }
 
     private func performInitialLaunchFlowIfNeeded() {
@@ -986,8 +1025,8 @@ struct MainView: View {
             if connectionController.focusWindow(for: bookmark.id) {
                 return
             }
-            // If we cannot resolve an existing tab/window for this active connection,
-            // avoid replacing the current detail content.
+            // Window registry lost this connection — show it in the current window instead.
+            selectConnection(bookmark.id)
             return
 #else
             windowConnectionID = bookmark.id
@@ -1090,8 +1129,14 @@ struct MainView: View {
         }
 
 #if os(macOS)
-        connectionController.requestedSelectionID = connectionID
-        openMainTab()
+        if windowConnectionID == nil {
+            windowConnectionID = connectionID
+            listSelection = .connection(connectionID)
+            connectionController.activeConnectionID = connectionID
+        } else {
+            connectionController.requestedSelectionID = connectionID
+            openMainTab()
+        }
 #else
         selectConnection(connectionID)
 #endif
@@ -1312,9 +1357,11 @@ struct MainView: View {
         guard let id = selection.first else { return }
         if let bookmark = bookmark(for: id) {
             if isConnectionActive(id) {
+                // Already connected: focus the existing window/tab.
                 openOrSelectBookmark(bookmark)
             } else {
-                connectInNewTab(bookmark)
+                // Not connected (first open or after disconnect): connect.
+                connectFromContextMenu(id)
             }
             return
         }
@@ -1438,6 +1485,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
     let onWindowBecameKey: () -> Void
     let onWindowChanged: (NSWindow) -> Void
     let onTabBarVisibilityChanged: (Bool) -> Void
+    let onRequestDismiss: () -> Void
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
@@ -1452,6 +1500,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
         context.coordinator.onWindowBecameKey = onWindowBecameKey
         context.coordinator.onWindowChanged = onWindowChanged
         context.coordinator.onTabBarVisibilityChanged = onTabBarVisibilityChanged
+        context.coordinator.onRequestDismiss = onRequestDismiss
         context.coordinator.attach(to: nsView)
     }
 
@@ -1462,7 +1511,8 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
             connectionController: connectionController,
             onWindowBecameKey: onWindowBecameKey,
             onWindowChanged: onWindowChanged,
-            onTabBarVisibilityChanged: onTabBarVisibilityChanged
+            onTabBarVisibilityChanged: onTabBarVisibilityChanged,
+            onRequestDismiss: onRequestDismiss
         )
     }
 
@@ -1474,6 +1524,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
         fileprivate var onWindowBecameKey: () -> Void
         fileprivate var onWindowChanged: (NSWindow) -> Void
         fileprivate var onTabBarVisibilityChanged: (Bool) -> Void
+        fileprivate var onRequestDismiss: () -> Void
 
         private var observedWindow: NSWindow?
         private var closeDelegate: WindowCloseDelegate?
@@ -1486,7 +1537,8 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
             connectionController: ConnectionController,
             onWindowBecameKey: @escaping () -> Void,
             onWindowChanged: @escaping (NSWindow) -> Void,
-            onTabBarVisibilityChanged: @escaping (Bool) -> Void
+            onTabBarVisibilityChanged: @escaping (Bool) -> Void,
+            onRequestDismiss: @escaping () -> Void
         ) {
             self.selectedConnectionID = selectedConnectionID
             self.checkBeforeClosing = checkBeforeClosing
@@ -1494,6 +1546,7 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
             self.onWindowBecameKey = onWindowBecameKey
             self.onWindowChanged = onWindowChanged
             self.onTabBarVisibilityChanged = onTabBarVisibilityChanged
+            self.onRequestDismiss = onRequestDismiss
         }
 
         func attach(to view: NSView) {
@@ -1519,22 +1572,42 @@ private struct MainWindowCloseConfirmationView: NSViewRepresentable {
             window.tabbingMode = .preferred
             window.tabbingIdentifier = "WiredMain"
 
-            observedWindow = window
             if closeDelegate == nil {
                 closeDelegate = WindowCloseDelegate()
             }
+
+            // Guard: if another coordinator's WindowCloseDelegate is already installed
+            // on this window, do not overwrite it. This can happen transiently during
+            // addTabbedWindow when view.window temporarily returns the host window
+            // instead of the tab's own NSWindow.
+            if let existing = window.delegate as? WindowCloseDelegate,
+               existing !== closeDelegate {
+                onWindowChanged(window)
+                updateTabBarVisibility(for: window)
+                return
+            }
+
+            observedWindow = window
             closeDelegate?.install(on: window)
             installWindowObservers(for: window)
             syncDelegateState()
             onWindowChanged(window)
             updateTabBarVisibility(for: window)
             scheduleNativeNewTabButtonHiding(for: window)
+            // If the window is already key when we first observe it, fire the callback
+            // now — we may have missed the didBecomeKeyNotification while setting up
+            // (e.g. a sibling tab closed and this window became key before our observers
+            // were installed).
+            if window.isKeyWindow {
+                onWindowBecameKey()
+            }
         }
 
         private func syncDelegateState() {
             closeDelegate?.selectedConnectionID = selectedConnectionID
             closeDelegate?.checkBeforeClosing = checkBeforeClosing
             closeDelegate?.connectionController = connectionController
+            closeDelegate?.onRequestDismiss = onRequestDismiss
             if let observedWindow, let connectionController {
                 connectionController.registerWindow(observedWindow, for: selectedConnectionID)
             }
@@ -1659,6 +1732,14 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
     weak var connectionController: ConnectionController?
     var selectedConnectionID: UUID?
     var checkBeforeClosing: Bool = true
+    // Calls SwiftUI's dismiss() for this window's scene — the only safe way to
+    // close one tab without cascading through the AppKit NSWindowTabGroup.
+    var onRequestDismiss: (() -> Void)?
+
+    // Set to true while we're programmatically closing one specific tab so that
+    // any cascade performClose AppKit fires on sibling tabs is swallowed.
+    // Only touched on the main thread.
+    static var isHandlingProgrammaticClose: Bool = false
 
     private weak var originalDelegate: NSWindowDelegate?
 
@@ -1675,36 +1756,86 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
             return false
         }
 
+        // Swallow any cascade performClose that AppKit fires on sibling tabs while
+        // we are already handling a programmatic close for one specific tab.
+        if WindowCloseDelegate.isHandlingProgrammaticClose {
+            return false
+        }
+
+        // If the user is not on the Public Chat tab, Cmd+W navigates back to it.
+        // selectedConnectionID is this delegate's own connection; it is set by the
+        // coordinator that installed this delegate on this specific NSWindow, making
+        // it more reliable than activeConnectionID which is shared and can be
+        // overwritten by a sibling coordinator's didBecomeKey callback.
+        if let id = selectedConnectionID,
+           let runtime = connectionController?.runtime(for: id),
+           runtime.selectedTab != .chats {
+            runtime.selectedTab = .chats
+            return false
+        }
+
         guard checkBeforeClosing,
               let connectionController else {
             return true
         }
 
-        let senderActiveConnectionIDs = connectionController.activeConnectedConnectionIDs(in: [sender])
-        guard !senderActiveConnectionIDs.isEmpty else {
+        // selectedConnectionID is set directly by the coordinator that owns this
+        // NSWindow. Fall back to activeConnectionID and then to any connected session
+        // in case the per-window state was cleared after a sibling tab closed.
+        // Iterate candidates because activeConnectionID can be non-nil but stale
+        // (pointing to a disconnected session), which would cause the ?? chain to
+        // short-circuit before firstActiveConnectionID() is ever tried.
+        let connectionID: UUID? = {
+            let candidates = [selectedConnectionID,
+                              connectionController.activeConnectionID,
+                              connectionController.firstActiveConnectionID()]
+            for candidate in candidates {
+                guard let id = candidate else { continue }
+                if let r = connectionController.runtime(for: id),
+                   r.status == .connected || r.status == .connecting {
+                    return id
+                }
+            }
+            return nil
+        }()
+        guard let connectionID,
+              let runtime = connectionController.runtime(for: connectionID) else {
             return true
         }
 
-        let activeConnectionIDs = senderActiveConnectionIDs
-        let isSingleConnection = activeConnectionIDs.count == 1
-
         let alert = NSAlert()
-        alert.messageText = isSingleConnection ? "Active connection" : "Active connections"
-        alert.informativeText = isSingleConnection
-            ? "Do you want to disconnect the active connection before closing this window/tab?"
-            : "Do you want to disconnect \(activeConnectionIDs.count) active connections before closing this window/tab?"
+        alert.messageText = "Active connection"
+        alert.informativeText = "Do you want to disconnect the active connection before closing this window/tab?"
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Disconnect and Close")
         alert.addButton(withTitle: "Cancel")
 
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            for id in activeConnectionIDs {
-                if let runtime = connectionController.runtime(for: id) {
-                    connectionController.disconnect(connectionID: id, runtime: runtime)
-                }
+            connectionController.disconnect(connectionID: connectionID, runtime: runtime)
+            // Switch tab group focus to a sibling BEFORE dismissing so that
+            // AppKit transfers focus correctly when this window disappears.
+            // Without this, the remaining tab is not the key window and its
+            // onWindowBecameKey / connection-view restoration never fires.
+            if let tabGroup = sender.tabGroup,
+               let sibling = tabGroup.windows.first(where: { $0 !== sender }) {
+                tabGroup.selectedWindow = sibling
             }
-            return true
+            // Use SwiftUI's dismiss() to close this window's scene.
+            // NSWindow.close() on the host window of a tab group cascades and kills
+            // all sibling tabs; SwiftUI dismiss() closes only the calling scene.
+            // The isHandlingProgrammaticClose flag suppresses any cascade
+            // windowShouldClose that AppKit may still fire on siblings.
+            WindowCloseDelegate.isHandlingProgrammaticClose = true
+            DispatchQueue.main.async {
+                WindowCloseDelegate.isHandlingProgrammaticClose = false
+                // After the scene has had a chance to close, ensure the next
+                // visible window is key so its connection view is fully active.
+                NSApp.windows.first { $0.isVisible && !($0 is NSPanel) }?
+                    .makeKeyAndOrderFront(nil)
+            }
+            onRequestDismiss?()
+            return false
         default:
             return false
         }

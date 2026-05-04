@@ -43,7 +43,8 @@ final class SyncPairWorker {
         let spec = P7Spec(withPath: specPath)
         let control = AsyncConnection(withSpec: spec)
         control.clientInfoDelegate = clientInfoDelegate
-        control.nick = kDaemonNick
+        control.nick = DaemonIdentity.nick(forRemotePath: pair.remotePath)
+        control.icon = DaemonIdentity.folderIconBase64()
         control.interactive = true
         let url = try await connectControlIfNeeded(connection: control)
         defer { disconnectControl(connection: control) }
@@ -667,7 +668,8 @@ final class SyncPairWorker {
         log("sync.transfer_connect pair=\(pair.id) kind=download path=\(localRelativePath)")
         let tconn = AsyncConnection(withSpec: spec)
         tconn.clientInfoDelegate = clientInfoDelegate
-        tconn.nick = kDaemonNick
+        tconn.nick = DaemonIdentity.nick(forRemotePath: pair.remotePath)
+        tconn.icon = DaemonIdentity.folderIconBase64()
         tconn.interactive = false
         try tconn.connect(withUrl: url)
         defer {
@@ -727,7 +729,8 @@ final class SyncPairWorker {
         log("sync.transfer_connect pair=\(pair.id) kind=upload path=\(localRelativePath)")
         let tconn = AsyncConnection(withSpec: spec)
         tconn.clientInfoDelegate = clientInfoDelegate
-        tconn.nick = kDaemonNick
+        tconn.nick = DaemonIdentity.nick(forRemotePath: pair.remotePath)
+        tconn.icon = DaemonIdentity.folderIconBase64()
         tconn.interactive = false
         try tconn.connect(withUrl: url)
         defer {

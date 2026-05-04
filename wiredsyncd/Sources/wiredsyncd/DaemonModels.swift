@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 import WiredSwift
-let kDaemonVersion = "28"
+let kDaemonVersion = "29"
 let kDaemonNick = "wiredsyncd"
 
 enum SQLiteBindings {

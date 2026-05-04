@@ -1231,7 +1231,6 @@ struct FilesView: View {
             }
         }
         .onAppear {
-            WiredSyncDaemonIPC.ensureDaemonIsCurrentVersion()
             scheduleSyncPairStatusRefresh(delayNanoseconds: 0, force: true, showProgress: false)
             startSyncPairPolling()
         }

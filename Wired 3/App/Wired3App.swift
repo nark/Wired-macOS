@@ -868,6 +868,7 @@ struct Wired3App: App {
         UserDefaults.standard.set(true, forKey: "ApplePersistenceIgnoreState")
         NSWindow.allowsAutomaticWindowTabbing = false
         Self.clearSavedWindowState()
+        WiredSyncDaemonIPC.ensureDaemonIsCurrentVersion()
 #endif
     }
 

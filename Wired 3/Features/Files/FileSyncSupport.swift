@@ -90,7 +90,7 @@ enum WiredSyncDaemonIPC {
     static let launchAgentPath = (FileManager.default.homeDirectoryForCurrentUser.path as NSString)
         .appendingPathComponent("Library/LaunchAgents/\(launchAgentLabel).plist")
 
-    static let expectedDaemonVersion = "28"
+    static let expectedDaemonVersion = "29"
 
     static func addPair(
         remotePath: String,
@@ -701,17 +701,23 @@ enum WiredSyncDaemonIPC {
 
     static func ensureDaemonIsCurrentVersion() {
         Task.detached(priority: .background) {
-            guard let result = try? performRequest(
-                ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "status"],
-                timeoutSeconds: 3
-            ),
-            let data = result["result"] as? [String: Any] else {
-                return
+            do {
+                let result = try performRequest(
+                    ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "status"],
+                    timeoutSeconds: 3
+                )
+                let data = result["result"] as? [String: Any]
+                let runningVersion = data?["version"] as? String ?? ""
+                guard runningVersion != expectedDaemonVersion else { return }
+                print("[WiredSyncUI] daemon.version_mismatch running=\(runningVersion) expected=\(expectedDaemonVersion) – reinstalling")
+            } catch {
+                let fm = FileManager.default
+                guard fm.fileExists(atPath: launchAgentPath) || fm.fileExists(atPath: installedDaemonPath) else {
+                    return
+                }
+                print("[WiredSyncUI] daemon.status_unavailable expected=\(expectedDaemonVersion) error=\(error.localizedDescription) – reinstalling")
             }
-            let runningVersion = data["version"] as? String ?? ""
-            guard runningVersion != expectedDaemonVersion else { return }
 
-            print("[WiredSyncUI] daemon.version_mismatch running=\(runningVersion) expected=\(expectedDaemonVersion) – reinstalling")
             do {
                 try installAndStartLaunchAgent()
                 print("[WiredSyncUI] daemon.version_update_ok version=\(expectedDaemonVersion)")

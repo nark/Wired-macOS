@@ -121,7 +121,8 @@ final class PairSession {
             }
             let control = AsyncConnection(withSpec: spec)
             control.clientInfoDelegate = DaemonClientInfoDelegate()
-            control.nick = kDaemonNick
+            control.nick = DaemonIdentity.nick(forRemotePath: pair.remotePath)
+            control.icon = DaemonIdentity.folderIconBase64()
             control.interactive = true
             setConnection(control)
 

@@ -283,6 +283,12 @@ struct ChatUsersList: View {
                 openOfflinePrivateMessage(login: login)
             }
         }
+        .errorAlert(
+            error: $moderationError,
+            source: "Chat Moderation",
+            serverName: nil,
+            connectionID: runtime.id
+        )
     }
 }
 
