@@ -192,25 +192,20 @@ struct MainView: View {
                 guard case let .connection(connectionID) = newValue else { return }
 
 #if os(macOS)
-                // If the connection lives in its own tab, focus that tab and
-                // restore the sidebar selection to this window's connection.
+                // If the connection lives in its own tab, focus that tab and revert
+                // this window's sidebar selection to its own connection. Always return
+                // here — adopting the clicked connection in this window when another
+                // tab already hosts it would associate a single connection with two
+                // windows.
                 if connectionController.hasWindowAssociation(for: connectionID),
                    connectionController.focusWindow(for: connectionID) {
-                    let currentIsLive: Bool = {
-                        guard let id = windowConnectionID,
-                              let r = connectionController.runtime(for: id) else { return false }
-                        return r.status == .connected || r.status == .connecting
-                    }()
-                    if currentIsLive {
-                        listSelection = windowConnectionID.map(SidebarSelection.connection)
-                        return
-                    }
-                    // This window has no live connection — fall through and adopt the clicked one.
+                    listSelection = windowConnectionID.map(SidebarSelection.connection)
+                    return
                 }
 
-                // No window association, focusWindow failed, or this window's connection
-                // is gone (e.g. after a sibling tab closed). If the clicked connection is
-                // live, show it here with a single click.
+                // No window association or focusWindow failed (e.g. window association
+                // was cleared by a sibling tab close cascade). If the clicked connection
+                // is live, show it here with a single click.
                 if let r = connectionController.runtime(for: connectionID),
                    r.status == .connected || r.status == .connecting {
                     windowConnectionID = connectionID
@@ -1359,9 +1354,24 @@ struct MainView: View {
             if isConnectionActive(id) {
                 // Already connected: focus the existing window/tab.
                 openOrSelectBookmark(bookmark)
-            } else {
-                // Not connected (first open or after disconnect): connect.
+                return
+            }
+#if os(macOS)
+            // Disconnected but a tab already exists for this bookmark — focus it
+            // and reconnect there rather than spawning a duplicate tab.
+            if connectionController.hasWindowAssociation(for: id),
+               connectionController.focusWindow(for: id) {
+                connectionController.connect(bookmark)
+                return
+            }
+#endif
+            if windowConnectionID == nil {
+                // Empty window — reuse it (avoids spawning an extra tab that would
+                // also pick up requestedSelectionID via restoreWindowConnectionIfNeeded).
                 connectFromContextMenu(id)
+            } else {
+                // Disconnected bookmark with no existing tab: open a new one.
+                connectInNewTab(bookmark)
             }
             return
         }
@@ -1736,10 +1746,11 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
     // close one tab without cascading through the AppKit NSWindowTabGroup.
     var onRequestDismiss: (() -> Void)?
 
-    // Set to true while we're programmatically closing one specific tab so that
-    // any cascade performClose AppKit fires on sibling tabs is swallowed.
+    // The window we are currently closing programmatically. Cascade performClose
+    // calls AppKit fires on sibling tabs are swallowed; the initiator itself is
+    // allowed through (its dismiss() must complete to actually close the tab).
     // Only touched on the main thread.
-    static var isHandlingProgrammaticClose: Bool = false
+    static weak var programmaticCloseInitiator: NSWindow?
 
     private weak var originalDelegate: NSWindowDelegate?
 
@@ -1756,9 +1767,13 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
             return false
         }
 
-        // Swallow any cascade performClose that AppKit fires on sibling tabs while
-        // we are already handling a programmatic close for one specific tab.
-        if WindowCloseDelegate.isHandlingProgrammaticClose {
+        // While we are programmatically closing one specific tab, AppKit may fire
+        // performClose on sibling tabs. Swallow those; let the initiator through
+        // so its own close can complete.
+        if let initiator = WindowCloseDelegate.programmaticCloseInitiator {
+            if sender === initiator {
+                return true
+            }
             return false
         }
 
@@ -1779,16 +1794,14 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
             return true
         }
 
-        // selectedConnectionID is set directly by the coordinator that owns this
-        // NSWindow. Fall back to activeConnectionID and then to any connected session
-        // in case the per-window state was cleared after a sibling tab closed.
-        // Iterate candidates because activeConnectionID can be non-nil but stale
-        // (pointing to a disconnected session), which would cause the ?? chain to
-        // short-circuit before firstActiveConnectionID() is ever tried.
+        // Only consider connections that belong to THIS window. selectedConnectionID
+        // is set by the coordinator that owns this NSWindow; activeConnectionID is a
+        // shared fallback for cases where the per-window state was cleared after a
+        // sibling tab closed. Never fall back to firstActiveConnectionID() — that
+        // would let a close handler disconnect a connection in another window.
         let connectionID: UUID? = {
             let candidates = [selectedConnectionID,
-                              connectionController.activeConnectionID,
-                              connectionController.firstActiveConnectionID()]
+                              connectionController.activeConnectionID]
             for candidate in candidates {
                 guard let id = candidate else { continue }
                 if let r = connectionController.runtime(for: id),
@@ -1824,11 +1837,11 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
             // Use SwiftUI's dismiss() to close this window's scene.
             // NSWindow.close() on the host window of a tab group cascades and kills
             // all sibling tabs; SwiftUI dismiss() closes only the calling scene.
-            // The isHandlingProgrammaticClose flag suppresses any cascade
-            // windowShouldClose that AppKit may still fire on siblings.
-            WindowCloseDelegate.isHandlingProgrammaticClose = true
+            // programmaticCloseInitiator suppresses cascade windowShouldClose on
+            // siblings while still letting `sender`'s own close complete.
+            WindowCloseDelegate.programmaticCloseInitiator = sender
             DispatchQueue.main.async {
-                WindowCloseDelegate.isHandlingProgrammaticClose = false
+                WindowCloseDelegate.programmaticCloseInitiator = nil
                 // After the scene has had a chance to close, ensure the next
                 // visible window is key so its connection view is fully active.
                 NSApp.windows.first { $0.isVisible && !($0 is NSPanel) }?
