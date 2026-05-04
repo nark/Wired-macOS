@@ -1354,9 +1354,24 @@ struct MainView: View {
             if isConnectionActive(id) {
                 // Already connected: focus the existing window/tab.
                 openOrSelectBookmark(bookmark)
-            } else {
-                // Not connected (first open or after disconnect): connect.
+                return
+            }
+#if os(macOS)
+            // Disconnected but a tab already exists for this bookmark — focus it
+            // and reconnect there rather than spawning a duplicate tab.
+            if connectionController.hasWindowAssociation(for: id),
+               connectionController.focusWindow(for: id) {
+                connectionController.connect(bookmark)
+                return
+            }
+#endif
+            if windowConnectionID == nil {
+                // Empty window — reuse it (avoids spawning an extra tab that would
+                // also pick up requestedSelectionID via restoreWindowConnectionIfNeeded).
                 connectFromContextMenu(id)
+            } else {
+                // Disconnected bookmark with no existing tab: open a new one.
+                connectInNewTab(bookmark)
             }
             return
         }
