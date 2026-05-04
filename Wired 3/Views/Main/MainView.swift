@@ -1736,10 +1736,11 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
     // close one tab without cascading through the AppKit NSWindowTabGroup.
     var onRequestDismiss: (() -> Void)?
 
-    // Set to true while we're programmatically closing one specific tab so that
-    // any cascade performClose AppKit fires on sibling tabs is swallowed.
+    // The window we are currently closing programmatically. Cascade performClose
+    // calls AppKit fires on sibling tabs are swallowed; the initiator itself is
+    // allowed through (its dismiss() must complete to actually close the tab).
     // Only touched on the main thread.
-    static var isHandlingProgrammaticClose: Bool = false
+    static weak var programmaticCloseInitiator: NSWindow?
 
     private weak var originalDelegate: NSWindowDelegate?
 
@@ -1756,9 +1757,13 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
             return false
         }
 
-        // Swallow any cascade performClose that AppKit fires on sibling tabs while
-        // we are already handling a programmatic close for one specific tab.
-        if WindowCloseDelegate.isHandlingProgrammaticClose {
+        // While we are programmatically closing one specific tab, AppKit may fire
+        // performClose on sibling tabs. Swallow those; let the initiator through
+        // so its own close can complete.
+        if let initiator = WindowCloseDelegate.programmaticCloseInitiator {
+            if sender === initiator {
+                return true
+            }
             return false
         }
 
@@ -1822,11 +1827,11 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
             // Use SwiftUI's dismiss() to close this window's scene.
             // NSWindow.close() on the host window of a tab group cascades and kills
             // all sibling tabs; SwiftUI dismiss() closes only the calling scene.
-            // The isHandlingProgrammaticClose flag suppresses any cascade
-            // windowShouldClose that AppKit may still fire on siblings.
-            WindowCloseDelegate.isHandlingProgrammaticClose = true
+            // programmaticCloseInitiator suppresses cascade windowShouldClose on
+            // siblings while still letting `sender`'s own close complete.
+            WindowCloseDelegate.programmaticCloseInitiator = sender
             DispatchQueue.main.async {
-                WindowCloseDelegate.isHandlingProgrammaticClose = false
+                WindowCloseDelegate.programmaticCloseInitiator = nil
                 // After the scene has had a chance to close, ensure the next
                 // visible window is key so its connection view is fully active.
                 NSApp.windows.first { $0.isVisible && !($0 is NSPanel) }?
