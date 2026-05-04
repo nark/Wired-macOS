@@ -4,6 +4,23 @@
 //
 //  ECIES encryption for offline messages using X25519 + ChaCha20-Poly1305.
 //
+//  Threat model — what this provides:
+//    - Confidentiality of message bodies at rest in the server database
+//      against passive inspection by a server administrator.
+//    - Integrity of the ciphertext (Poly1305 authentication tag).
+//
+//  Threat model — what this does NOT provide (yet):
+//    - Sender authentication: messages are not signed. The server, which is
+//      trusted to attribute the sender, could substitute one. Planned for
+//      a future revision (Ed25519 signature over sender/recipient/plaintext).
+//    - Recipient public-key authenticity / TOFU: the client refetches the
+//      recipient public key on every send and trusts the server's response.
+//      A malicious server can MITM new conversations transparently. Planned:
+//      persist fingerprints client-side and warn on change.
+//
+//  In short: confidentiality holds against an honest-but-curious server,
+//  not against an actively malicious one.
+//
 //  Blob format (Base64-encoded):
 //    [0x01: 1 byte version]
 //    [ephemeral X25519 public key: 32 bytes]
