@@ -2,6 +2,11 @@
 
 All notable changes to Wired Client are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+## [Unreleased]
+
+### Features
+- Show mandatory password-change sheet on first login for accounts migrated from Wired 2.5; the sheet cannot be dismissed until a new password is set ([`71989be`](https://github.com/martinmarsian/Wired-macOS/commit/71989be79eebb4c7bed7cc539e75dce3e72a3eef))
+
 ## [3.0-beta.22+42] — 2026-04-20
 
 ### Bug Fixes

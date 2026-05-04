@@ -201,6 +201,7 @@ final class MessageConversation: Identifiable {
     var title: String
     var participantNick: String?
     var participantUserID: UInt32?
+    var participantLogin: String?
     var messages: [MessageEvent] = []
     var unreadMessagesCount: Int = 0
     @ObservationIgnored private var searchCache: SearchCacheEntry?
@@ -214,13 +215,15 @@ final class MessageConversation: Identifiable {
         kind: MessageConversationKind,
         title: String,
         participantNick: String? = nil,
-        participantUserID: UInt32? = nil
+        participantUserID: UInt32? = nil,
+        participantLogin: String? = nil
     ) {
         self.id = id
         self.kind = kind
         self.title = title
         self.participantNick = participantNick
         self.participantUserID = participantUserID
+        self.participantLogin = participantLogin
     }
 }
 
@@ -353,6 +356,7 @@ final class ConnectionRuntime: Identifiable {
     var pendingBroadcastConversation: Bool = false
     var selectedMessageConversationID: UUID?
     var messageConversations: [MessageConversation] = []
+    var offlineUsers: [OfflineUser] = []
 
     // Boards
     var boards: [Board] = []
@@ -484,6 +488,7 @@ final class ConnectionRuntime: Identifiable {
 
         resetChats()
         resetBoards()
+        offlineUsers = []
     }
 
     func setAutoReconnectState(
@@ -607,6 +612,7 @@ final class ConnectionRuntime: Identifiable {
     func resetMessages() {
         selectedMessageConversationID = nil
         messageConversations = []
+        offlineUsers = []
         persistMessages()
     }
 
@@ -1000,7 +1006,21 @@ final class ConnectionRuntime: Identifiable {
     func openPrivateMessageConversation(with user: User) -> MessageConversation {
         let conversation = ensureDirectConversation(
             nick: user.nick,
-            userID: user.id
+            userID: user.id,
+            login: user.login.isEmpty ? nil : user.login
+        )
+        selectedMessageConversationID = conversation.id
+        selectedTab = .messages
+        resetUnreads(conversation)
+        persistMessages()
+        return conversation
+    }
+
+    func openOfflineMessageConversation(with offlineUser: OfflineUser) -> MessageConversation {
+        let conversation = ensureDirectConversation(
+            nick: offlineUser.nick,
+            userID: nil,
+            login: offlineUser.login
         )
         selectedMessageConversationID = conversation.id
         selectedTab = .messages
@@ -1011,13 +1031,15 @@ final class ConnectionRuntime: Identifiable {
 
     func ensureDirectConversation(
         nick: String,
-        userID: UInt32?
+        userID: UInt32?,
+        login: String? = nil
     ) -> MessageConversation {
-        // 1. Match by userID (most reliable — survives nick changes)
-        if let userID, let conversation = messageConversations.first(where: {
-            $0.kind == .direct && $0.participantUserID == userID
-        }) {
-            // Only update nick if it's a real name, not a "User #X" fallback placeholder
+        // 1. Match by login (most stable — survives session reconnects)
+        if let login, !login.isEmpty,
+           let conversation = messageConversations.first(where: {
+               $0.kind == .direct && $0.participantLogin == login
+           }) {
+            if let userID { conversation.participantUserID = userID }
             let isPlaceholderNick = nick.hasPrefix("User #")
             if !isPlaceholderNick && conversation.participantNick != nick {
                 conversation.participantNick = nick
@@ -1026,20 +1048,35 @@ final class ConnectionRuntime: Identifiable {
             return conversation
         }
 
-        // 2. Fallback: match by nick
+        // 2. Match by userID (survives nick changes within a session)
+        if let userID, let conversation = messageConversations.first(where: {
+            $0.kind == .direct && $0.participantUserID == userID
+        }) {
+            if let login, !login.isEmpty { conversation.participantLogin = login }
+            let isPlaceholderNick = nick.hasPrefix("User #")
+            if !isPlaceholderNick && conversation.participantNick != nick {
+                conversation.participantNick = nick
+                conversation.title = nick
+            }
+            return conversation
+        }
+
+        // 3. Fallback: match by nick
         if let conversation = messageConversations.first(where: {
             $0.kind == .direct && $0.participantNick == nick
         }) {
             if let userID { conversation.participantUserID = userID }
+            if let login, !login.isEmpty { conversation.participantLogin = login }
             return conversation
         }
 
-        // 3. Create new
+        // 4. Create new
         let conversation = MessageConversation(
             kind: .direct,
             title: nick,
             participantNick: nick,
-            participantUserID: userID
+            participantUserID: userID,
+            participantLogin: login
         )
         messageConversations.append(conversation)
         sortMessageConversations()
@@ -1047,10 +1084,132 @@ final class ConnectionRuntime: Identifiable {
         return conversation
     }
 
+    var currentLogin: String? {
+        if let config = connectionController.configuration(for: id) {
+            return config.login.isEmpty ? nil : config.login
+        }
+        let urlLogin = connection?.url.login ?? ""
+        return urlLogin.isEmpty ? nil : urlLogin
+    }
+
+    /// Stable per-server account identifier ("<host>|<login>") used to scope
+    /// the offline-messaging Keychain entry. Returning a host-qualified value
+    /// avoids collisions when the same login exists on multiple Wired servers.
+    private var keypairAccountID: String? {
+        if let configuration = connectionController.configuration(for: id) {
+            let host = configuration.hostname.lowercased()
+            let login = configuration.login.lowercased()
+            guard !host.isEmpty, !login.isEmpty else { return nil }
+            return "\(host)|\(login)"
+        }
+        if let url = connection?.url {
+            let host = url.hostname.lowercased()
+            let login = url.login.lowercased()
+            guard !host.isEmpty, !login.isEmpty else { return nil }
+            return "\(host)|\(login)"
+        }
+        return nil
+    }
+
+    func uploadPublicKey() async {
+        guard let accountID = keypairAccountID else { return }
+        let keyData = OfflineMessageKeyManager.shared
+            .loadOrCreateKeyPair(forAccount: accountID, legacyUsername: currentLogin)
+            .publicKey.rawRepresentation
+        let msg = P7Message(withName: "wired.user.set_public_key", spec: spec)
+        msg.addParameter(field: "wired.user.public_key", value: keyData)
+        _ = try? await send(msg)
+    }
+
+    func receiveOfflineMessage(fromLogin senderLogin: String, senderNick: String?, text: String, date: Date, isEncrypted: Bool) {
+        let displayNick = senderNick ?? senderLogin
+        let conversation = ensureDirectConversation(nick: displayNick, userID: nil, login: senderLogin)
+
+        var displayText = text
+        if isEncrypted {
+            // Try the host-scoped key first, then fall back to the legacy login-only
+            // slot for any keypair created before account-scoping was introduced.
+            let candidates: [Curve25519.KeyAgreement.PrivateKey] = [
+                keypairAccountID.flatMap { OfflineMessageKeyManager.shared.privateKey(forAccount: $0) },
+                currentLogin.flatMap { OfflineMessageKeyManager.shared.privateKey(forAccount: $0) }
+            ].compactMap { $0 }
+
+            if let decrypted = candidates.lazy.compactMap({
+                try? OfflineMessageCrypto.decrypt(blob: text, privateKey: $0)
+            }).first {
+                displayText = decrypted
+            } else {
+                displayText = "[Encrypted message — decryption key not available]"
+            }
+        }
+
+        conversation.messages.append(
+            MessageEvent(
+                id: UUID(),
+                senderNick: displayNick,
+                senderUserID: nil,
+                senderIcon: nil,
+                text: displayText,
+                date: date,
+                isFromCurrentUser: false,
+                attachments: []
+            )
+        )
+        conversation.unreadMessagesCount += 1
+        sortMessageConversations()
+        if selectedTab != .messages {
+            connectionController.updateNotificationsBadge()
+        }
+        persistMessages()
+    }
+
+    func receiveOfflineUserList(login: String, nick: String?) {
+        guard !offlineUsers.contains(where: { $0.login == login }) else { return }
+        offlineUsers.append(OfflineUser(login: login, nick: nick))
+        offlineUsers.sort { $0.nick.localizedCaseInsensitiveCompare($1.nick) == .orderedAscending }
+    }
+
     func sendPrivateMessage(_ text: String, in conversation: MessageConversation, attachments: [ChatDraftAttachment] = []) async throws {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty else { return }
         guard conversation.kind == .direct else { return }
+
+        // If recipient is offline and we have their login, send as offline message
+        if resolvedRecipientUserID(for: conversation) == nil,
+           let login = conversation.participantLogin,
+           hasPrivilege("wired.account.message.send_offline_messages") {
+
+            let offlineMsg = P7Message(withName: "wired.message.send_offline_message", spec: spec)
+            offlineMsg.addParameter(field: "wired.message.offline.recipient_login", value: login)
+
+            let keyRequest = P7Message(withName: "wired.user.get_public_key", spec: spec)
+            keyRequest.addParameter(field: "wired.message.offline.recipient_login", value: login)
+
+            guard let keyResponse = try? await send(keyRequest),
+                  let pubKeyData = keyResponse.data(forField: "wired.user.public_key"),
+                  !pubKeyData.isEmpty else {
+                throw WiredError(
+                    withTitle: "Offline Message",
+                    message: "This user hasn't enabled offline messaging yet. They need to connect at least once with a compatible client to register their encryption key."
+                )
+            }
+
+            guard let encryptedBlob = try? OfflineMessageCrypto.encrypt(
+                plaintext: trimmed,
+                recipientPublicKeyData: pubKeyData
+            ) else {
+                throw WiredError(withTitle: "Offline Message", message: "Failed to encrypt message.")
+            }
+
+            offlineMsg.addParameter(field: "wired.message.message", value: encryptedBlob)
+            offlineMsg.addParameter(field: "wired.message.offline.encrypted", value: true)
+
+            if let response = try await send(offlineMsg), response.name == "wired.error" {
+                throw WiredError(message: response)
+            }
+            appendOwnPrivateMessage(trimmed, to: conversation)
+            return
+        }
 
         guard let recipientUserID = resolvedRecipientUserID(for: conversation) else {
             throw WiredError(withTitle: "Private Message", message: "User is offline.")
@@ -1164,7 +1323,10 @@ final class ConnectionRuntime: Identifiable {
             return hasPrivilege("wired.account.message.broadcast")
         case .direct:
             guard hasPrivilege("wired.account.message.send_messages") else { return false }
-            return resolvedRecipientUserID(for: conversation) != nil
+            if resolvedRecipientUserID(for: conversation) != nil { return true }
+            // Allow sending as offline message if recipient has a known login and privilege is granted
+            return conversation.participantLogin != nil
+                && hasPrivilege("wired.account.message.send_offline_messages")
         }
     }
 
