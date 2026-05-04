@@ -54,6 +54,12 @@ struct ChatUsersList: View {
     var chat: Chat
 
     private var offlineUsers: [OfflineUser] {
+        // Hide the panel entirely if the user lost the privilege mid-session;
+        // the server stops pushing entries but the cached list stays in memory
+        // until the privileges-update handler clears it.
+        guard runtime.hasPrivilege("wired.account.user.list_offline_users") else {
+            return []
+        }
         let onlineLogins = Set(chat.users.compactMap { $0.login.isEmpty ? nil : $0.login })
         return runtime.offlineUsers.filter { !onlineLogins.contains($0.login) }
     }

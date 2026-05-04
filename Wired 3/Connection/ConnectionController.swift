@@ -1415,7 +1415,15 @@ final class ConnectionController {
 
             let privileges = parsedPrivileges
             await MainActor.run {
+                let previouslyHadOfflineList = runtime.hasPrivilege("wired.account.user.list_offline_users")
                 runtime.privileges = privileges
+                // If the offline-list privilege was just revoked, clear any cached
+                // entries so the panel disappears immediately. Otherwise the user
+                // would keep seeing a stale snapshot from their previous login.
+                let stillHasOfflineList = runtime.hasPrivilege("wired.account.user.list_offline_users")
+                if previouslyHadOfflineList && !stillHasOfflineList {
+                    runtime.offlineUsers = []
+                }
             }
 
             // Account or group privilege changes can alter board/thread/post visibility.
