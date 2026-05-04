@@ -60,8 +60,18 @@ struct ChatUsersList: View {
         guard runtime.hasPrivilege("wired.account.user.list_offline_users") else {
             return []
         }
+        // Prefer matching by login (precise) but fall back to nick: user_join
+        // broadcasts include the nick but not the login (the wired.user.info
+        // collection deliberately omits login to avoid leaking auth credentials),
+        // so login on chat.users is empty for users we never queried via
+        // get_info. Nick covers the common case of a user reconnecting with a
+        // stable nick; collisions or post-disconnect nick changes are rare
+        // enough that a temporary duplicate row is acceptable.
         let onlineLogins = Set(chat.users.compactMap { $0.login.isEmpty ? nil : $0.login })
-        return runtime.offlineUsers.filter { !onlineLogins.contains($0.login) }
+        let onlineNicks = Set(chat.users.map { $0.nick }.filter { !$0.isEmpty })
+        return runtime.offlineUsers.filter { offline in
+            !onlineLogins.contains(offline.login) && !onlineNicks.contains(offline.nick)
+        }
     }
 
     private var selectedOnlineUser: User? {
