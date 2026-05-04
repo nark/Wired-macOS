@@ -239,16 +239,8 @@ struct MainView: View {
             .sheet(item: newConnectionSheetBinding) { draft in
                 NewConnectionFormView(draft: draft) { id in
                     connectionController.suppressPresentedNewConnectionSheet = true
-                    if windowConnectionID == nil {
-                        // Reuse the current (empty) window — avoids a duplicate tab
-                        // that would also pick up the same connection via restoreWindowConnectionIfNeeded.
-                        windowConnectionID = id
-                        listSelection = .connection(id)
-                        connectionController.activeConnectionID = id
-                    } else {
-                        connectionController.requestedSelectionID = id
-                        openMainTab()
-                    }
+                    connectionController.requestedSelectionID = id
+                    openMainTab()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                         connectionController.suppressPresentedNewConnectionSheet = false
                     }
@@ -994,8 +986,8 @@ struct MainView: View {
             if connectionController.focusWindow(for: bookmark.id) {
                 return
             }
-            // Window registry lost this connection — show it in the current window instead.
-            selectConnection(bookmark.id)
+            // If we cannot resolve an existing tab/window for this active connection,
+            // avoid replacing the current detail content.
             return
 #else
             windowConnectionID = bookmark.id
@@ -1098,14 +1090,8 @@ struct MainView: View {
         }
 
 #if os(macOS)
-        if windowConnectionID == nil {
-            windowConnectionID = connectionID
-            listSelection = .connection(connectionID)
-            connectionController.activeConnectionID = connectionID
-        } else {
-            connectionController.requestedSelectionID = connectionID
-            openMainTab()
-        }
+        connectionController.requestedSelectionID = connectionID
+        openMainTab()
 #else
         selectConnection(connectionID)
 #endif
@@ -1326,11 +1312,9 @@ struct MainView: View {
         guard let id = selection.first else { return }
         if let bookmark = bookmark(for: id) {
             if isConnectionActive(id) {
-                // Already connected: focus the existing window/tab.
                 openOrSelectBookmark(bookmark)
             } else {
-                // Not connected (first open or after disconnect): connect.
-                connectFromContextMenu(id)
+                connectInNewTab(bookmark)
             }
             return
         }
@@ -1688,15 +1672,6 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
     @MainActor
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if originalDelegate?.windowShouldClose?(sender) == false {
-            return false
-        }
-
-        // If the user is not on the Public Chat tab, Cmd+W navigates back to it
-        // instead of closing. The close/quit dialog only appears from the chat tab.
-        if let id = selectedConnectionID,
-           let runtime = connectionController?.runtime(for: id),
-           runtime.selectedTab != .chats {
-            runtime.selectedTab = .chats
             return false
         }
 
