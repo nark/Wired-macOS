@@ -1779,16 +1779,14 @@ private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
             return true
         }
 
-        // selectedConnectionID is set directly by the coordinator that owns this
-        // NSWindow. Fall back to activeConnectionID and then to any connected session
-        // in case the per-window state was cleared after a sibling tab closed.
-        // Iterate candidates because activeConnectionID can be non-nil but stale
-        // (pointing to a disconnected session), which would cause the ?? chain to
-        // short-circuit before firstActiveConnectionID() is ever tried.
+        // Only consider connections that belong to THIS window. selectedConnectionID
+        // is set by the coordinator that owns this NSWindow; activeConnectionID is a
+        // shared fallback for cases where the per-window state was cleared after a
+        // sibling tab closed. Never fall back to firstActiveConnectionID() — that
+        // would let a close handler disconnect a connection in another window.
         let connectionID: UUID? = {
             let candidates = [selectedConnectionID,
-                              connectionController.activeConnectionID,
-                              connectionController.firstActiveConnectionID()]
+                              connectionController.activeConnectionID]
             for candidate in candidates {
                 guard let id = candidate else { continue }
                 if let r = connectionController.runtime(for: id),
