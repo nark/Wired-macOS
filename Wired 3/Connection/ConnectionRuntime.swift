@@ -417,6 +417,7 @@ final class ConnectionRuntime: Identifiable {
     var showInfosUserID: UInt32 = 0
 
     private let defaults = UserDefaults.standard
+    private static let autoJoinPublicChatsStoragePrefix = "AutoJoinPublicChats"
 
     var substituteEmoji: Bool {
         defaults.bool(forKey: "SubstituteEmoji")
@@ -1019,6 +1020,16 @@ final class ConnectionRuntime: Identifiable {
     func removePrivateChat(_ chatID: UInt32) {
         chat(withID: chatID)?.clearAllTyping()
         private_chats.removeAll { $0.id == chatID }
+
+        if selectedChatID == chatID {
+            selectedChatID = 1
+        }
+    }
+
+    func removePublicChat(_ chatID: UInt32) {
+        chats.first(where: { $0.id == chatID })?.clearAllTyping()
+        chats.removeAll { $0.id == chatID }
+        _ = removeAutoJoinPublicChat(chatID)
 
         if selectedChatID == chatID {
             selectedChatID = 1
@@ -1715,6 +1726,86 @@ final class ConnectionRuntime: Identifiable {
         }
 
         return nil
+    }
+
+    private func autoJoinPublicChatsStorageKey() -> String? {
+        guard let key = persistenceKey() else { return nil }
+        return "\(Self.autoJoinPublicChatsStoragePrefix).\(key)"
+    }
+
+    private func loadAutoJoinPublicChatIDs() -> Set<UInt32> {
+        guard let storageKey = autoJoinPublicChatsStorageKey() else { return [] }
+        let storedValues = defaults.array(forKey: storageKey) ?? []
+
+        return Set(
+            storedValues.compactMap { value in
+                if let number = value as? NSNumber {
+                    return number.uint32Value
+                }
+
+                if let intValue = value as? Int,
+                   intValue > 0,
+                   intValue <= Int(UInt32.max) {
+                    return UInt32(intValue)
+                }
+
+                if let stringValue = value as? String {
+                    return UInt32(stringValue)
+                }
+
+                return nil
+            }
+            .filter { $0 > 1 }
+        )
+    }
+
+    private func saveAutoJoinPublicChatIDs(_ chatIDs: Set<UInt32>) {
+        guard let storageKey = autoJoinPublicChatsStorageKey() else { return }
+        let normalizedIDs = chatIDs.filter { $0 > 1 }
+
+        if normalizedIDs.isEmpty {
+            defaults.removeObject(forKey: storageKey)
+            return
+        }
+
+        defaults.set(normalizedIDs.map(Int.init).sorted(), forKey: storageKey)
+    }
+
+    func shouldJoinPublicChatAtLogin(_ chatID: UInt32) -> Bool {
+        if chatID == 1 {
+            return true
+        }
+
+        return loadAutoJoinPublicChatIDs().contains(chatID)
+    }
+
+    func isAutoJoinEnabled(forPublicChatID chatID: UInt32) -> Bool {
+        guard chatID > 1 else { return false }
+        return loadAutoJoinPublicChatIDs().contains(chatID)
+    }
+
+    func setAutoJoinEnabled(_ isEnabled: Bool, forPublicChatID chatID: UInt32) {
+        guard chatID > 1 else { return }
+
+        var chatIDs = loadAutoJoinPublicChatIDs()
+        if isEnabled {
+            chatIDs.insert(chatID)
+        } else {
+            chatIDs.remove(chatID)
+        }
+        saveAutoJoinPublicChatIDs(chatIDs)
+    }
+
+    @discardableResult
+    func removeAutoJoinPublicChat(_ chatID: UInt32) -> Bool {
+        guard chatID > 1 else { return false }
+
+        var chatIDs = loadAutoJoinPublicChatIDs()
+        let didRemove = chatIDs.remove(chatID) != nil
+        if didRemove {
+            saveAutoJoinPublicChatIDs(chatIDs)
+        }
+        return didRemove
     }
 
     // MARK: - Chat History Archiving

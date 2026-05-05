@@ -1477,7 +1477,7 @@ final class ConnectionController {
             if let chat = await parseChat(from: message) {
                 await runtime.appendChat(chat)
 
-                if chat.id == 1 {
+                if await runtime.shouldJoinPublicChatAtLogin(chat.id) {
                     do {
                         try await runtime.joinChat(chat.id)
                     } catch {
@@ -1533,12 +1533,22 @@ final class ConnectionController {
         case "wired.chat.public_chat_created":
             if let chat = await parseChat(from: message) {
                 await runtime.appendChat(chat)
+
+                if await runtime.shouldJoinPublicChatAtLogin(chat.id) {
+                    do {
+                        try await runtime.joinChat(chat.id)
+                    } catch {
+                        await MainActor.run {
+                            runtime.lastError = error
+                        }
+                    }
+                }
             }
 
         case "wired.chat.public_chat_deleted":
             if let chatID = message.uint32(forField: "wired.chat.id") {
                 await MainActor.run {
-                    runtime.chats.removeAll(where: { $0.id == chatID })
+                    runtime.removePublicChat(chatID)
                 }
             }
 

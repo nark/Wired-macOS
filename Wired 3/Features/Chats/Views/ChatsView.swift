@@ -124,6 +124,16 @@ struct ChatsView: View {
                                 if !chat.isPrivate {
                                     Divider()
 
+                                    if chat.id != 1 {
+                                        Button {
+                                            toggleJoinAtLogin(for: chat)
+                                        } label: {
+                                            joinAtLoginMenuLabel(for: chat)
+                                        }
+                                    }
+                                    
+                                    Divider()
+
                                     // TODO: add `wired.account.chat.edit_public_chats` message ?
 
                                     Button("Delete") {
@@ -399,6 +409,20 @@ struct ChatsView: View {
         if let firstPublic = runtime.chats.first {
             runtime.selectedChatID = firstPublic.id
             runtime.resetUnreads(firstPublic)
+        }
+    }
+
+    private func toggleJoinAtLogin(for chat: Chat) {
+        let shouldEnable = !runtime.isAutoJoinEnabled(forPublicChatID: chat.id)
+        runtime.setAutoJoinEnabled(shouldEnable, forPublicChatID: chat.id)
+    }
+
+    @ViewBuilder
+    private func joinAtLoginMenuLabel(for chat: Chat) -> some View {
+        if runtime.isAutoJoinEnabled(forPublicChatID: chat.id) {
+            Label("Join at Login", systemImage: "checkmark")
+        } else {
+            Text("Join at Login")
         }
     }
 }
