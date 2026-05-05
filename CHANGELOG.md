@@ -2,10 +2,116 @@
 
 All notable changes to Wired Client are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-## [Unreleased]
+## [3.0-beta.23+49] — 2026-05-05
+
+### Bug Fixes
+- Add -allowProvisioningUpdates to xcodebuild archive ([`37ac3e7`](https://github.com/nark/Wired-macOS/commit/37ac3e7886dd2cebbde4a2583b4673bcabbf5dcc))
+
+- Use actual connection port for TOFU fingerprint lookup ([`8e9efdc`](https://github.com/nark/Wired-macOS/commit/8e9efdce87c1abb2c56fb0df04be9f79e4641f1f))
+
+- Align macOS team ID and clear provisioning profile specifier ([`5e406b2`](https://github.com/nark/Wired-macOS/commit/5e406b2ec6d01dd9ff60e4f410eb88ee5ac80d22))
+
+- Override DEVELOPMENT_TEAM from detected signing identity ([`72fac6d`](https://github.com/nark/Wired-macOS/commit/72fac6d9bc9ab9a4ede037880adc745f026afa5f))
+
+- Clear provisioning profile specifier during archive ([`57014d2`](https://github.com/nark/Wired-macOS/commit/57014d2b0bdc5770a88c98b84a4b4b5358d7ddf9))
+
+- Reuse existing tab when reconnecting a bookmark ([`cc5c4d7`](https://github.com/nark/Wired-macOS/commit/cc5c4d7dac11f2332a48955ace18fcdc17b021f1))
+
+- Never duplicate a connection across two windows ([`2fec51e`](https://github.com/nark/Wired-macOS/commit/2fec51e242d1e69c2c7eb29bed7e73813449f6ae))
+
+- Scope programmatic close suppression to specific window ([`f767e9f`](https://github.com/nark/Wired-macOS/commit/f767e9fa517e307814bf215e6e58ba515d3d4f14))
+
+- Never disconnect a sibling window's connection ([`1273a06`](https://github.com/nark/Wired-macOS/commit/1273a0617a6cb507f193b564e8e51ab2f8f3cc24))
+
+- Split long NSLocalizedString line in Wired3App quit alert ([`9f9664a`](https://github.com/nark/Wired-macOS/commit/9f9664a878357b2388d30d1becd3f1f5f073c0ae))
+
+- Filter offline list by nick when login is unknown ([`258c3a8`](https://github.com/nark/Wired-macOS/commit/258c3a8bd1ad62339de0e919dbcca7265fc85cb6))
+
+- Hide offline panel when privilege is revoked ([`53f4be5`](https://github.com/nark/Wired-macOS/commit/53f4be50561eb6a7db37a7e779ece318fc8fcb6d))
+
+- Require double-click to open offline conversation ([`57d6b7f`](https://github.com/nark/Wired-macOS/commit/57d6b7f640e3bc2d2cb9379425eb1a684310b13a))
+
+- Scope X25519 keypair by host+login ([`513780e`](https://github.com/nark/Wired-macOS/commit/513780eca001083886b3a70fe86fbf5a7c6781b8))
+
+- Use wired.message.offline.recipient_login instead of wired.user.login ([`a00f00c`](https://github.com/nark/Wired-macOS/commit/a00f00c295a10b65c13972c2341cf186bacd1996))
+
+- Cmd+W returns to Public Chat instead of closing when not in chat ([`327c956`](https://github.com/nark/Wired-macOS/commit/327c956cbef0a7a4e346814330b59430ff367a6b))
+
+- Add OfflineMessageCrypto and OfflineMessageKeyManager to Xcode target ([`c3647b5`](https://github.com/nark/Wired-macOS/commit/c3647b5ede40f91802a27e780de166c0f74b8275))
+
+- Restrict Keychain key to WhenUnlockedThisDeviceOnly (B3) ([`adb9612`](https://github.com/nark/Wired-macOS/commit/adb9612ff8c2256293dda0fc0038ac919ab03650))
+
+- Remove plaintext fallback and harden notifications (B1+B2) ([`01436eb`](https://github.com/nark/Wired-macOS/commit/01436eb6b6c15223d944cda64d039402223f11dc))
+
+- Fall back to current window when tab switch fails ([`8d64e9e`](https://github.com/nark/Wired-macOS/commit/8d64e9e4660640e25d6ce7334f8f85a4a79623ba))
+
+- Send public key upload sequentially to avoid concurrent socket writes ([`0536950`](https://github.com/nark/Wired-macOS/commit/05369509adde008cc540800b7bd3dc1da5c2215c))
+
+- Clear offlineUsers on disconnect ([`b775232`](https://github.com/nark/Wired-macOS/commit/b775232d95a6f6fb88352ab454688d365b4a275a))
+
+- Move OfflineUser into User.swift and fix MessageEvent init ([`d21d83c`](https://github.com/nark/Wired-macOS/commit/d21d83c21f79398fded690c8581a23706b257287))
+
+- Reuse empty window when double-clicking disconnected bookmark ([`2ba2e8d`](https://github.com/nark/Wired-macOS/commit/2ba2e8d4e75f45eecba061b3f9e3875e2193d725))
+
+- Align macOS team ID and clear provisioning profile specifier ([`0580e04`](https://github.com/nark/Wired-macOS/commit/0580e04d97f54caef129e77c4a04acf4a34505a4))
+
+- Override DEVELOPMENT_TEAM from detected signing identity ([`6e161a3`](https://github.com/nark/Wired-macOS/commit/6e161a329c338dd351512fb6fd4d66917e41d5ee))
+
+- Clear provisioning profile specifier during archive ([`2497209`](https://github.com/nark/Wired-macOS/commit/24972096882ee70a16a6c81b9ef66f61ee57ad2a))
+
+- Prevent duplicate window tab when connecting from empty window ([`5eefd3c`](https://github.com/nark/Wired-macOS/commit/5eefd3c08edc3732ec64528f96fc462357474b41))
+
+- Fix syntax errors in de.lproj (duplicate key, unescaped quote) ([`eb36894`](https://github.com/nark/Wired-macOS/commit/eb36894c3baa9ed34576d6bff00790ef6f07bc9c))
+
+- Localize FileType.description (File/Directory/Drop Box/Sync labels) ([`c144075`](https://github.com/nark/Wired-macOS/commit/c1440758163472a0aef302e5e274500f0ede9da1))
+
+- Localize Quick Look alert and drag-overwrite alert strings ([`f0e385a`](https://github.com/nark/Wired-macOS/commit/f0e385a506d119766c5b2dc4c69e176ad3e2b1f7))
+
+- Fix Cmd-W cascade, silent close, and single-click tab activation ([`ef5a5bf`](https://github.com/nark/Wired-macOS/commit/ef5a5bfd8b4103e9c58a955b64270dafadd00888))
+
+- Fall back to current window when tab switch fails ([`b98d400`](https://github.com/nark/Wired-macOS/commit/b98d400190be6f9a78b1cb82a0ec8b6b57198b33))
+
+- Cmd+W returns to Public Chat instead of closing when not in chat ([`2b2d22a`](https://github.com/nark/Wired-macOS/commit/2b2d22af54adba488fb01141e543353bca86fd2b))
+
+- Reuse empty window when double-clicking disconnected bookmark ([`a3f558f`](https://github.com/nark/Wired-macOS/commit/a3f558f8cf7f2304d6c7326218ede72a4c357f02))
+
+- Prevent duplicate window tab when connecting from empty window ([`341e866`](https://github.com/nark/Wired-macOS/commit/341e8662f2e00d759c9a2948ba8f393417c721f8))
+
+
+### Documentation
+- Document E2E threat model honestly ([`ed4c8ef`](https://github.com/nark/Wired-macOS/commit/ed4c8ef2b86819e57978eea0061f45f8f4b92edd))
+
 
 ### Features
-- Show mandatory password-change sheet on first login for accounts migrated from Wired 2.5; the sheet cannot be dismissed until a new password is set ([`71989be`](https://github.com/martinmarsian/Wired-macOS/commit/71989be79eebb4c7bed7cc539e75dce3e72a3eef))
+- Expose list_offline_users in the Messages category ([`b4c469c`](https://github.com/nark/Wired-macOS/commit/b4c469ca4ced1bf9abb06e4fd690c34f96405650))
+
+- Resizable sidebar panels with persisted width ([`0d0a52e`](https://github.com/nark/Wired-macOS/commit/0d0a52ec72104866cb51e80e821565759727126b))
+
+- Connect on double-click in sidebar ([`a1ac0bd`](https://github.com/nark/Wired-macOS/commit/a1ac0bdac490014c50ce43a0033b8a3109039627))
+
+- E2E encryption for offline messages on client side ([`d17707d`](https://github.com/nark/Wired-macOS/commit/d17707d461853e957a69463fe7b07f1d6b1c0a0b))
+
+- Display sender nick instead of login in offline messages ([`081ff3c`](https://github.com/nark/Wired-macOS/commit/081ff3c3632ccca7f4e2ced874c3871a6a9f1ed1))
+
+- Split user list into resizable panes, fix offline click ([`7f661e1`](https://github.com/nark/Wired-macOS/commit/7f661e176edd16358ed0e4d1011e6a1e3429ffbb))
+
+- Implement client-side offline messaging and offline user list ([`e337717`](https://github.com/nark/Wired-macOS/commit/e337717cc5db074983a3fc199a11bf7c424537e9))
+
+- Add German localization and complete French/English strings coverage ([`7664a2c`](https://github.com/nark/Wired-macOS/commit/7664a2ca1c7f21fbf76bd1f1d6ec4ed6b5dddc42))
+
+- Resizable sidebar panels with persisted width ([`8528829`](https://github.com/nark/Wired-macOS/commit/8528829221263f72789316cbfd279913d8c31056))
+
+- Connect on double-click in sidebar ([`d011c44`](https://github.com/nark/Wired-macOS/commit/d011c447766fe3fccb2cde0d8955a788e9b2ab26))
+
+
+### Other
+- Drop signing team override and dependency bumps ([`061e4c6`](https://github.com/nark/Wired-macOS/commit/061e4c68b7677068af89ca605fcbe4a7e201db81))
+
+- Extract tab/window/Cmd+W changes from offline-messaging PR ([`da5d613`](https://github.com/nark/Wired-macOS/commit/da5d613f79f651e11992b20851964040044d7049))
+
+- Restore macOS main window minimum size ([`21a3207`](https://github.com/nark/Wired-macOS/commit/21a3207896eb898336485b3b37927480383ccbe5))
+
+- Identify wiredsyncd sessions by sync folder ([`43082c5`](https://github.com/nark/Wired-macOS/commit/43082c56269bbdbe18d684c3080dfdf27e268def))
 
 ## [3.0-beta.22+42] — 2026-04-20
 
@@ -15,8 +121,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fix tracker reload background execution ([`bef7e95`](https://github.com/nark/Wired-macOS/commit/bef7e959de361bad7b406ecb86688f920052bfc9))
 
 
+### Features
+- Prompt password change for legacy Wired 2.5 accounts on first login ([`71989be`](https://github.com/nark/Wired-macOS/commit/71989be79eebb4c7bed7cc539e75dce3e72a3eef))
+
+
 ### Other
 - Seed default tracker on first launch ([`3e47203`](https://github.com/nark/Wired-macOS/commit/3e4720331ab89328262492de66165f7851b405f7))
+
+- Replace hardcoded French UI strings with Localizable.strings ([`a5a0f76`](https://github.com/nark/Wired-macOS/commit/a5a0f76e7b0064d50a12dd2837737ce3f3fc6ca7))
 
 ## [3.0-beta.21+38] — 2026-04-13
 
