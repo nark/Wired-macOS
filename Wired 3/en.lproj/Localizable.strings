@@ -604,6 +604,7 @@
 "wired.account.chat.create_chats" = "Create Chats";
 "wired.account.chat.create_public_chats" = "Create Public Chats";
 "wired.account.chat.delete_public_chats" = "Delete Public Chats";
+"wired.account.chat.add_reactions" = "Add Reactions";
 
 /* ── User privileges (additions) ── */
 "wired.account.user.cannot_set_nick" = "Cannot Set Nick";

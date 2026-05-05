@@ -601,6 +601,7 @@
 "wired.account.chat.create_chats" = "Chats erstellen";
 "wired.account.chat.create_public_chats" = "Öffentliche Chats erstellen";
 "wired.account.chat.delete_public_chats" = "Öffentliche Chats löschen";
+"wired.account.chat.add_reactions" = "Reaktionen hinzufügen";
 
 /* ── User privileges (additions) ── */
 "wired.account.user.cannot_set_nick" = "Kann Spitzname nicht ändern";

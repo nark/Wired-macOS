@@ -602,6 +602,7 @@
 "wired.account.chat.create_chats" = "Créer des chats";
 "wired.account.chat.create_public_chats" = "Créer des chats publics";
 "wired.account.chat.delete_public_chats" = "Supprimer des chats publics";
+"wired.account.chat.add_reactions" = "Ajouter des réactions";
 
 /* ── User privileges (additions) ── */
 "wired.account.user.cannot_set_nick" = "Ne peut pas changer de pseudo";
