@@ -12,6 +12,31 @@ import WiredSwift
 import UniformTypeIdentifiers
 import CryptoKit
 
+/// Snapshot of the Wired protocol versions seen on a connection.
+///
+/// Both sides exchange their full spec via `p7.compatibility_check.specification`
+/// when the versions differ; the resulting diff (`messagesUnknownToRemote`
+/// etc.) lets the UI surface what is unsupported on either side without
+/// blocking the session.
+struct ProtocolVersionInfo: Equatable {
+    let localVersion: String
+    let remoteVersion: String
+    let messagesUnknownToRemote: Int
+    let messagesUnknownToLocal: Int
+    let fieldsUnknownToRemote: Int
+    let fieldsUnknownToLocal: Int
+
+    var hasMismatch: Bool { localVersion != remoteVersion }
+
+    /// `true` if the spec exchange happened and surfaced concrete spec
+    /// items the peer doesn't know about — useful for "feature X may not
+    /// be available" hints in the UI.
+    var hasSpecDrift: Bool {
+        messagesUnknownToRemote + messagesUnknownToLocal +
+        fieldsUnknownToRemote + fieldsUnknownToLocal > 0
+    }
+}
+
 struct ChatInvitation: Equatable {
     let chatID: UInt32
     let inviterUserID: UInt32
@@ -333,6 +358,13 @@ final class ConnectionRuntime: Identifiable {
     var joined = false
     var lastError: Error?
     var moderationNotice: ModerationNotice?
+
+    /// Snapshot of the Wired protocol versions negotiated for this session.
+    /// Populated in `connected(_:)` from the underlying `P7Socket`. `nil`
+    /// while disconnected. Used by `ServerInfoView` and `UserListRowView`
+    /// to surface client/server version drift, and by the connection
+    /// success toast.
+    var protocolVersionInfo: ProtocolVersionInfo?
     var hasConnectionIssue: Bool = false
     var isAutoReconnectScheduled: Bool = false
     var autoReconnectAttempt: Int = 0
@@ -461,8 +493,34 @@ final class ConnectionRuntime: Identifiable {
         lastError = nil
         hasConnectionIssue = false
         status = .connected
+        protocolVersionInfo = Self.versionInfo(from: connection)
         resetAutoReconnectState()
         startTypingCleanupTimer()
+
+        if let info = protocolVersionInfo, info.hasMismatch {
+            NotificationCenter.default.post(
+                name: .wiredConnectionVersionMismatch,
+                object: nil,
+                userInfo: [
+                    "connectionID": id,
+                    "info": info
+                ]
+            )
+        }
+    }
+
+    private static func versionInfo(from connection: Connection) -> ProtocolVersionInfo? {
+        guard let local = connection.spec.protocolVersion else { return nil }
+        let remote = connection.socket?.remoteVersion ?? local
+        let diff = connection.socket?.compatibilityDiff
+        return ProtocolVersionInfo(
+            localVersion: local,
+            remoteVersion: remote,
+            messagesUnknownToRemote: diff?.messagesUnknownToRemote.count ?? 0,
+            messagesUnknownToLocal: diff?.messagesUnknownToLocal.count ?? 0,
+            fieldsUnknownToRemote: diff?.fieldsUnknownToRemote.count ?? 0,
+            fieldsUnknownToLocal: diff?.fieldsUnknownToLocal.count ?? 0
+        )
     }
 
     func disconnect(error: Error? = nil) {
@@ -474,6 +532,7 @@ final class ConnectionRuntime: Identifiable {
         privileges = [:]
         userID = 0
         serverInfo = nil
+        protocolVersionInfo = nil
         status = .disconnected
         pendingChatInvitation = nil
 

@@ -159,6 +159,8 @@ The [WiredSwift](https://github.com/nark/WiredSwift) repository includes:
 - **wired3**: the server daemon
 - **WiredServerApp**: the macOS GUI app for local server administration
 
+Wired Client interoperates with any Wired 3 server sharing the same protocol *major* version. Minor-version differences are negotiated transparently — see [`WiredSwift/COMPATIBILITY.md`](https://github.com/nark/WiredSwift/blob/master/COMPATIBILITY.md) for the policy.
+
 In practice, a Wired server can host a private community with:
 
 - multiple public chats

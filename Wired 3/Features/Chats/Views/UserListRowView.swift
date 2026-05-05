@@ -100,7 +100,11 @@ struct UserInfosView: View {
                     }
                     if let wiredName = spec.protocolName, let wiredVersion = spec.protocolVersion {
                         LabeledContent {
-                            Text("\(wiredName) \(wiredVersion)").foregroundStyle(.secondary)
+                            wiredProtocolLabel(
+                                specName: wiredName,
+                                localVersion: wiredVersion,
+                                info: runtime.protocolVersionInfo
+                            )
                         } label: {
                             Text("Wired Protocol")
                         }
@@ -193,6 +197,42 @@ struct UserInfosView: View {
                 await runtime.refreshUserInfo(user.id)
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func wiredProtocolLabel(
+        specName: String,
+        localVersion: String,
+        info: ProtocolVersionInfo?
+    ) -> some View {
+        if let info, info.hasMismatch {
+            HStack(spacing: 6) {
+                Text("\(specName) \(info.remoteVersion) (server) · \(info.localVersion) (client)")
+                    .foregroundStyle(.secondary)
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.orange)
+                    .imageScale(.small)
+                    .help(versionDriftSummary(info: info))
+            }
+        } else {
+            Text("\(specName) \(localVersion)").foregroundStyle(.secondary)
+        }
+    }
+
+    private func versionDriftSummary(info: ProtocolVersionInfo) -> String {
+        if info.hasSpecDrift {
+            return String(
+                format: String(
+                    localized: "Spec drift — messages: %d unknown to server, %d unknown to client; fields: %d / %d."
+                ),
+                info.messagesUnknownToRemote,
+                info.messagesUnknownToLocal,
+                info.fieldsUnknownToRemote,
+                info.fieldsUnknownToLocal
+            )
+        } else {
+            return String(localized: "No spec drift — newer features are simply gated by the negotiated version.")
         }
     }
 }

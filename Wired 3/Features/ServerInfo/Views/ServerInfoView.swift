@@ -54,8 +54,9 @@ struct ServerInfoView: View {
                                     if let p7 = spec.builtinProtocolVersion {
                                         infoRow("P7 Protocol", value: p7)
                                     }
-                                    if let name = spec.protocolName, let ver = spec.protocolVersion {
-                                        infoRow("Wired Protocol", value: "\(name) \(ver)")
+                                    if let name = spec.protocolName,
+                                       let ver = spec.protocolVersion {
+                                        wiredProtocolRow(specName: name, localVersion: ver)
                                     }
                                 }
                             }
@@ -128,6 +129,64 @@ struct ServerInfoView: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    @ViewBuilder
+    private func wiredProtocolRow(specName: String, localVersion: String) -> some View {
+        let info = runtime.protocolVersionInfo
+        let remoteVersion = info?.remoteVersion ?? localVersion
+        let mismatched = info?.hasMismatch ?? false
+        let valueText = mismatched
+            ? "\(specName) \(remoteVersion) (server) · \(localVersion) (client)"
+            : "\(specName) \(localVersion)"
+
+        GridRow {
+            Text(LocalizedStringKey("Wired Protocol"))
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
+                .gridColumnAlignment(.leading)
+                .frame(minWidth: 110, alignment: .leading)
+
+            HStack(spacing: 6) {
+                Text(valueText)
+                    .font(.subheadline)
+                    .textSelection(.enabled)
+                if mismatched {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.orange)
+                        .imageScale(.small)
+                        .help(versionMismatchTooltip(info: info))
+                }
+            }
+            .gridColumnAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func versionMismatchTooltip(info: ProtocolVersionInfo?) -> String {
+        guard let info else { return "" }
+        var lines: [String] = [
+            String(
+                format: String(localized: "Client Wired %@ ↔ Server Wired %@"),
+                info.localVersion, info.remoteVersion
+            )
+        ]
+        if info.hasSpecDrift {
+            lines.append(
+                String(
+                    format: String(
+                        localized: "Spec drift — messages: %d unknown to server, %d unknown to client; fields: %d / %d."
+                    ),
+                    info.messagesUnknownToRemote,
+                    info.messagesUnknownToLocal,
+                    info.fieldsUnknownToRemote,
+                    info.fieldsUnknownToLocal
+                )
+            )
+        } else {
+            lines.append(String(localized: "No spec drift — newer features are simply gated by the negotiated version."))
+        }
+        return lines.joined(separator: "\n")
     }
 
     @ViewBuilder
