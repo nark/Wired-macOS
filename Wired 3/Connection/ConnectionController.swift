@@ -1736,10 +1736,13 @@ final class ConnectionController {
                         if let user = await chat.users.first(where: { $0.id == userID }) {
                             if let say = message.string(forField: "wired.chat.say") {
                                 let attachments = ChatAttachmentDescriptor.descriptors(from: message)
+                                let serverMessageID = message.string(forField: "wired.chat.message.id")
                                 await MainActor.run {
                                     runtime.clearIncomingChatTyping(chatID: chatID, userID: userID)
+                                    let event = ChatEvent(chat: chat, user: user, type: .say, text: say, attachments: attachments)
+                                    event.serverMessageID = serverMessageID
                                     appendChatMessage(
-                                        ChatEvent(chat: chat, user: user, type: .say, text: say, attachments: attachments),
+                                        event,
                                         to: chat,
                                         runtime: runtime
                                     )
@@ -1788,10 +1791,13 @@ final class ConnectionController {
                         if let user = await chat.users.first(where: { $0.id == userID }) {
                             if let say = message.string(forField: "wired.chat.me") {
                                 let attachments = ChatAttachmentDescriptor.descriptors(from: message)
+                                let serverMessageID = message.string(forField: "wired.chat.message.id")
                                 await MainActor.run {
                                     runtime.clearIncomingChatTyping(chatID: chatID, userID: userID)
+                                    let event = ChatEvent(chat: chat, user: user, type: .me, text: say, attachments: attachments)
+                                    event.serverMessageID = serverMessageID
                                     appendChatMessage(
-                                        ChatEvent(chat: chat, user: user, type: .me, text: say, attachments: attachments),
+                                        event,
                                         to: chat,
                                         runtime: runtime
                                     )
@@ -1839,6 +1845,20 @@ final class ConnectionController {
                let isTyping = message.bool(forField: "wired.chat.typing") {
                 await MainActor.run {
                     runtime.applyIncomingChatTyping(chatID: chatID, userID: userID, isTyping: isTyping)
+                }
+            }
+        case "wired.chat.reaction_added", "wired.chat.reaction_removed":
+            if let chatID = message.uint32(forField: "wired.chat.id"),
+               let messageID = message.string(forField: "wired.chat.message.id"),
+               let emoji = message.string(forField: "wired.chat.reaction.emoji"),
+               let count = message.uint32(forField: "wired.chat.reaction.count") {
+                let added = (message.name == "wired.chat.reaction_added")
+                let nick = message.string(forField: "wired.chat.reaction.nick")
+                await MainActor.run {
+                    runtime.applyChatReactionBroadcast(
+                        chatID: chatID, messageID: messageID,
+                        emoji: emoji, count: Int(count), added: added, nick: nick
+                    )
                 }
             }
         case "wired.message.message":
