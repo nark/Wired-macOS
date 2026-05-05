@@ -27,6 +27,7 @@
 		4C0C2E182EFD455300213277 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E172EFD455300213277 /* MessageBubble.swift */; };
 		4C0C2E1C2EFD7C4E00213277 /* ChatTopicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1B2EFD7C4E00213277 /* ChatTopicView.swift */; };
 		4C0C2E1E2EFD7C6300213277 /* ChatSayMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1D2EFD7C6300213277 /* ChatSayMessageView.swift */; };
+		4CCR03402F900001000C0001 /* ChatReactionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCR03412F900001000C0001 /* ChatReactionBarView.swift */; };
 		4C0C2E202EFD7DD200213277 /* ChatEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1F2EFD7DD200213277 /* ChatEventView.swift */; };
 		4C0C2E292EFDB90A00213277 /* ConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E282EFDB90A00213277 /* ConnectionState.swift */; };
 		4C0C2E2B2EFDB92200213277 /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E2A2EFDB92100213277 /* Chat.swift */; };
@@ -178,6 +179,7 @@
 		4C0C2E172EFD455300213277 /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
 		4C0C2E1B2EFD7C4E00213277 /* ChatTopicView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTopicView.swift; sourceTree = "<group>"; };
 		4C0C2E1D2EFD7C6300213277 /* ChatSayMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSayMessageView.swift; sourceTree = "<group>"; };
+		4CCR03412F900001000C0001 /* ChatReactionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatReactionBarView.swift; sourceTree = "<group>"; };
 		4C0C2E1F2EFD7DD200213277 /* ChatEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatEventView.swift; sourceTree = "<group>"; };
 		4C0C2E282EFDB90A00213277 /* ConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionState.swift; sourceTree = "<group>"; };
 		4C0C2E2A2EFDB92100213277 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
@@ -401,6 +403,7 @@
 				4C0C2E3B2F0042FA00213277 /* ChatMessagesView.swift */,
 				AB1000043000000100213277 /* ChatAttachmentViews.swift */,
 				4C0C2E1D2EFD7C6300213277 /* ChatSayMessageView.swift */,
+				4CCR03412F900001000C0001 /* ChatReactionBarView.swift */,
 				4C0C2E322EFDBA9E00213277 /* ChatMeMessageView.swift */,
 				4C0C2E1F2EFD7DD200213277 /* ChatEventView.swift */,
 				4C0C2E172EFD455300213277 /* MessageBubble.swift */,
@@ -943,6 +946,7 @@
 				4C0C2E072EF5C84000213277 /* ConnectionRuntime.swift in Sources */,
 				AB1000033000000100213277 /* ChatAttachmentViews.swift in Sources */,
 				4C0C2E1E2EFD7C6300213277 /* ChatSayMessageView.swift in Sources */,
+				4CCR03402F900001000C0001 /* ChatReactionBarView.swift in Sources */,
 				4C8A826B2F5ED07200C271A8 /* MessageConversationDetailView.swift in Sources */,
 				4C0C2E482F07F6EF00213277 /* View.swift in Sources */,
 				4C0C2E332EFDBA9E00213277 /* ChatMeMessageView.swift in Sources */,
