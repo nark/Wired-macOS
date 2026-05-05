@@ -14,13 +14,19 @@ import SwiftUI
 struct ChatReactionBarView: View {
     @Environment(ConnectionRuntime.self) private var runtime
     let event: ChatEvent
+    /// Hover state from the parent message row. The "+" picker is hidden
+    /// until the user hovers, to avoid cluttering the chat with always-on
+    /// affordances.
+    var isParentHovered: Bool = false
+
+    @State private var showEmojiPicker = false
 
     private var canReact: Bool {
         runtime.canUseChatReactions && event.serverMessageID != nil
     }
 
     var body: some View {
-        if canReact, !event.reactions.isEmpty {
+        if canReact, !event.reactions.isEmpty || isParentHovered {
             HStack(spacing: 6) {
                 ForEach(event.reactions) { reaction in
                     ChatReactionChipView(
@@ -30,6 +36,7 @@ struct ChatReactionBarView: View {
                         onToggle: { emoji in toggle(emoji) }
                     )
                 }
+                addButton
             }
             .animation(.easeInOut(duration: 0.15), value: event.reactions.map(\.count))
             .task(id: event.serverMessageID ?? "") {
@@ -39,56 +46,29 @@ struct ChatReactionBarView: View {
         }
     }
 
-    private func toggle(_ emoji: String) {
-        Task { try? await runtime.toggleChatReaction(emoji: emoji, on: event) }
-    }
-}
-
-/// Long-press handler that opens the chat reaction picker. Use on any
-/// bubble (text, image, file) — long-press never collides with the
-/// existing single/double-tap actions on image bubbles. The popover and
-/// the toggle action are owned by the modifier so the gesture surface
-/// stays self-contained.
-struct ChatReactionLongPressModifier: ViewModifier {
-    @Environment(ConnectionRuntime.self) private var runtime
-    let event: ChatEvent
-    /// When true, double-click also opens the picker (text bubbles only —
-    /// image bubbles use double-click to open QuickLook).
-    let allowDoubleClick: Bool
-
-    @State private var showPicker = false
-
-    private var canReact: Bool {
-        runtime.canUseChatReactions && event.serverMessageID != nil
-    }
-
-    func body(content: Content) -> some View {
-        if canReact {
-            let withLongPress = content
-                .contentShape(Rectangle())
-                .onLongPressGesture(minimumDuration: 0.4) { showPicker = true }
-                .popover(isPresented: $showPicker, arrowEdge: .top) {
-                    EmojiPickerPopover { emoji in
-                        showPicker = false
-                        Task { try? await runtime.toggleChatReaction(emoji: emoji, on: event) }
-                    }
-                }
-            if allowDoubleClick {
-                withLongPress.onTapGesture(count: 2) { showPicker = true }
-            } else {
-                withLongPress
+    @ViewBuilder
+    private var addButton: some View {
+        Button { showEmojiPicker = true } label: {
+            Image(systemName: "face.smiling")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.secondary.opacity(0.08)))
+                .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help("Add a reaction")
+        .popover(isPresented: $showEmojiPicker, arrowEdge: .bottom) {
+            EmojiPickerPopover { emoji in
+                showEmojiPicker = false
+                toggle(emoji)
             }
-        } else {
-            content
         }
     }
-}
 
-extension View {
-    /// Reaction picker on long-press (every bubble) and optionally on
-    /// double-click (text bubbles, where double-click is otherwise unused).
-    func chatReactionGesture(for event: ChatEvent, allowDoubleClick: Bool = false) -> some View {
-        modifier(ChatReactionLongPressModifier(event: event, allowDoubleClick: allowDoubleClick))
+    private func toggle(_ emoji: String) {
+        Task { try? await runtime.toggleChatReaction(emoji: emoji, on: event) }
     }
 }
 

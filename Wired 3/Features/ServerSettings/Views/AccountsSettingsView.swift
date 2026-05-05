@@ -1406,7 +1406,6 @@ private struct AccountPermissionsForm: View {
 
 private enum PermissionCategory: String, CaseIterable, Hashable {
     case basic
-    case chat
     case files
     case messages
     case transfers
@@ -1419,13 +1418,12 @@ private enum PermissionCategory: String, CaseIterable, Hashable {
     case other
 
     static var displayOrder: [PermissionCategory] {
-        [.basic, .chat, .files, .messages, .transfers, .boards, .users, .accounts, .administration, .tracker, .limits, .other]
+        [.basic, .files, .messages, .transfers, .boards, .users, .accounts, .administration, .tracker, .limits, .other]
     }
 
     var title: String {
         switch self {
         case .basic: return NSLocalizedString("Basic", comment: "")
-        case .chat: return NSLocalizedString("Chat", comment: "")
         case .files: return NSLocalizedString("Files", comment: "")
         case .messages: return NSLocalizedString("Messages", comment: "")
         case .transfers: return NSLocalizedString("Transfers", comment: "")
@@ -1441,15 +1439,11 @@ private enum PermissionCategory: String, CaseIterable, Hashable {
 
     static func category(for key: String) -> PermissionCategory {
         if key == "wired.account.color" ||
+            key.hasPrefix("wired.account.chat.create_") ||
+            key == "wired.account.chat.set_topic" ||
             key == "wired.account.user.cannot_set_nick" ||
             key == "wired.account.user.get_info" {
             return .basic
-        }
-
-        // All wired.account.chat.* permissions live in the Chat category, except
-        // kick_users which is a moderation action grouped with users below.
-        if key.hasPrefix("wired.account.chat.") && key != "wired.account.chat.kick_users" {
-            return .chat
         }
 
         if key.hasPrefix("wired.account.message.")
