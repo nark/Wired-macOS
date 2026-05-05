@@ -240,7 +240,7 @@ struct ChatView: View {
     private func markCurrentChatAsReadIfNeeded() {
         guard runtime.selectedTab == .chats else { return }
         guard runtime.selectedChatID == chat.id else { return }
-        guard chat.unreadMessagesCount > 0 else { return }
+        guard chat.totalUnreadCount > 0 else { return }
         runtime.resetUnreads(chat)
     }
 

@@ -46,6 +46,7 @@ enum WiredEventTag: Int, CaseIterable, Codable, Identifiable {
     case userLeft = 6
     case chatReceived = 7
     case chatSent = 16
+    case chatReactionReceived = 18
     case highlightedChatReceived = 14
     case chatInvitationReceived = 15
     case messageReceived = 8
@@ -66,6 +67,7 @@ enum WiredEventTag: Int, CaseIterable, Codable, Identifiable {
         case .userChangedNick: return "User Changed Nick"
         case .userLeft: return "User Left"
         case .chatReceived: return "Chat Received"
+        case .chatReactionReceived: return "Chat Reaction Received"
         case .messageReceived: return "Message Received"
         case .boardPostAdded: return "Board Post Added"
         case .boardReactionReceived: return "Board Reaction Received"
@@ -89,6 +91,7 @@ enum WiredEventTag: Int, CaseIterable, Codable, Identifiable {
         .userLeft,
         .chatReceived,
         .chatSent,
+        .chatReactionReceived,
         .highlightedChatReceived,
         .chatInvitationReceived,
         .messageReceived,
@@ -1855,10 +1858,22 @@ final class ConnectionController {
                 let added = (message.name == "wired.chat.reaction_added")
                 let nick = message.string(forField: "wired.chat.reaction.nick")
                 await MainActor.run {
-                    runtime.applyChatReactionBroadcast(
+                    let event = runtime.applyChatReactionBroadcast(
                         chatID: chatID, messageID: messageID,
-                        emoji: emoji, count: Int(count), added: added, nick: nick
+                        emoji: emoji, count: Int(count), added: added, nick: nick,
+                        countAsUnread: self.shouldIncrementUnreadForChatMessage(in: runtime, chatID: chatID)
                     )
+
+                    if added, let reactorNick = nick, reactorNick != runtime.currentNick {
+                        let subject = event?.reactionNotificationSubject ?? "a chat message"
+                        self.triggerEvent(
+                            .chatReactionReceived,
+                            runtime: runtime,
+                            subtitle: reactorNick,
+                            body: "\(reactorNick) reacted with \(emoji) to \(subject)",
+                            chatText: nil
+                        )
+                    }
                 }
             }
         case "wired.message.message":

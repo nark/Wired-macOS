@@ -436,7 +436,7 @@ final class ConnectionRuntime: Identifiable {
     }
 
     var totalUnreadChatMessages: Int {
-        (chats + private_chats).reduce(0) { $0 + $1.unreadMessagesCount }
+        (chats + private_chats).reduce(0) { $0 + $1.totalUnreadCount }
     }
 
     var totalUnreadPrivateMessages: Int {
@@ -3283,6 +3283,7 @@ final class ConnectionRuntime: Identifiable {
 
     public func resetUnreads(_ chat: Chat) {
         chat.unreadMessagesCount = 0
+        chat.unreadReactionCount = 0
         connectionController.updateNotificationsBadge()
     }
 

@@ -40,7 +40,7 @@ struct ChatRowView: View {
 
             Spacer()
 
-            UnreadCountBadge(count: chat.unreadMessagesCount)
+            UnreadCountBadge(count: chat.totalUnreadCount)
         }
         .contentShape(Rectangle())
 #if os(macOS)

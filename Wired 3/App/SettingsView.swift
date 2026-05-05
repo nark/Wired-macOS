@@ -975,7 +975,7 @@ struct EventsSettingsView: View {
         let connection: [WiredEventTag] = [.serverConnected, .serverDisconnected, .error]
         let activity: [WiredEventTag] = [
             .userJoined, .userChangedNick, .userChangedStatus, .userLeft,
-            .chatReceived, .chatSent, .highlightedChatReceived, .chatInvitationReceived,
+            .chatReceived, .chatSent, .chatReactionReceived, .highlightedChatReceived, .chatInvitationReceived,
             .messageReceived, .broadcastReceived, .boardPostAdded, .boardReactionReceived
         ]
         let transfers: [WiredEventTag] = [.transferStarted, .transferFinished]
@@ -1075,6 +1075,7 @@ struct EventsSettingsView: View {
         case .userLeft: return "person.badge.minus"
         case .chatReceived: return "message"
         case .chatSent: return "paperplane"
+        case .chatReactionReceived: return "face.smiling"
         case .highlightedChatReceived: return "text.bubble"
         case .chatInvitationReceived: return "person.2.badge.plus"
         case .messageReceived: return "envelope.badge"

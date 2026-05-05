@@ -72,11 +72,25 @@ extension ConnectionRuntime {
 
     /// Apply an incoming `wired.chat.reaction_added` / `reaction_removed`
     /// to the in-memory event. Mirrors `applyReactionBroadcast` for boards.
+    @discardableResult
     func applyChatReactionBroadcast(chatID: UInt32, messageID: String,
-                                    emoji: String, count: Int, added: Bool, nick: String?) {
-        guard let event = chatEvent(chatID: chatID, messageID: messageID) else { return }
+                                    emoji: String, count: Int, added: Bool,
+                                    nick: String?, countAsUnread: Bool) -> ChatEvent? {
+        guard let chat = chat(withID: chatID) else { return nil }
+        let event = chatEvent(chatID: chatID, messageID: messageID)
 
         let isOwnReaction = nick == nil || nick == currentNick
+
+        if added, !isOwnReaction, countAsUnread {
+            chat.unreadReactionCount += 1
+            connectionController.updateNotificationsBadge()
+        }
+        if !added, !isOwnReaction, chat.unreadReactionCount > 0 {
+            chat.unreadReactionCount -= 1
+            connectionController.updateNotificationsBadge()
+        }
+
+        guard let event else { return nil }
 
         if count == 0 {
             event.reactions.removeAll { $0.emoji == emoji }
@@ -107,5 +121,7 @@ extension ConnectionRuntime {
                 captured.newReactionEmojis.remove(capturedEmoji)
             }
         }
+
+        return event
     }
 }

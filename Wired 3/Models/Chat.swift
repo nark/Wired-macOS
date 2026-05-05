@@ -27,6 +27,11 @@ final class Chat: Identifiable {
     var hasMoreHistory: Bool = false
 
     var unreadMessagesCount: Int = 0
+    var unreadReactionCount: Int = 0
+
+    var totalUnreadCount: Int {
+        unreadMessagesCount + unreadReactionCount
+    }
 
     init(id: UInt32, name: String, isPrivate: Bool = false) {
         self.id = id
@@ -36,6 +41,18 @@ final class Chat: Identifiable {
 }
 
 extension ChatEvent {
+    var reactionNotificationSubject: String {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedText.isEmpty {
+            return "a message from \(user.nick)"
+        }
+
+        let preview = trimmedText.count > 80
+            ? "\(trimmedText.prefix(77))..."
+            : trimmedText
+        return "\"\(preview)\""
+    }
+
     func matchesSearch(_ rawQuery: String) -> Bool {
         let query = rawQuery.trimmedChatSearchQuery
         guard !query.isEmpty else { return true }
