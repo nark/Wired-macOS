@@ -2,6 +2,43 @@
 
 All notable changes to Wired Client are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+## [3.0-beta.24+50] — 2026-05-05
+
+### Bug Fixes
+- Polish chat reactions UI ([`8cea523`](https://github.com/nark/Wired-macOS/commit/8cea5239fba81126828006e7f7bd0f24819a611a))
+
+- Localize chat reactions permission ([`5719451`](https://github.com/nark/Wired-macOS/commit/5719451a7d42e1da91ef3f279a67b04746d290b1))
+
+- Switch chat reactions to long-press / double-click ([`ed0b6e0`](https://github.com/nark/Wired-macOS/commit/ed0b6e08ccafef579ca2e55b35ddf43304b99e53))
+
+- Split chat-reactions runtime into its own extension ([`47361ad`](https://github.com/nark/Wired-macOS/commit/47361ad26bf33a5b002a9f1fa0dc144e0933a292))
+
+
+### CI
+- Trigger SwiftLint rerun with updated base SHA ([`69d290a`](https://github.com/nark/Wired-macOS/commit/69d290a050ba3b1d3c6f434825c493a52ad39657))
+
+
+### Features
+- Add event and notification for chat reactions ([`83e0866`](https://github.com/nark/Wired-macOS/commit/83e08660cbc6ad32f49b106d137d351fe320fa53))
+
+- Emoji reactions on chat messages (Wired 3.2) ([`7a423f3`](https://github.com/nark/Wired-macOS/commit/7a423f31af7374abd5f82d1dc810e6908a98a4db))
+
+- Add public chat auto-join preferences ([`b0d74a3`](https://github.com/nark/Wired-macOS/commit/b0d74a346ab21500a73850e3a565ad515835fe6d))
+
+- Surface client/server protocol version drift ([`0667613`](https://github.com/nark/Wired-macOS/commit/06676134dd8ac5d9b4484ece1f5ff12781838894))
+
+
+### Other
+- Reapply "fix(chats): switch chat reactions to long-press / double-click" ([`2180da2`](https://github.com/nark/Wired-macOS/commit/2180da2a90f8291d5dc164eacf070c3ddf37c259))
+
+- Reapply "Merge pull request #41 from nark/feature/issue-40-chat-reactions" ([`98aa2a0`](https://github.com/nark/Wired-macOS/commit/98aa2a08b1536468f0d4fdee19cbd5918a8e81b9))
+
+- Revert "Merge pull request #41 from nark/feature/issue-40-chat-reactions" ([`fe6b251`](https://github.com/nark/Wired-macOS/commit/fe6b251d1fa25df41d41117cff51a63d0b1cc0ae))
+
+- Revert "fix(chats): switch chat reactions to long-press / double-click" ([`b5d7b03`](https://github.com/nark/Wired-macOS/commit/b5d7b03fd7b95485b0e2925f880b0beb467bb5fe))
+
+- Revert "chore(lint): silence type_body_length on ConnectionRuntime" ([`093317b`](https://github.com/nark/Wired-macOS/commit/093317b5623ab69f4bea3a2223725f24132fc487))
+
 ## [3.0-beta.23+49] — 2026-05-05
 
 ### Bug Fixes
