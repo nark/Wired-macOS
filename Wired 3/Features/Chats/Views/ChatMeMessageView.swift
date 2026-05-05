@@ -46,6 +46,7 @@ struct ChatMeMessageView: View {
                     .frame(maxWidth: .infinity)
                     .foregroundStyle(.gray)
                     .font(.caption)
+                    .chatReactionGesture(for: message, allowDoubleClick: true)
 
                 Spacer()
 
@@ -73,6 +74,7 @@ struct ChatMeMessageView: View {
                             onOpenQuickLook?(source)
                         }
                     )
+                    .chatReactionGesture(for: message)
                     Spacer()
                 }
             }
@@ -81,9 +83,12 @@ struct ChatMeMessageView: View {
                 HStack {
                     Spacer()
                     ChatAttachmentFileBubbleView(attachment: attachment, isFromYou: false, showsTail: false)
+                        .chatReactionGesture(for: message)
                     Spacer()
                 }
             }
+
+            ChatReactionBarView(event: message)
         }
         .listRowSeparator(.hidden)
         .id(message.id)

@@ -80,7 +80,7 @@ struct ChatSayMessageView: View {
                             bubbleFillColor: bubbleFillColor,
                             bubbleTextColor: bubbleTextColor
                         )
-                        ChatReactionBarView(event: message, isParentHovered: isHovered)
+                        ChatReactionBarView(event: message)
                             .padding(.trailing, 10)
                     }
                     .padding(.bottom, isGroupedWithNext ? 2 : 8)
@@ -106,7 +106,7 @@ struct ChatSayMessageView: View {
                             bubbleFillColor: bubbleFillColor,
                             bubbleTextColor: bubbleTextColor
                         )
-                        ChatReactionBarView(event: message, isParentHovered: isHovered)
+                        ChatReactionBarView(event: message)
                             .padding(.leading, 10)
                     }
                     .padding(.bottom, isGroupedWithNext ? 2 : 8)
@@ -156,6 +156,7 @@ struct ChatSayMessageView: View {
                 Text(trimmedMessageText)
                     .font(.system(size: 52))
                     .padding(.horizontal, 4)
+                    .chatReactionGesture(for: message, allowDoubleClick: true)
             } else if shouldShowTextBubble {
                 Text(message.text.attributedWithDetectedLinks(linkColor: linkColor))
                     .messageBubbleStyle(
@@ -171,6 +172,7 @@ struct ChatSayMessageView: View {
                         spacing: 0,
                         alignment: isFromYou ? .trailing : .leading
                     )
+                    .chatReactionGesture(for: message, allowDoubleClick: true)
             }
 
             if let primaryImageURL {
@@ -187,6 +189,7 @@ struct ChatSayMessageView: View {
                         onOpenQuickLook?(source)
                     }
                 )
+                .chatReactionGesture(for: message)
             }
 
             ForEach(Array(imageAttachments.enumerated()), id: \.element.id) { index, attachment in
@@ -203,6 +206,7 @@ struct ChatSayMessageView: View {
                         onOpenQuickLook?(source)
                     }
                 )
+                .chatReactionGesture(for: message)
             }
 
             ForEach(Array(fileAttachments.enumerated()), id: \.element.id) { index, attachment in
@@ -211,6 +215,7 @@ struct ChatSayMessageView: View {
                     isFromYou: isFromYou,
                     showsTail: index == fileAttachments.count - 1 && !isGroupedWithNext
                 )
+                .chatReactionGesture(for: message)
             }
         }
     }
