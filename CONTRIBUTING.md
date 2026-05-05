@@ -172,4 +172,9 @@ At a high level:
 - `wiredsyncd` handles folder synchronization in the background
 - `WiredSwift` provides the underlying protocol and connection layer
 
+If your change touches the Wired protocol itself (new fields, new messages,
+new behaviour gated on the peer's version), follow the rules documented in
+[`WiredSwift/COMPATIBILITY.md`](../WiredSwift/COMPATIBILITY.md) — the same
+policy applies on both sides of the wire.
+
 If you are changing behavior in the client UI, please keep the public product name as **Wired Client** in user-facing text unless there is a strong reason not to.

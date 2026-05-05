@@ -1077,6 +1077,29 @@ private struct AppRootView: View {
                     await startRemoteDownload(for: action.connectionID, remotePath: remotePath)
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .wiredConnectionVersionMismatch)) { note in
+                guard
+                    let info = note.userInfo?["info"] as? ProtocolVersionInfo,
+                    let connectionID = note.userInfo?["connectionID"] as? UUID
+                else { return }
+                let runtime = connectionController.runtime(for: connectionID)
+                let serverName = runtime.map { connectionController.runtimeDisplayName($0) }
+                errorToastCenter.present(
+                    ErrorToastPayload(
+                        kind: .info,
+                        title: String(localized: "Protocol version mismatch"),
+                        message: String(
+                            format: String(
+                                localized: "Client runs Wired %@, server runs %@. The session works, but features only available on one side may be unavailable."
+                            ),
+                            info.localVersion,
+                            info.remoteVersion
+                        ),
+                        source: "Connection",
+                        serverName: serverName
+                    )
+                )
+            }
     }
 
     private func startRemoteDownload(for connectionID: UUID, remotePath: String) async {

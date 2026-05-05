@@ -20,6 +20,10 @@ extension Notification.Name {
     static let wiredAccountAccountsChanged = Notification.Name("wiredAccountAccountsChanged")
     static let wiredServerEventReceived = Notification.Name("wiredServerEventReceived")
     static let wiredServerLogMessageReceived = Notification.Name("wiredServerLogMessageReceived")
+    /// Posted on the main queue right after a successful connect when the
+    /// client and server advertise different Wired protocol versions. The
+    /// userInfo contains `connectionID: UUID` and `info: ProtocolVersionInfo`.
+    static let wiredConnectionVersionMismatch = Notification.Name("wiredConnectionVersionMismatch")
 }
 
 struct RemoteServerEvent {
@@ -2709,7 +2713,7 @@ final class ConnectionController {
         UNUserNotificationCenter.current().add(request)
     }
 
-    private func runtimeDisplayName(_ runtime: ConnectionRuntime?) -> String {
+    func runtimeDisplayName(_ runtime: ConnectionRuntime?) -> String {
         guard let runtime else { return "Server" }
         return withStateLock {
             configurationsByID[runtime.id]?.name ?? "Server"

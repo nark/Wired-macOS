@@ -128,7 +128,13 @@ struct PresentedAppError {
 }
 
 struct ErrorToastPayload: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case error
+        case info
+    }
+
     let id: UUID
+    let kind: Kind
     let title: String
     let message: String
     let source: String
@@ -136,12 +142,14 @@ struct ErrorToastPayload: Identifiable, Equatable {
 
     init(
         id: UUID = UUID(),
+        kind: Kind = .error,
         title: String,
         message: String,
         source: String,
         serverName: String?
     ) {
         self.id = id
+        self.kind = kind
         self.title = title
         self.message = message
         self.source = source
@@ -185,6 +193,7 @@ struct ErrorToastOverlay: View {
     var body: some View {
         if let activeToast = errorToastCenter.activeToast {
             ErrorToastView(
+                kind: activeToast.kind,
                 title: activeToast.title,
                 message: activeToast.message,
                 source: activeToast.source,
@@ -292,17 +301,48 @@ private struct ErrorAlertModifier: ViewModifier {
 }
 
 struct ErrorToastView: View {
+    let kind: ErrorToastPayload.Kind
     let title: String
     let message: String
     let source: String
     let serverName: String?
     let dismiss: () -> Void
 
+    init(
+        kind: ErrorToastPayload.Kind = .error,
+        title: String,
+        message: String,
+        source: String,
+        serverName: String?,
+        dismiss: @escaping () -> Void
+    ) {
+        self.kind = kind
+        self.title = title
+        self.message = message
+        self.source = source
+        self.serverName = serverName
+        self.dismiss = dismiss
+    }
+
+    private var iconName: String {
+        switch kind {
+        case .error: return "exclamationmark.triangle.fill"
+        case .info: return "info.circle.fill"
+        }
+    }
+
+    private var accentColor: Color {
+        switch kind {
+        case .error: return .orange
+        case .info: return .accentColor
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                Image(systemName: iconName)
+                    .foregroundStyle(accentColor)
                 Text(title)
                     .font(.headline)
                     .lineLimit(1)
@@ -331,7 +371,7 @@ struct ErrorToastView: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(.orange.opacity(0.4), lineWidth: 1)
+                .strokeBorder(accentColor.opacity(0.4), lineWidth: 1)
         )
         .shadow(radius: 8, y: 2)
     }

@@ -37,7 +37,7 @@ If you would like to remain uncredited in release notes or advisories, say so in
 
 Important security-sensitive areas in this repository include:
 
-- **Connection and authentication flows** in the macOS client
+- **Connection and authentication flows** in the macOS client (including the cross-version protocol diff exchange — see [`WiredSwift/COMPATIBILITY.md`](../WiredSwift/COMPATIBILITY.md))
 - **Server identity trust** and TOFU fingerprint handling
 - **Credential storage** in the macOS Keychain
 - **File transfers** and local file handling
