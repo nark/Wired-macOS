@@ -57,6 +57,7 @@ struct ChatReactionLongPressModifier: ViewModifier {
     let allowDoubleClick: Bool
 
     @State private var showPicker = false
+    @State private var isSelectionPending = false
 
     private var canReact: Bool {
         runtime.canUseChatReactions && event.serverMessageID != nil
@@ -66,20 +67,41 @@ struct ChatReactionLongPressModifier: ViewModifier {
         if canReact {
             let withLongPress = content
                 .contentShape(Rectangle())
-                .onLongPressGesture(minimumDuration: 0.4) { showPicker = true }
-                .popover(isPresented: $showPicker, arrowEdge: .top) {
+                .onLongPressGesture(minimumDuration: 0.4) {
+                    guard !isSelectionPending else { return }
+                    showPicker = true
+                }
+                .popover(
+                    isPresented: $showPicker,
+                    attachmentAnchor: .rect(.bounds),
+                    arrowEdge: .bottom
+                ) {
                     EmojiPickerPopover { emoji in
-                        showPicker = false
-                        Task { try? await runtime.toggleChatReaction(emoji: emoji, on: event) }
+                        selectEmoji(emoji)
                     }
                 }
             if allowDoubleClick {
-                withLongPress.onTapGesture(count: 2) { showPicker = true }
+                withLongPress.onTapGesture(count: 2) {
+                    guard !isSelectionPending else { return }
+                    showPicker = true
+                }
             } else {
                 withLongPress
             }
         } else {
             content
+        }
+    }
+
+    private func selectEmoji(_ emoji: String) {
+        guard !isSelectionPending else { return }
+        isSelectionPending = true
+        showPicker = false
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            try? await runtime.toggleChatReaction(emoji: emoji, on: event)
+            isSelectionPending = false
         }
     }
 }
@@ -113,11 +135,11 @@ private struct ChatReactionChipView: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(
-                Capsule().fill(reaction.isOwn ? Color.accentColor : Color.secondary.opacity(0.12))
+                Capsule().fill(chipBackgroundColor)
             )
             .overlay(
                 Capsule().strokeBorder(
-                    reaction.isOwn ? Color.accentColor : Color.secondary.opacity(0.25),
+                    reaction.isOwn ? Color.accentColor : Color(nsColor: .separatorColor),
                     lineWidth: 1
                 )
             )
@@ -145,6 +167,10 @@ private struct ChatReactionChipView: View {
                 onToggle(reaction.emoji)
             }
         }
+    }
+
+    private var chipBackgroundColor: Color {
+        reaction.isOwn ? Color.accentColor : Color(nsColor: .controlBackgroundColor)
     }
 
     private func performShake() {

@@ -62,8 +62,12 @@ struct ChatSayMessageView: View {
         let bubbleFillColor = matchedRule?.color.swiftUIColor
         let bubbleTextColor = matchedRule?.color.contrastTextColor
         let linkColor = bubbleTextColor ?? (isFromYou ? .white : .blue)
+        let baseBottomSpacing: CGFloat = isGroupedWithNext ? 2 : 8
+        let hasReactions = !message.reactions.isEmpty
+        let bubbleStackBottomSpacing: CGFloat = hasReactions ? 0 : baseBottomSpacing
+        let reactionMessageBottomSpacing: CGFloat = hasReactions ? 12 : 0
 
-        VStack(alignment: isFromYou ? .trailing : .leading) {
+        VStack(alignment: isFromYou ? .trailing : .leading, spacing: 0) {
             HStack(alignment: .bottom) {
                 if isFromYou {
                     Spacer()
@@ -81,9 +85,12 @@ struct ChatSayMessageView: View {
                             bubbleTextColor: bubbleTextColor
                         )
                         ChatReactionBarView(event: message)
-                            .padding(.trailing, 10)
+                            .padding(.trailing, 22)
+                            .padding(.top, -14)
+                            .padding(.bottom, 2)
+                            .zIndex(1)
                     }
-                    .padding(.bottom, isGroupedWithNext ? 2 : 8)
+                    .padding(.bottom, bubbleStackBottomSpacing)
                     .alignmentGuide(.bottom) { d in isEmojiOnlyMessage ? d[VerticalAlignment.center] : d[.bottom] }
 
                     avatarView
@@ -107,9 +114,12 @@ struct ChatSayMessageView: View {
                             bubbleTextColor: bubbleTextColor
                         )
                         ChatReactionBarView(event: message)
-                            .padding(.leading, 10)
+                            .padding(.leading, 22)
+                            .padding(.top, -14)
+                            .padding(.bottom, 2)
+                            .zIndex(1)
                     }
-                    .padding(.bottom, isGroupedWithNext ? 2 : 8)
+                    .padding(.bottom, bubbleStackBottomSpacing)
                     .alignmentGuide(.bottom) { d in isEmojiOnlyMessage ? d[VerticalAlignment.center] : d[.bottom] }
                     Spacer()
                 }
@@ -124,6 +134,7 @@ struct ChatSayMessageView: View {
                     .padding(isFromYou ? .trailing : .leading, 45)
             }
         }
+        .padding(.bottom, reactionMessageBottomSpacing)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         .id(message.id)
@@ -165,6 +176,7 @@ struct ChatSayMessageView: View {
                         customForegroundColor: bubbleTextColor,
                         showsTail: primaryImageURL == nil && imageAttachments.isEmpty && fileAttachments.isEmpty && !isGroupedWithNext
                     )
+                    .chatReactionGesture(for: message, allowDoubleClick: true)
                     .containerRelativeFrame(
                         .horizontal,
                         count: 4,
@@ -172,7 +184,6 @@ struct ChatSayMessageView: View {
                         spacing: 0,
                         alignment: isFromYou ? .trailing : .leading
                     )
-                    .chatReactionGesture(for: message, allowDoubleClick: true)
             }
 
             if let primaryImageURL {

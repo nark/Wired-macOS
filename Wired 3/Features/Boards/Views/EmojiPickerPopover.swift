@@ -12,17 +12,21 @@ public struct EmojiPickerPopover: View {
     let onSelect: (String) -> Void
 
     @State private var searchText = ""
+    @State private var hasLoadedLibrary = false
 
     private static let quickEmojis = ["👍", "👎", "❤️", "😂", "😮", "🎉", "🤔", "🔥", "👀", "✅"]
     private static let columns     = Array(repeating: GridItem(.flexible(), spacing: 1), count: 8)
+    private static let searchableEmojis = EmojiLibrary.categories
+        .flatMap(\.emojis)
+        .map { emoji in (emoji: emoji, terms: emoji.emojiSearchTerms) }
 
     /// Flat filtered list used while a search query is active.
     private var searchResults: [String] {
         let q = searchText.lowercased()
         guard !q.isEmpty else { return [] }
-        return EmojiLibrary.categories.flatMap(\.emojis).filter {
-            $0.emojiSearchTerms.contains(q)
-        }
+        return Self.searchableEmojis
+            .filter { $0.terms.contains(q) }
+            .map(\.emoji)
     }
 
     public var body: some View {
@@ -61,30 +65,41 @@ public struct EmojiPickerPopover: View {
 
                 Divider()
 
-                // ── Full library, sectioned ───────────────────────────
-                ScrollView(.vertical) {
-                    LazyVGrid(columns: Self.columns, spacing: 1, pinnedViews: .sectionHeaders) {
-                        ForEach(EmojiLibrary.categories) { section in
-                            Section {
-                                ForEach(section.emojis, id: \.self) { emoji in
-                                    emojiCell(emoji)
+                if hasLoadedLibrary {
+                    // ── Full library, sectioned ───────────────────────────
+                    ScrollView(.vertical) {
+                        LazyVGrid(columns: Self.columns, spacing: 1) {
+                            ForEach(EmojiLibrary.categories) { section in
+                                Section {
+                                    ForEach(section.emojis, id: \.self) { emoji in
+                                        emojiCell(emoji)
+                                    }
+                                } header: {
+                                    Text(section.name)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 6)
+                                        .padding(.top, 8)
+                                        .padding(.bottom, 3)
+                                        .background(Color(nsColor: .windowBackgroundColor))
                                 }
-                            } header: {
-                                Text(section.name)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 6)
-                                    .padding(.top, 8)
-                                    .padding(.bottom, 3)
-                                    .background(Color(nsColor: .windowBackgroundColor))
                             }
                         }
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 6)
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 6)
+                    .frame(height: 300)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 300)
+                        .task {
+                            try? await Task.sleep(for: .milliseconds(80))
+                            hasLoadedLibrary = true
+                        }
                 }
-                .frame(height: 300)
             } else {
                 // ── Search results ────────────────────────────────────
                 ScrollView(.vertical) {
@@ -125,7 +140,6 @@ public struct EmojiPickerPopover: View {
                 )
         }
         .buttonStyle(.plain)
-        .pointerOnHover()
     }
 }
 

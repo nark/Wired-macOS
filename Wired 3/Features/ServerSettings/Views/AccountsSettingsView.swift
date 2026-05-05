@@ -9,6 +9,11 @@ private func accountPrivilegesIncludingColorFromSpec() -> [String] {
         privileges.append("wired.account.color")
     }
 
+    if spec.fieldsByName["wired.account.chat.add_reactions"] != nil,
+       !privileges.contains("wired.account.chat.add_reactions") {
+        privileges.append("wired.account.chat.add_reactions")
+    }
+
     return privileges
 }
 
