@@ -6,8 +6,6 @@
 //  Copyright © 2025 Read-Write. All rights reserved.
 //
 
-// swiftlint:disable type_body_length
-
 import SwiftUI
 import SwiftData
 import WiredSwift
