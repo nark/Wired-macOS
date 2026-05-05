@@ -80,8 +80,6 @@ struct ChatSayMessageView: View {
                             bubbleFillColor: bubbleFillColor,
                             bubbleTextColor: bubbleTextColor
                         )
-                        ChatReactionBarView(event: message, isParentHovered: isHovered)
-                            .padding(.trailing, 10)
                     }
                     .padding(.bottom, isGroupedWithNext ? 2 : 8)
                     .alignmentGuide(.bottom) { d in isEmojiOnlyMessage ? d[VerticalAlignment.center] : d[.bottom] }
@@ -106,8 +104,6 @@ struct ChatSayMessageView: View {
                             bubbleFillColor: bubbleFillColor,
                             bubbleTextColor: bubbleTextColor
                         )
-                        ChatReactionBarView(event: message, isParentHovered: isHovered)
-                            .padding(.leading, 10)
                     }
                     .padding(.bottom, isGroupedWithNext ? 2 : 8)
                     .alignmentGuide(.bottom) { d in isEmojiOnlyMessage ? d[VerticalAlignment.center] : d[.bottom] }

@@ -21,14 +21,12 @@
 		4C0C2DFC2EF558DF00213277 /* TabsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2DFB2EF558DF00213277 /* TabsView.swift */; };
 		4C0C2E002EF5649C00213277 /* ConnectionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2DFF2EF5649C00213277 /* ConnectionRowView.swift */; };
 		4C0C2E072EF5C84000213277 /* ConnectionRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E062EF5C83E00213277 /* ConnectionRuntime.swift */; };
-		4CCR03422F900002000C0001 /* ConnectionRuntime+ChatReactions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCR03432F900002000C0001 /* ConnectionRuntime+ChatReactions.swift */; };
 		4C0C2E092EF7F68F00213277 /* ChatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E082EF7F68F00213277 /* ChatsView.swift */; };
 		4C0C2E132EF9E19700213277 /* Image+Data.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E122EF9E19700213277 /* Image+Data.swift */; };
 		4C0C2E152EFC833D00213277 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E142EFC833D00213277 /* ChatView.swift */; };
 		4C0C2E182EFD455300213277 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E172EFD455300213277 /* MessageBubble.swift */; };
 		4C0C2E1C2EFD7C4E00213277 /* ChatTopicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1B2EFD7C4E00213277 /* ChatTopicView.swift */; };
 		4C0C2E1E2EFD7C6300213277 /* ChatSayMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1D2EFD7C6300213277 /* ChatSayMessageView.swift */; };
-		4CCR03402F900001000C0001 /* ChatReactionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCR03412F900001000C0001 /* ChatReactionBarView.swift */; };
 		4C0C2E202EFD7DD200213277 /* ChatEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1F2EFD7DD200213277 /* ChatEventView.swift */; };
 		4C0C2E292EFDB90A00213277 /* ConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E282EFDB90A00213277 /* ConnectionState.swift */; };
 		4C0C2E2B2EFDB92200213277 /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E2A2EFDB92100213277 /* Chat.swift */; };
@@ -174,14 +172,12 @@
 		4C0C2DFB2EF558DF00213277 /* TabsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsView.swift; sourceTree = "<group>"; };
 		4C0C2DFF2EF5649C00213277 /* ConnectionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionRowView.swift; sourceTree = "<group>"; };
 		4C0C2E062EF5C83E00213277 /* ConnectionRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionRuntime.swift; sourceTree = "<group>"; };
-		4CCR03432F900002000C0001 /* ConnectionRuntime+ChatReactions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConnectionRuntime+ChatReactions.swift"; sourceTree = "<group>"; };
 		4C0C2E082EF7F68F00213277 /* ChatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatsView.swift; sourceTree = "<group>"; };
 		4C0C2E122EF9E19700213277 /* Image+Data.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Image+Data.swift"; sourceTree = "<group>"; };
 		4C0C2E142EFC833D00213277 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		4C0C2E172EFD455300213277 /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
 		4C0C2E1B2EFD7C4E00213277 /* ChatTopicView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTopicView.swift; sourceTree = "<group>"; };
 		4C0C2E1D2EFD7C6300213277 /* ChatSayMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSayMessageView.swift; sourceTree = "<group>"; };
-		4CCR03412F900001000C0001 /* ChatReactionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatReactionBarView.swift; sourceTree = "<group>"; };
 		4C0C2E1F2EFD7DD200213277 /* ChatEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatEventView.swift; sourceTree = "<group>"; };
 		4C0C2E282EFDB90A00213277 /* ConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionState.swift; sourceTree = "<group>"; };
 		4C0C2E2A2EFDB92100213277 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
@@ -372,7 +368,6 @@
 				4C0C2DF42EF485A300213277 /* DelegateProxy.swift */,
 				4C0C2DF62EF4872600213277 /* ConnectionController.swift */,
 				4C0C2E062EF5C83E00213277 /* ConnectionRuntime.swift */,
-				4CCR03432F900002000C0001 /* ConnectionRuntime+ChatReactions.swift */,
 			);
 			path = Connection;
 			sourceTree = "<group>";
@@ -406,7 +401,6 @@
 				4C0C2E3B2F0042FA00213277 /* ChatMessagesView.swift */,
 				AB1000043000000100213277 /* ChatAttachmentViews.swift */,
 				4C0C2E1D2EFD7C6300213277 /* ChatSayMessageView.swift */,
-				4CCR03412F900001000C0001 /* ChatReactionBarView.swift */,
 				4C0C2E322EFDBA9E00213277 /* ChatMeMessageView.swift */,
 				4C0C2E1F2EFD7DD200213277 /* ChatEventView.swift */,
 				4C0C2E172EFD455300213277 /* MessageBubble.swift */,
@@ -947,10 +941,8 @@
 				4C8D11042F30000100213277 /* StoredBroadcastMessage.swift in Sources */,
 				4C8D11052F30000100213277 /* StoredMessageSelection.swift in Sources */,
 				4C0C2E072EF5C84000213277 /* ConnectionRuntime.swift in Sources */,
-				4CCR03422F900002000C0001 /* ConnectionRuntime+ChatReactions.swift in Sources */,
 				AB1000033000000100213277 /* ChatAttachmentViews.swift in Sources */,
 				4C0C2E1E2EFD7C6300213277 /* ChatSayMessageView.swift in Sources */,
-				4CCR03402F900001000C0001 /* ChatReactionBarView.swift in Sources */,
 				4C8A826B2F5ED07200C271A8 /* MessageConversationDetailView.swift in Sources */,
 				4C0C2E482F07F6EF00213277 /* View.swift in Sources */,
 				4C0C2E332EFDBA9E00213277 /* ChatMeMessageView.swift in Sources */,

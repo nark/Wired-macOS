@@ -32,25 +32,6 @@ public enum ChatEventType {
     }
 }
 
-/// Lightweight summary of a single emoji reaction on a chat message.
-/// Mirror of `BoardReactionSummary`, kept separate so the two surfaces
-/// can evolve independently.
-struct ChatReactionSummary: Identifiable, Equatable {
-    let emoji: String
-    let count: Int
-    let isOwn: Bool
-    var nicks: [String]
-
-    var id: String { emoji }
-
-    init(emoji: String, count: Int, isOwn: Bool, nicks: [String] = []) {
-        self.emoji = emoji
-        self.count = count
-        self.isOwn = isOwn
-        self.nicks = nicks
-    }
-}
-
 @Observable
 @MainActor
 final class ChatEvent: Identifiable {
@@ -62,19 +43,6 @@ final class ChatEvent: Identifiable {
     var type: ChatEventType
     var date = Date()
     var attachments: [ChatAttachmentDescriptor]
-
-    /// Server-stamped message id (Wired 3.2). Nil on pre-3.2 servers and on
-    /// archived messages from before the field was introduced. Used to
-    /// correlate reactions back to the message.
-    var serverMessageID: String?
-
-    /// Reaction summaries for this message. Only populated on 3.2 servers
-    /// after a `wired.chat.get_reactions` round-trip or an incoming
-    /// `wired.chat.reaction_added`/`reaction_removed` broadcast.
-    var reactions: [ChatReactionSummary] = []
-    var reactionsLoaded: Bool = false
-    /// Emojis that arrived from other users and haven't been animated yet.
-    var newReactionEmojis: Set<String> = []
 
     /// When non-nil, overrides `user.id == runtime.userID` for display alignment.
     /// Set for archived messages where the original userID may differ from the current session.
