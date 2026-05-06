@@ -12,9 +12,18 @@ import WiredSwift
 
 extension ConnectionRuntime {
 
-    /// Whether the connected peer advertises the 3.2 chat-reactions surface.
+    /// Whether the connected peer advertises the 3.2 chat-reactions surface
+    /// AND the current account holds `wired.account.chat.add_reactions`.
+    ///
+    /// Reads `privileges` so SwiftUI views that consult this property
+    /// automatically re-render when the server pushes a new
+    /// `wired.account.privileges` (admin grants / revokes the permission
+    /// while the user is connected).
     var canUseChatReactions: Bool {
-        connection?.socket.peerKnows(messageNamed: "wired.chat.add_reaction") ?? false
+        guard connection?.socket.peerKnows(messageNamed: "wired.chat.add_reaction") ?? false else {
+            return false
+        }
+        return hasPrivilege("wired.account.chat.add_reactions")
     }
 
     private func chatEvent(chatID: UInt32, messageID: String) -> ChatEvent? {
