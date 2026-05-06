@@ -198,7 +198,8 @@ struct ChatSayMessageView: View {
                     },
                     onOpenQuickLook: {
                         onOpenQuickLook?(source)
-                    }
+                    },
+                    chatEvent: message
                 )
                 .chatReactionGesture(for: message)
             }
@@ -215,7 +216,8 @@ struct ChatSayMessageView: View {
                     },
                     onOpenQuickLook: {
                         onOpenQuickLook?(source)
-                    }
+                    },
+                    chatEvent: message
                 )
                 .chatReactionGesture(for: message)
             }
@@ -224,7 +226,8 @@ struct ChatSayMessageView: View {
                 ChatAttachmentFileBubbleView(
                     attachment: attachment,
                     isFromYou: isFromYou,
-                    showsTail: index == fileAttachments.count - 1 && !isGroupedWithNext
+                    showsTail: index == fileAttachments.count - 1 && !isGroupedWithNext,
+                    chatEvent: message
                 )
                 .chatReactionGesture(for: message)
             }
@@ -442,6 +445,8 @@ private struct AnimatedNSImageView: NSViewRepresentable {
 #endif
 
 struct ChatRemoteImageBubbleView: View {
+    @Environment(ConnectionRuntime.self) private var runtime
+
     let url: URL
     let isFromYou: Bool
     let showsTail: Bool
@@ -450,8 +455,12 @@ struct ChatRemoteImageBubbleView: View {
     var isSelected: Bool = false
     var onSelect: (() -> Void)?
     var onOpenQuickLook: (() -> Void)?
+    /// When set and reactions are enabled, the bubble's context menu
+    /// surfaces an "Add Reaction…" entry that opens the picker.
+    var chatEvent: ChatEvent?
 
     @StateObject private var loader: ChatRemoteImageLoader
+    @State private var showReactionPicker = false
 
     init(
         url: URL,
@@ -461,7 +470,8 @@ struct ChatRemoteImageBubbleView: View {
         maxBubbleHeight: CGFloat = 360,
         isSelected: Bool = false,
         onSelect: (() -> Void)? = nil,
-        onOpenQuickLook: (() -> Void)? = nil
+        onOpenQuickLook: (() -> Void)? = nil,
+        chatEvent: ChatEvent? = nil
     ) {
         self.url = url
         self.isFromYou = isFromYou
@@ -471,6 +481,7 @@ struct ChatRemoteImageBubbleView: View {
         self.isSelected = isSelected
         self.onSelect = onSelect
         self.onOpenQuickLook = onOpenQuickLook
+        self.chatEvent = chatEvent
         _loader = StateObject(wrappedValue: ChatRemoteImageLoader(url: url))
     }
 
@@ -504,6 +515,18 @@ struct ChatRemoteImageBubbleView: View {
         .overlay(selectionOverlay)
         .contentShape(Rectangle())
         .contextMenu { contextMenuItems }
+        .popover(
+            isPresented: $showReactionPicker,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .bottom
+        ) {
+            EmojiPickerPopover { emoji in
+                showReactionPicker = false
+                if let event = chatEvent {
+                    Task { try? await runtime.toggleChatReaction(emoji: emoji, on: event) }
+                }
+            }
+        }
         .onTapGesture {
             onSelect?()
         }
@@ -519,8 +542,21 @@ struct ChatRemoteImageBubbleView: View {
         }
     }
 
+    private var canAddReaction: Bool {
+        guard let event = chatEvent, event.serverMessageID != nil else { return false }
+        return runtime.canUseChatReactions
+    }
+
     @ViewBuilder
     private var contextMenuItems: some View {
+        if canAddReaction {
+            Button {
+                showReactionPicker = true
+            } label: {
+                Label("Add Reaction…", systemImage: "face.smiling")
+            }
+            Divider()
+        }
 #if os(macOS)
         Button {
             NSWorkspace.shared.open(url)
