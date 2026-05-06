@@ -1859,9 +1859,15 @@ final class ConnectionController {
                 let nick = message.string(forField: "wired.chat.reaction.nick")
                 await MainActor.run {
                     let event = runtime.applyChatReactionBroadcast(
-                        chatID: chatID, messageID: messageID,
-                        emoji: emoji, count: Int(count), added: added, nick: nick,
-                        countAsUnread: self.shouldIncrementUnreadForChatMessage(in: runtime, chatID: chatID)
+                        ConnectionRuntime.ChatReactionBroadcast(
+                            chatID: chatID,
+                            messageID: messageID,
+                            emoji: emoji,
+                            count: Int(count),
+                            added: added,
+                            nick: nick,
+                            countAsUnread: self.shouldIncrementUnreadForChatMessage(in: runtime, chatID: chatID)
+                        )
                     )
 
                     if added, let reactorNick = nick, reactorNick != runtime.currentNick {

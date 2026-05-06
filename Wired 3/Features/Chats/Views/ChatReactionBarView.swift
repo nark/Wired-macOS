@@ -15,18 +15,26 @@ struct ChatReactionBarView: View {
     @Environment(ConnectionRuntime.self) private var runtime
     let event: ChatEvent
 
-    private var canReact: Bool {
+    /// Reactions are public: render the chips whenever the server speaks
+    /// the 3.2 surface and the message has a server-assigned id. The
+    /// posting permission only gates whether each chip can be toggled.
+    private var canSeeReactions: Bool {
+        runtime.canSeeChatReactions && event.serverMessageID != nil
+    }
+
+    private var canPostReactions: Bool {
         runtime.canUseChatReactions && event.serverMessageID != nil
     }
 
     var body: some View {
-        if canReact, !event.reactions.isEmpty {
+        if canSeeReactions, !event.reactions.isEmpty {
             HStack(spacing: 6) {
                 ForEach(event.reactions) { reaction in
                     ChatReactionChipView(
                         reaction: reaction,
                         allReactions: event.reactions,
                         isNew: event.newReactionEmojis.contains(reaction.emoji),
+                        canToggle: canPostReactions,
                         onToggle: { emoji in toggle(emoji) }
                     )
                 }
@@ -40,6 +48,7 @@ struct ChatReactionBarView: View {
     }
 
     private func toggle(_ emoji: String) {
+        guard canPostReactions else { return }
         Task { try? await runtime.toggleChatReaction(emoji: emoji, on: event) }
     }
 }
@@ -118,6 +127,11 @@ private struct ChatReactionChipView: View {
     let reaction: ChatReactionSummary
     let allReactions: [ChatReactionSummary]
     var isNew: Bool = false
+    /// When false, the chip becomes display-only — clicking it does
+    /// nothing and the right-click toggle entry is hidden. Used for
+    /// users on a 3.2 server who lack `wired.account.chat.add_reactions`:
+    /// they still see who reacted with what, just can't post their own.
+    let canToggle: Bool
     let onToggle: (String) -> Void
 
     @State private var showPopover = false
@@ -125,7 +139,10 @@ private struct ChatReactionChipView: View {
     @State private var shake: CGFloat = 0
 
     var body: some View {
-        Button { onToggle(reaction.emoji) } label: {
+        Button {
+            guard canToggle else { return }
+            onToggle(reaction.emoji)
+        } label: {
             HStack(spacing: 4) {
                 Text(reaction.emoji).font(.system(size: 13))
                 Text("\(reaction.count)")
@@ -163,8 +180,10 @@ private struct ChatReactionChipView: View {
             ChatReactionSummaryPopover(reactions: allReactions)
         }
         .contextMenu {
-            Button(reaction.isOwn ? "Remove your reaction" : "React with \(reaction.emoji)") {
-                onToggle(reaction.emoji)
+            if canToggle {
+                Button(reaction.isOwn ? "Remove your reaction" : "React with \(reaction.emoji)") {
+                    onToggle(reaction.emoji)
+                }
             }
         }
     }
