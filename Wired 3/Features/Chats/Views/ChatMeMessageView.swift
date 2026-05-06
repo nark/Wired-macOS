@@ -72,7 +72,8 @@ struct ChatMeMessageView: View {
                         },
                         onOpenQuickLook: {
                             onOpenQuickLook?(source)
-                        }
+                        },
+                        chatEvent: message
                     )
                     .chatReactionGesture(for: message)
                     Spacer()
@@ -82,8 +83,13 @@ struct ChatMeMessageView: View {
             ForEach(fileAttachments, id: \.id) { attachment in
                 HStack {
                     Spacer()
-                    ChatAttachmentFileBubbleView(attachment: attachment, isFromYou: false, showsTail: false)
-                        .chatReactionGesture(for: message)
+                    ChatAttachmentFileBubbleView(
+                        attachment: attachment,
+                        isFromYou: false,
+                        showsTail: false,
+                        chatEvent: message
+                    )
+                    .chatReactionGesture(for: message)
                     Spacer()
                 }
             }

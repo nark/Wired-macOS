@@ -261,8 +261,13 @@ struct ChatAttachmentImageBubbleView: View {
     var isSelected: Bool = false
     var onSelect: (() -> Void)?
     var onOpenQuickLook: (() -> Void)?
+    /// When set and the connected peer/user can post chat reactions, the
+    /// context menu shows an "Add Reaction…" entry that opens the emoji
+    /// picker anchored on this bubble.
+    var chatEvent: ChatEvent?
 
     @State private var phase: Phase = .idle
+    @State private var showReactionPicker = false
 
     enum Phase {
         case idle
@@ -310,6 +315,14 @@ struct ChatAttachmentImageBubbleView: View {
                 onOpenQuickLook?()
             }
             .contextMenu {
+                if canAddReaction {
+                    Button {
+                        showReactionPicker = true
+                    } label: {
+                        Label("Add Reaction…", systemImage: "face.smiling")
+                    }
+                    Divider()
+                }
 #if os(macOS)
                 Button {
                     downloadAttachment()
@@ -318,9 +331,26 @@ struct ChatAttachmentImageBubbleView: View {
                 }
 #endif
             }
+            .popover(
+                isPresented: $showReactionPicker,
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: .bottom
+            ) {
+                EmojiPickerPopover { emoji in
+                    showReactionPicker = false
+                    if let event = chatEvent {
+                        Task { try? await runtime.toggleChatReaction(emoji: emoji, on: event) }
+                    }
+                }
+            }
             .task(id: attachment.id) {
                 await load()
             }
+    }
+
+    private var canAddReaction: Bool {
+        guard let event = chatEvent, event.serverMessageID != nil else { return false }
+        return runtime.canUseChatReactions
     }
 
     private var selectionOverlay: some View {
@@ -429,8 +459,12 @@ struct ChatAttachmentFileBubbleView: View {
     let attachment: ChatAttachmentDescriptor
     let isFromYou: Bool
     let showsTail: Bool
+    /// When set and reactions are enabled, a context-menu entry on the
+    /// bubble opens the emoji picker anchored on it.
+    var chatEvent: ChatEvent?
 
     @State private var isSaving = false
+    @State private var showReactionPicker = false
 
     private var iconName: String {
         if attachment.isImage {
@@ -499,6 +533,32 @@ struct ChatAttachmentFileBubbleView: View {
 
             if !isFromYou { Spacer(minLength: 36) }
         }
+        .contextMenu {
+            if canAddReaction {
+                Button {
+                    showReactionPicker = true
+                } label: {
+                    Label("Add Reaction…", systemImage: "face.smiling")
+                }
+            }
+        }
+        .popover(
+            isPresented: $showReactionPicker,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .bottom
+        ) {
+            EmojiPickerPopover { emoji in
+                showReactionPicker = false
+                if let event = chatEvent {
+                    Task { try? await runtime.toggleChatReaction(emoji: emoji, on: event) }
+                }
+            }
+        }
+    }
+
+    private var canAddReaction: Bool {
+        guard let event = chatEvent, event.serverMessageID != nil else { return false }
+        return runtime.canUseChatReactions
     }
 
 #if os(macOS)

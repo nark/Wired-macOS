@@ -12,9 +12,21 @@ import WiredSwift
 
 extension ConnectionRuntime {
 
-    /// Whether the connected peer advertises the 3.2 chat-reactions surface.
-    var canUseChatReactions: Bool {
+    /// Whether the connected peer speaks the 3.2 chat-reactions surface
+    /// at all. Reactions are public — every member of a chat sees them
+    /// regardless of whether they themselves can post one — so this is the
+    /// gate for chip row visibility and lazy `wired.chat.get_reactions`.
+    var canSeeChatReactions: Bool {
         connection?.socket.peerKnows(messageNamed: "wired.chat.add_reaction") ?? false
+    }
+
+    /// Whether the current account can add or remove its own reactions.
+    /// Stricter: requires `canSeeChatReactions` AND the
+    /// `wired.account.chat.add_reactions` privilege. Reads `privileges`
+    /// so SwiftUI re-renders when the server pushes a fresh
+    /// `wired.account.privileges` (admin grants / revokes live).
+    var canUseChatReactions: Bool {
+        canSeeChatReactions && hasPrivilege("wired.account.chat.add_reactions")
     }
 
     private func chatEvent(chatID: UInt32, messageID: String) -> ChatEvent? {
@@ -70,12 +82,29 @@ extension ConnectionRuntime {
         try? await getChatReactions(for: event)
     }
 
-    /// Apply an incoming `wired.chat.reaction_added` / `reaction_removed`
-    /// to the in-memory event. Mirrors `applyReactionBroadcast` for boards.
+    /// Payload for an incoming `wired.chat.reaction_added` /
+    /// `reaction_removed` broadcast.
+    struct ChatReactionBroadcast {
+        let chatID: UInt32
+        let messageID: String
+        let emoji: String
+        let count: Int
+        let added: Bool
+        let nick: String?
+        let countAsUnread: Bool
+    }
+
+    /// Apply an incoming reaction broadcast to the in-memory event.
+    /// Mirrors `applyReactionBroadcast` for boards.
     @discardableResult
-    func applyChatReactionBroadcast(chatID: UInt32, messageID: String,
-                                    emoji: String, count: Int, added: Bool,
-                                    nick: String?, countAsUnread: Bool) -> ChatEvent? {
+    func applyChatReactionBroadcast(_ payload: ChatReactionBroadcast) -> ChatEvent? {
+        let chatID = payload.chatID
+        let messageID = payload.messageID
+        let emoji = payload.emoji
+        let count = payload.count
+        let added = payload.added
+        let nick = payload.nick
+        let countAsUnread = payload.countAsUnread
         guard let chat = chat(withID: chatID) else { return nil }
         let event = chatEvent(chatID: chatID, messageID: messageID)
 
