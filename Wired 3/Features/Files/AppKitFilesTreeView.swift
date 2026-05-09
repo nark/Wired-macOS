@@ -57,7 +57,7 @@ private final class QuickLookOutlineView: NSOutlineView {
     }
 }
 
-fileprivate enum TreeRemoteDropOperationBadgeKind {
+private enum TreeRemoteDropOperationBadgeKind {
     case move
     case link
 

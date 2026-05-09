@@ -28,4 +28,3 @@ final class PathLayout {
         try FileManager.default.createDirectory(at: runDir, withIntermediateDirectories: true)
     }
 }
-

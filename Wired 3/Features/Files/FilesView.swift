@@ -1032,9 +1032,9 @@ struct FilesView: View {
             case .columns:
                 columnsContent
             }
-            
+
             Divider()
-            
+
             HStack {
                 FilesBreadcrumb(
                     currentPath: breadcrumbPath,
@@ -1046,7 +1046,7 @@ struct FilesView: View {
                     }
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 FilesServerInfos()
             }
             .frame(height: 40)

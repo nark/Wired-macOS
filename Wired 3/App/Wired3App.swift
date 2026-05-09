@@ -197,7 +197,6 @@ private struct MainAppCommands: Commands {
             Divider()
         }
 
-
         CommandMenu("Find") {
             Button("Find") {
                 isSearchFieldFocused = true

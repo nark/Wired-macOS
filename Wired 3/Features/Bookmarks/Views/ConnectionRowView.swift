@@ -37,8 +37,8 @@ struct ConnectionRowView: View {
     }
 
     var body: some View {
-        let _ = connectionController.connectionIssueRevision
-        let _ = connectionController.notificationsRevision
+        _ = connectionController.connectionIssueRevision
+        _ = connectionController.notificationsRevision
 
         HStack {
             Image(systemName: "network")
@@ -57,7 +57,7 @@ struct UnreadCountBadge: View {
     let count: Int
 
     var body: some View {
-        if count > 0 {
+        if !isEmpty {
             Text(count > 99 ? "99+" : "\(count)")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white)
