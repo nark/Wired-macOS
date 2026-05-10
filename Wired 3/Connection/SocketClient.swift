@@ -162,7 +162,11 @@ actor SocketClient {
                     // Only nil triggers keychain lookup — nil means this is a bookmark connection.
                     url.password = password
                 } else {
-                    url.password = KeychainSwift().get("\(url.login)@\(url.hostname)") ?? ""
+                    // Try "login@host:port" first (legacy format), then "login@host".
+                    let keychain = KeychainSwift()
+                    url.password = keychain.get("\(url.login)@\(url.hostname):\(url.port)")
+                        ?? keychain.get("\(url.login)@\(url.hostname)")
+                        ?? ""
                 }
 
                 do {
