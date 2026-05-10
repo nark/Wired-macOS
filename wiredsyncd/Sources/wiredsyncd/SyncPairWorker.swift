@@ -184,22 +184,24 @@ final class SyncPairWorker {
             throw NSError(domain: "wiredsyncd.sync", code: 100, userInfo: [NSLocalizedDescriptionKey: "Missing server URL"])
         }
 
+        // Build URL with just host/port so that special chars in login/password
+        // never enter the URL string and are not subject to percent-encoding round-trips.
         let normalized = trimmed.hasPrefix("wired://") ? trimmed : "wired://\(trimmed)"
-        guard var components = URLComponents(string: normalized) else {
+        guard let components = URLComponents(string: normalized) else {
             throw NSError(domain: "wiredsyncd.sync", code: 101, userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
-        }
-
-        if !endpoint.login.isEmpty {
-            components.user = endpoint.login
-        }
-        if !endpoint.password.isEmpty {
-            components.password = endpoint.password
         }
 
         guard let final = components.string else {
             throw NSError(domain: "wiredsyncd.sync", code: 102, userInfo: [NSLocalizedDescriptionKey: "Invalid server URL components"])
         }
-        return Url(withString: final)
+        let url = Url(withString: final)
+        if !endpoint.login.isEmpty {
+            url.login = endpoint.login
+        }
+        if !endpoint.password.isEmpty {
+            url.password = endpoint.password
+        }
+        return url
     }
 
     private func resolvedEndpoint() throws -> SyncEndpoint {
