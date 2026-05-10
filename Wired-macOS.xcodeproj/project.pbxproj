@@ -21,14 +21,12 @@
 		4C0C2DFC2EF558DF00213277 /* TabsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2DFB2EF558DF00213277 /* TabsView.swift */; };
 		4C0C2E002EF5649C00213277 /* ConnectionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2DFF2EF5649C00213277 /* ConnectionRowView.swift */; };
 		4C0C2E072EF5C84000213277 /* ConnectionRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E062EF5C83E00213277 /* ConnectionRuntime.swift */; };
-		4CCR03422F900002000C0001 /* ConnectionRuntime+ChatReactions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCR03432F900002000C0001 /* ConnectionRuntime+ChatReactions.swift */; };
 		4C0C2E092EF7F68F00213277 /* ChatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E082EF7F68F00213277 /* ChatsView.swift */; };
 		4C0C2E132EF9E19700213277 /* Image+Data.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E122EF9E19700213277 /* Image+Data.swift */; };
 		4C0C2E152EFC833D00213277 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E142EFC833D00213277 /* ChatView.swift */; };
 		4C0C2E182EFD455300213277 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E172EFD455300213277 /* MessageBubble.swift */; };
 		4C0C2E1C2EFD7C4E00213277 /* ChatTopicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1B2EFD7C4E00213277 /* ChatTopicView.swift */; };
 		4C0C2E1E2EFD7C6300213277 /* ChatSayMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1D2EFD7C6300213277 /* ChatSayMessageView.swift */; };
-		4CCR03402F900001000C0001 /* ChatReactionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCR03412F900001000C0001 /* ChatReactionBarView.swift */; };
 		4C0C2E202EFD7DD200213277 /* ChatEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E1F2EFD7DD200213277 /* ChatEventView.swift */; };
 		4C0C2E292EFDB90A00213277 /* ConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E282EFDB90A00213277 /* ConnectionState.swift */; };
 		4C0C2E2B2EFDB92200213277 /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0C2E2A2EFDB92100213277 /* Chat.swift */; };
@@ -108,6 +106,8 @@
 		4CBF0A272F8CCBB2004196FD /* FilesBreadcrumbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CBF0A262F8CCBA5004196FD /* FilesBreadcrumbView.swift */; };
 		4CBF0A292F8CD448004196FD /* FilesServerInfos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CBF0A282F8CD448004196FD /* FilesServerInfos.swift */; };
 		4CBF0A2B2F8CE999004196FD /* Executable.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4CBF0A2A2F8CE999004196FD /* Executable.icns */; };
+		4CCR03402F900001000C0001 /* ChatReactionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCR03412F900001000C0001 /* ChatReactionBarView.swift */; };
+		4CCR03422F900002000C0001 /* ConnectionRuntime+ChatReactions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCR03432F900002000C0001 /* ConnectionRuntime+ChatReactions.swift */; };
 		4CDBA0012F80000100213277 /* RelativeDateText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CDBA0022F80000100213277 /* RelativeDateText.swift */; };
 		4CF01A922F20000100213277 /* FileInfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF01A912F20000100213277 /* FileInfoSheet.swift */; };
 		4CF01A942F200A1100213277 /* UploadsBadge.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4CF01A962F200A1100213277 /* UploadsBadge.icns */; };
@@ -139,6 +139,8 @@
 		CC100009FA00000100213277 /* ChatHistoryDayList.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC100004FA00000100213277 /* ChatHistoryDayList.swift */; };
 		CC10000AFA00000100213277 /* ChatHistoryMessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC100005FA00000100213277 /* ChatHistoryMessagesView.swift */; };
 		CC10000BFA00000100213277 /* ArchiveMessageBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC100006FA00000100213277 /* ArchiveMessageBubbleView.swift */; };
+		F6C75EF02FB0FABC004582DE /* fr.read-write.wiredsyncd.plist in Resources */ = {isa = PBXBuildFile; fileRef = F6C75EEF2FB0FABC004582DE /* fr.read-write.wiredsyncd.plist */; };
+		F6C75EF12FB0FAED004582DE /* fr.read-write.wiredsyncd.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = F6C75EEF2FB0FABC004582DE /* fr.read-write.wiredsyncd.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -158,6 +160,19 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		F6C75EEE2FB0F9A3004582DE /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchAgents;
+			dstSubfolderSpec = 1;
+			files = (
+				F6C75EF12FB0FAED004582DE /* fr.read-write.wiredsyncd.plist in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		4C0C2DB42EF436FE00213277 /* Wired Client.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Wired Client.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C0C2DC32EF4370000213277 /* Wired 3Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Wired 3Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -174,14 +189,12 @@
 		4C0C2DFB2EF558DF00213277 /* TabsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsView.swift; sourceTree = "<group>"; };
 		4C0C2DFF2EF5649C00213277 /* ConnectionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionRowView.swift; sourceTree = "<group>"; };
 		4C0C2E062EF5C83E00213277 /* ConnectionRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionRuntime.swift; sourceTree = "<group>"; };
-		4CCR03432F900002000C0001 /* ConnectionRuntime+ChatReactions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConnectionRuntime+ChatReactions.swift"; sourceTree = "<group>"; };
 		4C0C2E082EF7F68F00213277 /* ChatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatsView.swift; sourceTree = "<group>"; };
 		4C0C2E122EF9E19700213277 /* Image+Data.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Image+Data.swift"; sourceTree = "<group>"; };
 		4C0C2E142EFC833D00213277 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		4C0C2E172EFD455300213277 /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
 		4C0C2E1B2EFD7C4E00213277 /* ChatTopicView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTopicView.swift; sourceTree = "<group>"; };
 		4C0C2E1D2EFD7C6300213277 /* ChatSayMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSayMessageView.swift; sourceTree = "<group>"; };
-		4CCR03412F900001000C0001 /* ChatReactionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatReactionBarView.swift; sourceTree = "<group>"; };
 		4C0C2E1F2EFD7DD200213277 /* ChatEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatEventView.swift; sourceTree = "<group>"; };
 		4C0C2E282EFDB90A00213277 /* ConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionState.swift; sourceTree = "<group>"; };
 		4C0C2E2A2EFDB92100213277 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
@@ -263,6 +276,8 @@
 		4CBF0A262F8CCBA5004196FD /* FilesBreadcrumbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesBreadcrumbView.swift; sourceTree = "<group>"; };
 		4CBF0A282F8CD448004196FD /* FilesServerInfos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesServerInfos.swift; sourceTree = "<group>"; };
 		4CBF0A2A2F8CE999004196FD /* Executable.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Executable.icns; sourceTree = "<group>"; };
+		4CCR03412F900001000C0001 /* ChatReactionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatReactionBarView.swift; sourceTree = "<group>"; };
+		4CCR03432F900002000C0001 /* ConnectionRuntime+ChatReactions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConnectionRuntime+ChatReactions.swift"; sourceTree = "<group>"; };
 		4CDBA0022F80000100213277 /* RelativeDateText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelativeDateText.swift; sourceTree = "<group>"; };
 		4CF01A912F20000100213277 /* FileInfoSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileInfoSheet.swift; sourceTree = "<group>"; };
 		4CF01A962F200A1100213277 /* UploadsBadge.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = UploadsBadge.icns; sourceTree = "<group>"; };
@@ -297,6 +312,7 @@
 		CC100005FA00000100213277 /* ChatHistoryMessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatHistoryMessagesView.swift; sourceTree = "<group>"; };
 		CC100006FA00000100213277 /* ArchiveMessageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveMessageBubbleView.swift; sourceTree = "<group>"; };
 		F69436752FA4A557005137D5 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
+		F6C75EEF2FB0FABC004582DE /* fr.read-write.wiredsyncd.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "fr.read-write.wiredsyncd.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -349,6 +365,7 @@
 				4C0C2E232EFDB8BF00213277 /* Additions */,
 				4C0C2DE32EF437DE00213277 /* Wired_3.entitlements */,
 				D313D2D267BF39158BC11A99 /* Localizable.strings */,
+				F6C75EEF2FB0FABC004582DE /* fr.read-write.wiredsyncd.plist */,
 			);
 			path = "Wired 3";
 			sourceTree = "<group>";
@@ -671,6 +688,7 @@
 				4C0C2DB12EF436FE00213277 /* Frameworks */,
 				4C90D0102FA1000100213277 /* Embed wiredsyncd */,
 				4C0C2DB22EF436FE00213277 /* Resources */,
+				F6C75EEE2FB0F9A3004582DE /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -798,6 +816,7 @@
 				4CF01A942F200A1100213277 /* UploadsBadge.icns in Resources */,
 				4CF01A952F200A1100213277 /* DropBoxBadge.icns in Resources */,
 				4C90D0012FA1000100213277 /* SyncBadge.icns in Resources */,
+				F6C75EF02FB0FABC004582DE /* fr.read-write.wiredsyncd.plist in Resources */,
 				09384B2E75CDFD4041BA5425 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
