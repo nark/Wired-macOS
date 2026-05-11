@@ -355,9 +355,14 @@
 "Are you sure you want to delete this file? This operation is not recoverable." = "Voulez-vous vraiment supprimer ce fichier ? Cette opération est irréversible.";
 "Are you sure you want to delete this selection? This operation is not recoverable." = "Voulez-vous vraiment supprimer cette sélection ? Cette opération est irréversible.";
 "Upload Blocked" = "Téléversement bloqué";
+"A remote file already exists:\n%@\n\nLocal file:\n%@" = "Un fichier distant existe déjà :\n%@\n\nFichier local :\n%@";
+"Disable synchronization for %@? The local folder is kept, only the pairing is removed." = "Désactiver la synchronisation pour %@ ? Le dossier local est conservé, seule la paire est supprimée.";
+"1 result for \"%@\"" = "1 résultat pour « %@ »";
+"%lld results for \"%@\"" = "%lld résultats pour « %@ »";
 "Searching…" = "Recherche en cours…";
 
 /* ── Sync ── */
+"Deactivate" = "Désactiver";
 "Deactivate Sync Pair" = "Désactiver la paire de sync";
 "Sync Error" = "Erreur de sync";
 "Sync Enabled" = "Sync activée";

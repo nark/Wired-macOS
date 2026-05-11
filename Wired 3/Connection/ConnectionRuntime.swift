@@ -337,6 +337,7 @@ private extension String {
     }
 }
 
+// swiftlint:disable type_body_length
 @Observable
 @MainActor
 final class ConnectionRuntime: Identifiable {
@@ -3465,3 +3466,4 @@ final class ConnectionRuntime: Identifiable {
         return error
     }
 }
+// swiftlint:enable type_body_length
