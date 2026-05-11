@@ -491,7 +491,25 @@ enum WiredSyncDaemonIPC {
         let service = SMAppService.agent(plistName: "\(launchAgentLabel).plist")
         switch service.status {
         case .enabled:
-            break
+            // If the service is registered but the daemon is not running (e.g. after
+            // an explicit bootout), force SMD to reload it by unregistering and
+            // re-registering. This recovers from the case where launchd lost track
+            // of the service without the SMAppService state being cleared.
+            if !FileManager.default.fileExists(atPath: socketPath) {
+                try? service.unregister()
+                do {
+                    try service.register()
+                } catch {
+                    if service.status == .requiresApproval {
+                        throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
+                            NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
+                        ])
+                    }
+                    throw NSError(domain: "wiredsyncd.ipc", code: 9, userInfo: [
+                        NSLocalizedDescriptionKey: "Failed to re-register wiredsyncd: \(error.localizedDescription)"
+                    ])
+                }
+            }
         case .requiresApproval:
             throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
                 NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
@@ -640,6 +658,9 @@ enum WiredSyncDaemonIPC {
             arguments: ["bootout", "gui/\(getuid())/\(launchAgentLabel)"],
             allowFailure: true
         )
+        // Unregister from SMAppService so SMD does not auto-restart the daemon.
+        // The next app launch re-registers cleanly via installAndStartLaunchAgent().
+        try? SMAppService.agent(plistName: "\(launchAgentLabel).plist").unregister()
     }
 
     /// Checks the running daemon version and, if outdated, asks it to shut down so
