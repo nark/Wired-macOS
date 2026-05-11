@@ -628,9 +628,16 @@ enum WiredSyncDaemonIPC {
 
     /// Checks the running daemon version and, if outdated, asks it to shut down so
     /// launchd's KeepAlive restarts it with the updated binary from the app bundle.
-    /// No binary copying or plist re-installation is needed.
+    /// Also migrates from the legacy launchctl-based setup to SMAppService if needed.
     static func ensureDaemonIsCurrentVersion() {
         Task.detached(priority: .background) {
+            // Proactive migration: if the old manually-managed LaunchAgent plist still
+            // exists, the app was updated from a pre-SMAppService build. Migrate now
+            // regardless of whether the IPC call below succeeds.
+            let fm = FileManager.default
+            let needsMigration = fm.fileExists(atPath: legacyLaunchAgentPath)
+                              || fm.fileExists(atPath: legacyDaemonInstallPath)
+
             do {
                 let result = try performRequest(
                     ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "status"],
@@ -638,15 +645,19 @@ enum WiredSyncDaemonIPC {
                 )
                 let data = result["result"] as? [String: Any]
                 let runningVersion = data?["version"] as? String ?? ""
-                guard runningVersion != expectedDaemonVersion else { return }
-                print("[WiredSyncUI] daemon.version_mismatch running=\(runningVersion) expected=\(expectedDaemonVersion) – restarting via shutdown")
-                _ = try? performRequest(
-                    ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "shutdown"],
-                    timeoutSeconds: 3
-                )
-                // launchd's KeepAlive: true restarts the daemon with the new binary.
+                if runningVersion != expectedDaemonVersion || needsMigration {
+                    print("[WiredSyncUI] daemon.update_or_migrate running=\(runningVersion) expected=\(expectedDaemonVersion) needsMigration=\(needsMigration)")
+                    _ = try? performRequest(
+                        ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "shutdown"],
+                        timeoutSeconds: 3
+                    )
+                    // Give the old process a moment to exit before SMAppService takes over.
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    try installAndStartLaunchAgent()
+                }
             } catch {
-                // Daemon unreachable — SMAppService manages lifecycle automatically.
+                // Daemon unreachable — install/register via SMAppService.
+                try? installAndStartLaunchAgent()
             }
         }
     }
