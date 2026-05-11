@@ -626,6 +626,22 @@ enum WiredSyncDaemonIPC {
         )
     }
 
+    /// Gracefully stops the daemon when the user explicitly quits the app.
+    /// Sends a shutdown IPC (allowing the daemon to flush state) then boots it
+    /// out of launchd so KeepAlive does not immediately restart it.
+    /// The next app launch will re-register via SMAppService.
+    static func stopDaemonForQuit() {
+        _ = try? performRequest(
+            ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "shutdown"],
+            timeoutSeconds: 1
+        )
+        _ = try? runExecutable(
+            path: "/bin/launchctl",
+            arguments: ["bootout", "gui/\(getuid())/\(launchAgentLabel)"],
+            allowFailure: true
+        )
+    }
+
     /// Checks the running daemon version and, if outdated, asks it to shut down so
     /// launchd's KeepAlive restarts it with the updated binary from the app bundle.
     /// Also migrates from the legacy launchctl-based setup to SMAppService if needed.
