@@ -16,9 +16,5 @@
     <string>Background</string>
     <key>ThrottleInterval</key>
     <integer>1</integer>
-    <key>StandardOutPath</key>
-    <string>~/Library/Logs/WiredSync/wiredsyncd.out.log</string>
-    <key>StandardErrorPath</key>
-    <string>~/Library/Logs/WiredSync/wiredsyncd.err.log</string>
 </dict>
 </plist>
