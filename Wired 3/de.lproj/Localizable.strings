@@ -439,6 +439,10 @@
 "Quit Anyway" = "Trotzdem beenden";
 "Do you want to disconnect the active connection before closing this window/tab?" = "Möchten Sie die aktive Verbindung vor dem Schließen dieses Fensters/Tabs trennen?";
 "Do you want to disconnect %lld active connections before closing this window/tab?" = "Möchten Sie %lld aktive Verbindungen vor dem Schließen dieses Fensters/Tabs trennen?";
+"Sync Daemon Is Running" = "Sync-Daemon läuft";
+"The sync daemon continues running in the background after you quit. Do you want to quit the app only, or also stop the daemon?" = "Der Sync-Daemon läuft nach dem Beenden der App weiterhin im Hintergrund. Möchten Sie nur die App beenden oder auch den Daemon stoppen?";
+"Quit Only" = "Nur App beenden";
+"Stop Daemon" = "Daemon stoppen";
 
 /* ── Fenster ── */
 "Error Log" = "Fehlerprotokoll";

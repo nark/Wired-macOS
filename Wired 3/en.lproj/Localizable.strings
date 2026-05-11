@@ -442,6 +442,10 @@
 "Quit Anyway" = "Quit Anyway";
 "Do you want to disconnect the active connection before closing this window/tab?" = "Do you want to disconnect the active connection before closing this window/tab?";
 "Do you want to disconnect %lld active connections before closing this window/tab?" = "Do you want to disconnect %lld active connections before closing this window/tab?";
+"Sync Daemon Is Running" = "Sync Daemon Is Running";
+"The sync daemon continues running in the background after you quit. Do you want to quit the app only, or also stop the daemon?" = "The sync daemon continues running in the background after you quit. Do you want to quit the app only, or also stop the daemon?";
+"Quit Only" = "Quit Only";
+"Stop Daemon" = "Stop Daemon";
 
 /* ── Windows ── */
 "Error Log" = "Error Log";

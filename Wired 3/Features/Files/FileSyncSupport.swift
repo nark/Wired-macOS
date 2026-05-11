@@ -607,6 +607,19 @@ enum WiredSyncDaemonIPC {
         return nil
     }
 
+    static func isDaemonRunning() -> Bool {
+        FileManager.default.fileExists(atPath: socketPath)
+    }
+
+    static func stopDaemon() {
+        _ = try? performRequest(
+            ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "shutdown"],
+            timeoutSeconds: 1
+        )
+        let domain = "gui/\(getuid())"
+        _ = try? runLaunchctl(arguments: ["bootout", "\(domain)/\(launchAgentLabel)"], allowFailure: true)
+    }
+
     @discardableResult
     private static func runLaunchctl(arguments: [String], allowFailure: Bool) throws -> String {
         try runExecutable(path: "/bin/launchctl", arguments: arguments, allowFailure: allowFailure)

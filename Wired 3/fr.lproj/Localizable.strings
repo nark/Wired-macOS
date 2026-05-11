@@ -440,6 +440,10 @@
 "Quit Anyway" = "Quitter quand même";
 "Do you want to disconnect the active connection before closing this window/tab?" = "Voulez-vous déconnecter la connexion active avant de fermer cette fenêtre/cet onglet ?";
 "Do you want to disconnect %lld active connections before closing this window/tab?" = "Voulez-vous déconnecter %lld connexions actives avant de fermer cette fenêtre/cet onglet ?";
+"Sync Daemon Is Running" = "Le daemon de synchronisation est actif";
+"The sync daemon continues running in the background after you quit. Do you want to quit the app only, or also stop the daemon?" = "Le daemon de synchronisation continue de s'exécuter en arrière-plan après la fermeture. Voulez-vous quitter uniquement l'app ou également arrêter le daemon ?";
+"Quit Only" = "Quitter seulement";
+"Stop Daemon" = "Arrêter le daemon";
 
 /* ── Fenêtres ── */
 "Error Log" = "Journal d'erreurs";
