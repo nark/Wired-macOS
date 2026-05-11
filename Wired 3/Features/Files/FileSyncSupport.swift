@@ -474,10 +474,10 @@ enum WiredSyncDaemonIPC {
 
     // MARK: - Agent Registration
 
-    /// Registers wiredsyncd as a Login Item via SMAppService (macOS 13+).
-    /// The daemon binary lives in the app bundle at Contents/MacOS/wiredsyncd;
-    /// no binary copying is needed. On first call after an update, any legacy
-    /// manually-managed LaunchAgent artifacts are removed automatically.
+    /// Installs wiredsyncd as a LaunchAgent and starts it.
+    /// Writes a plist with the absolute daemon path to ~/Library/LaunchAgents/ and
+    /// bootstraps it via launchctl. Using an explicit absolute path avoids relying on
+    /// SMAppService's $(AppBundlePath) expansion, which fails on some macOS versions.
     private static func installAndStartLaunchAgent() throws {
         let fm = FileManager.default
         let logDir = (fm.homeDirectoryForCurrentUser.path as NSString)
@@ -488,63 +488,74 @@ enum WiredSyncDaemonIPC {
 
         migrateRemoveLegacyLaunchAgent()
 
-        let service = SMAppService.agent(plistName: "\(launchAgentLabel).plist")
-        switch service.status {
-        case .enabled:
-            // If the service is registered but the daemon is not running (e.g. after
-            // an explicit bootout), force SMD to reload it by unregistering and
-            // re-registering. This recovers from the case where launchd lost track
-            // of the service without the SMAppService state being cleared.
-            if !FileManager.default.fileExists(atPath: socketPath) {
-                try? service.unregister()
-                do {
-                    try service.register()
-                } catch {
-                    if service.status == .requiresApproval {
-                        throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
-                            NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
-                        ])
-                    }
-                    throw NSError(domain: "wiredsyncd.ipc", code: 9, userInfo: [
-                        NSLocalizedDescriptionKey: "Failed to re-register wiredsyncd: \(error.localizedDescription)"
-                    ])
-                }
-            }
-        case .requiresApproval:
-            throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
-                NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
+        // Clear any stale SMAppService registration to avoid conflicts with the
+        // new launchctl-based approach.
+        try? SMAppService.agent(plistName: "\(launchAgentLabel).plist").unregister()
+
+        // Boot out any currently running or throttled instance before loading the new plist.
+        _ = try? runExecutable(
+            path: "/bin/launchctl",
+            arguments: ["bootout", "gui/\(getuid())/\(launchAgentLabel)"],
+            allowFailure: true
+        )
+
+        // Write a fresh LaunchAgent plist with the absolute binary path so that
+        // launchd never sees an unexpanded $(AppBundlePath) variable.
+        let daemonPath = Bundle.main.bundlePath + "/Contents/MacOS/wiredsyncd"
+        let launchAgentDir = (fm.homeDirectoryForCurrentUser.path as NSString)
+            .appendingPathComponent("Library/LaunchAgents")
+        try fm.createDirectory(atPath: launchAgentDir, withIntermediateDirectories: true)
+
+        let plistXML = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>\(launchAgentLabel)</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>\(daemonPath)</string>
+            </array>
+            <key>RunAtLoad</key>
+            <true/>
+            <key>KeepAlive</key>
+            <true/>
+            <key>ProcessType</key>
+            <string>Background</string>
+            <key>ThrottleInterval</key>
+            <integer>1</integer>
+        </dict>
+        </plist>
+        """
+        guard let plistData = plistXML.data(using: .utf8) else {
+            throw NSError(domain: "wiredsyncd.ipc", code: 9, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to serialize LaunchAgent plist"
             ])
-        case .notRegistered, .notFound:
-            do {
-                try service.register()
-            } catch {
-                if service.status == .requiresApproval {
-                    throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
-                        NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
-                    ])
-                }
-                throw NSError(domain: "wiredsyncd.ipc", code: 9, userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to register wiredsyncd: \(error.localizedDescription)"
-                ])
-            }
-            if service.status == .requiresApproval {
-                throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
-                    NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
-                ])
-            }
-        @unknown default:
-            break
         }
+        guard fm.createFile(atPath: legacyLaunchAgentPath, contents: plistData) else {
+            throw NSError(domain: "wiredsyncd.ipc", code: 9, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to write LaunchAgent plist to \(legacyLaunchAgentPath)"
+            ])
+        }
+
+        _ = try? runExecutable(
+            path: "/bin/launchctl",
+            arguments: ["bootstrap", "gui/\(getuid())", legacyLaunchAgentPath],
+            allowFailure: true
+        )
+        print("[WiredSyncUI] launchagent.bootstrap daemon=\(daemonPath)")
 
         try waitForDaemonReady()
     }
 
-    /// Removes the old manually-managed LaunchAgent plist and copied binary if they exist.
-    /// Called once on the first launch after migrating to SMAppService.
+    /// Removes the old copied-binary directory if it exists (one-time migration).
+    /// The LaunchAgent plist at legacyLaunchAgentPath is now written by
+    /// installAndStartLaunchAgent() with the current app bundle path, so we must
+    /// NOT remove it here — only the stale binary copy needs to go.
     private static func migrateRemoveLegacyLaunchAgent() {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: legacyLaunchAgentPath) ||
-              fm.fileExists(atPath: legacyDaemonInstallPath) else { return }
+        guard fm.fileExists(atPath: legacyDaemonInstallPath) else { return }
         let domain = "gui/\(getuid())"
         _ = try? runExecutable(path: "/bin/launchctl",
                                arguments: ["bootout", "\(domain)/\(launchAgentLabel)"],
@@ -552,9 +563,8 @@ enum WiredSyncDaemonIPC {
         _ = try? runExecutable(path: "/bin/launchctl",
                                arguments: ["bootout", domain, legacyLaunchAgentPath],
                                allowFailure: true)
-        try? fm.removeItem(atPath: legacyLaunchAgentPath)
         try? fm.removeItem(atPath: legacyDaemonInstallPath)
-        print("[WiredSyncUI] migration.removed_legacy_agent")
+        print("[WiredSyncUI] migration.removed_legacy_daemon_binary")
     }
 
     @discardableResult
@@ -645,9 +655,9 @@ enum WiredSyncDaemonIPC {
     }
 
     /// Gracefully stops the daemon when the user explicitly quits the app.
-    /// Sends a shutdown IPC (allowing the daemon to flush state) then boots it
-    /// out of launchd so KeepAlive does not immediately restart it.
-    /// The next app launch will re-register via SMAppService.
+    /// Sends a shutdown IPC (allowing the daemon to flush state), boots it out of
+    /// launchd, and removes the LaunchAgent plist so KeepAlive does not restart it
+    /// at the next login. The next app launch reinstalls via installAndStartLaunchAgent().
     static func stopDaemonForQuit() {
         _ = try? performRequest(
             ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "shutdown"],
@@ -658,22 +668,21 @@ enum WiredSyncDaemonIPC {
             arguments: ["bootout", "gui/\(getuid())/\(launchAgentLabel)"],
             allowFailure: true
         )
-        // Unregister from SMAppService so SMD does not auto-restart the daemon.
-        // The next app launch re-registers cleanly via installAndStartLaunchAgent().
+        // Remove the plist so launchd does not restart the daemon at next login.
+        try? FileManager.default.removeItem(atPath: legacyLaunchAgentPath)
+        // Also unregister any residual SMAppService entry.
         try? SMAppService.agent(plistName: "\(launchAgentLabel).plist").unregister()
     }
 
-    /// Checks the running daemon version and, if outdated, asks it to shut down so
-    /// launchd's KeepAlive restarts it with the updated binary from the app bundle.
-    /// Also migrates from the legacy launchctl-based setup to SMAppService if needed.
+    /// Checks the running daemon version and restarts it if outdated.
+    /// Also removes any legacy copied-binary artifacts from the old pre-SMAppService setup.
     static func ensureDaemonIsCurrentVersion() {
         Task.detached(priority: .background) {
-            // Proactive migration: if the old manually-managed LaunchAgent plist still
-            // exists, the app was updated from a pre-SMAppService build. Migrate now
-            // regardless of whether the IPC call below succeeds.
-            let fm = FileManager.default
-            let needsMigration = fm.fileExists(atPath: legacyLaunchAgentPath)
-                              || fm.fileExists(atPath: legacyDaemonInstallPath)
+            // Proactive migration: remove the old daemon binary directory if it still
+            // exists (pre-SMAppService build artifact). The plist at legacyLaunchAgentPath
+            // is now actively managed by installAndStartLaunchAgent(), so its presence
+            // is expected and must NOT be treated as a migration trigger.
+            let needsMigration = FileManager.default.fileExists(atPath: legacyDaemonInstallPath)
 
             do {
                 let result = try performRequest(
@@ -688,12 +697,11 @@ enum WiredSyncDaemonIPC {
                         ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "shutdown"],
                         timeoutSeconds: 3
                     )
-                    // Give the old process a moment to exit before SMAppService takes over.
                     try? await Task.sleep(nanoseconds: 500_000_000)
                     try installAndStartLaunchAgent()
                 }
             } catch {
-                // Daemon unreachable — install/register via SMAppService.
+                // Daemon unreachable — install/start via launchctl.
                 try? installAndStartLaunchAgent()
             }
         }
