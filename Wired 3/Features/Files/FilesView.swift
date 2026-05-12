@@ -8,6 +8,7 @@
 
 import SwiftUI
 import WiredSwift
+import KeychainSwift
 import UniformTypeIdentifiers
 import CoreTransferable
 #if os(macOS)
@@ -49,6 +50,8 @@ struct FilesView: View {
     @State var currentDirectoryPath: String = "/"
     @State var isApplyingHistoryNavigation: Bool = false
     @State private var syncActivationNotice: SyncActivationNotice?
+    @State private var pendingSyncDirectory: FileItem?
+    @State private var showSyncLocalFolderPicker: Bool = false
     @State private var pendingDeactivateSyncDirectory: FileItem?
     @State private var showDeactivateSyncConfirmation: Bool = false
     @State private var pairedSyncRemotePaths: Set<String> = []
@@ -512,25 +515,21 @@ struct FilesView: View {
             )
             return
         }
-
-        guard let connection = runtime.connection as? AsyncConnection,
-              let url = connection.url else {
+        guard (runtime.connection as? AsyncConnection)?.url != nil else {
             syncActivationNotice = SyncActivationNotice(
                 title: "Sync Error",
                 message: "No active Wired connection available for sync activation."
             )
             return
         }
+        pendingSyncDirectory = directory
+        showSyncLocalFolderPicker = true
+#endif
+    }
 
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Use Folder"
-        panel.message = "Select the local folder paired with \(directory.path)"
-
-        guard panel.runModal() == .OK, let localURL = panel.url else { return }
-
+    private func finishActivateSync(directory: FileItem, localURL: URL) {
+        guard let connection = runtime.connection as? AsyncConnection,
+              let url = connection.url else { return }
         let currentDirectory = filesViewModel.currentItem(path: directory.path) ?? directory
         guard let mode = effectiveSyncMode(for: currentDirectory) else {
             syncActivationNotice = SyncActivationNotice(
@@ -541,6 +540,12 @@ struct FilesView: View {
         }
         let serverURL = "\(url.hostname):\(url.port)"
         let login = url.login.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Resolve password: prefer url.password (set at connect time), then keychain fallback
+        // using both "login@host:port" and "login@host" formats to handle legacy entries.
+        let keychain = KeychainSwift()
+        let password = url.password.isEmpty
+            ? (keychain.get("\(login)@\(serverURL)") ?? keychain.get("\(login)@\(url.hostname)") ?? "")
+            : url.password
         let deleteRemoteEnabled = shouldEnableRemoteDelete(for: currentDirectory)
 
         Task.detached(priority: .userInitiated) {
@@ -557,7 +562,7 @@ struct FilesView: View {
                     excludePatterns: directory.syncExcludePatterns,
                     serverURL: serverURL,
                     login: login,
-                    password: url.password
+                    password: password
                 )
                 try WiredSyncDaemonIPC.waitForPairRegistration(
                     remotePath: directory.path,
@@ -594,7 +599,6 @@ struct FilesView: View {
                 }
             }
         }
-#endif
     }
 
     private func setLabel(_ label: FileLabelValue, on items: [FileItem]) {
@@ -1088,6 +1092,16 @@ struct FilesView: View {
             case .failure(let error):
                 filesViewModel.error = error
             }
+        }
+        .fileImporter(
+            isPresented: $showSyncLocalFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let localURL = urls.first,
+                  let directory = pendingSyncDirectory else { return }
+            pendingSyncDirectory = nil
+            finishActivateSync(directory: directory, localURL: localURL)
         }
         .sheet(isPresented: $filesViewModel.showCreateFolderSheet) {
             if let selectedFile = selectedDirectoryForUpload {
