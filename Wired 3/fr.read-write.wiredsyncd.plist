@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>fr.read-write.wiredsyncd</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$(AppBundlePath)/Contents/MacOS/wiredsyncd</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>ThrottleInterval</key>
+    <integer>1</integer>
+    <key>StandardOutPath</key>
+    <string>~/Library/Logs/WiredSync/wiredsyncd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>~/Library/Logs/WiredSync/wiredsyncd.err.log</string>
+</dict>
+</plist>

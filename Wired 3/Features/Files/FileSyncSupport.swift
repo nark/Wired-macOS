@@ -1,4 +1,5 @@
 import Foundation
+import ServiceManagement
 import WiredSwift
 #if os(macOS)
 import Darwin
@@ -74,20 +75,11 @@ enum WiredSyncDaemonIPC {
     static let socketPath = (runPath as NSString).appendingPathComponent("wiredsyncd.sock")
     static let configPath = (baseSupportPath as NSString).appendingPathComponent("config.json")
     static let statePath = (baseSupportPath as NSString).appendingPathComponent("state.sqlite")
-    static let daemonInstallPath = (baseSupportPath as NSString).appendingPathComponent("daemon")
-    static let daemonResourcesPath = (daemonInstallPath as NSString).appendingPathComponent("Resources")
-    static let installedDaemonPath = (daemonInstallPath as NSString).appendingPathComponent("wiredsyncd")
     static let launchAgentLabel = "fr.read-write.wiredsyncd"
 
-    private static var wiredSyncApplicationVersion: String? {
-        WiredApplicationInfo.current().version
-    }
-
-    private static var wiredSyncApplicationBuild: String? {
-        WiredApplicationInfo.current().build
-    }
-
-    static let launchAgentPath = (FileManager.default.homeDirectoryForCurrentUser.path as NSString)
+    // Legacy path kept for one-time migration of manually-installed daemon artifacts.
+    private static let legacyDaemonInstallPath = (baseSupportPath as NSString).appendingPathComponent("daemon")
+    private static let legacyLaunchAgentPath = (FileManager.default.homeDirectoryForCurrentUser.path as NSString)
         .appendingPathComponent("Library/LaunchAgents/\(launchAgentLabel).plist")
 
     static let expectedDaemonVersion = "29"
@@ -480,136 +472,71 @@ enum WiredSyncDaemonIPC {
         return fd
     }
 
+    // MARK: - Agent Registration
+
+    /// Registers wiredsyncd as a Login Item via SMAppService (macOS 13+).
+    /// The daemon binary lives in the app bundle at Contents/MacOS/wiredsyncd;
+    /// no binary copying is needed. On first call after an update, any legacy
+    /// manually-managed LaunchAgent artifacts are removed automatically.
     private static func installAndStartLaunchAgent() throws {
         let fm = FileManager.default
-        let launchAgentsDir = (FileManager.default.homeDirectoryForCurrentUser.path as NSString).appendingPathComponent("Library/LaunchAgents")
-        let logDir = (FileManager.default.homeDirectoryForCurrentUser.path as NSString).appendingPathComponent("Library/Logs/WiredSync")
-        try fm.createDirectory(atPath: launchAgentsDir, withIntermediateDirectories: true)
+        let logDir = (fm.homeDirectoryForCurrentUser.path as NSString)
+            .appendingPathComponent("Library/Logs/WiredSync")
         try fm.createDirectory(atPath: logDir, withIntermediateDirectories: true)
         try fm.createDirectory(atPath: runPath, withIntermediateDirectories: true)
-
-        let daemonPath = try installDaemonArtifacts()
         try? fm.removeItem(atPath: socketPath)
-        print("[WiredSyncUI] launchd.install daemon=\(daemonPath) resource_root=\(daemonResourcesPath)")
 
-        var environmentVariables: [String: String] = [
-            "WIRED_SYNCD_RESOURCE_ROOT": daemonResourcesPath,
-            "WIRED_APPLICATION_NAME": "wiredsyncd"
-        ]
-        if let version = wiredSyncApplicationVersion {
-            environmentVariables["WIRED_APPLICATION_VERSION"] = version
+        migrateRemoveLegacyLaunchAgent()
+
+        let service = SMAppService.agent(plistName: "\(launchAgentLabel).plist")
+        switch service.status {
+        case .enabled:
+            break
+        case .requiresApproval:
+            throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
+                NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
+            ])
+        case .notRegistered, .notFound:
+            do {
+                try service.register()
+            } catch {
+                if service.status == .requiresApproval {
+                    throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
+                        NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
+                    ])
+                }
+                throw NSError(domain: "wiredsyncd.ipc", code: 9, userInfo: [
+                    NSLocalizedDescriptionKey: "Failed to register wiredsyncd: \(error.localizedDescription)"
+                ])
+            }
+            if service.status == .requiresApproval {
+                throw NSError(domain: "wiredsyncd.ipc", code: 12, userInfo: [
+                    NSLocalizedDescriptionKey: "Open System Settings → General → Login Items and enable Wired Sync to allow background syncing."
+                ])
+            }
+        @unknown default:
+            break
         }
-        if let build = wiredSyncApplicationBuild {
-            environmentVariables["WIRED_APPLICATION_BUILD"] = build
-        }
 
-        let plist: [String: Any] = [
-            "Label": launchAgentLabel,
-            "ProgramArguments": [daemonPath],
-            "RunAtLoad": true,
-            "KeepAlive": true,
-            "WorkingDirectory": daemonInstallPath,
-            "EnvironmentVariables": environmentVariables,
-            "StandardOutPath": (logDir as NSString).appendingPathComponent("wiredsyncd.out.log"),
-            "StandardErrorPath": (logDir as NSString).appendingPathComponent("wiredsyncd.err.log"),
-            "ProcessType": "Background",
-            "ThrottleInterval": 1
-        ]
-
-        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-        try data.write(to: URL(fileURLWithPath: launchAgentPath), options: .atomic)
-
-        let domain = "gui/\(getuid())"
-        _ = try runLaunchctl(arguments: ["bootout", "\(domain)/\(launchAgentLabel)"], allowFailure: true)
-        _ = try runLaunchctl(arguments: ["bootout", domain, launchAgentPath], allowFailure: true)
-        _ = try runLaunchctl(arguments: ["enable", "\(domain)/\(launchAgentLabel)"], allowFailure: true)
-        _ = try runLaunchctl(arguments: ["bootstrap", domain, launchAgentPath], allowFailure: false)
         try waitForDaemonReady()
     }
 
-    private static func installDaemonArtifacts() throws -> String {
+    /// Removes the old manually-managed LaunchAgent plist and copied binary if they exist.
+    /// Called once on the first launch after migrating to SMAppService.
+    private static func migrateRemoveLegacyLaunchAgent() {
         let fm = FileManager.default
-        try fm.createDirectory(atPath: daemonInstallPath, withIntermediateDirectories: true)
-        try fm.createDirectory(atPath: daemonResourcesPath, withIntermediateDirectories: true)
-
-        let sourceBinaryPath = try resolveBundledDaemonExecutablePath()
-        try installFile(from: sourceBinaryPath, to: installedDaemonPath, executable: true)
-
-        if let resourcePath = resolveBundledDaemonResourcePath() {
-            let installedResourcePath = (daemonResourcesPath as NSString).appendingPathComponent("wired.xml")
-            try installFile(from: resourcePath, to: installedResourcePath, executable: false)
-        }
-
-        return installedDaemonPath
-    }
-
-    private static func installFile(from sourcePath: String, to destinationPath: String, executable: Bool) throws {
-        let fm = FileManager.default
-        let tempPath = destinationPath + ".tmp"
-        try? fm.removeItem(atPath: tempPath)
-        if fm.fileExists(atPath: destinationPath) {
-            try fm.removeItem(atPath: destinationPath)
-        }
-        try fm.copyItem(atPath: sourcePath, toPath: tempPath)
-        if executable {
-            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tempPath)
-        } else {
-            try fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: tempPath)
-        }
-        try fm.moveItem(atPath: tempPath, toPath: destinationPath)
-    }
-
-    private static func resolveBundledDaemonExecutablePath() throws -> String {
-        let fm = FileManager.default
-        let env = ProcessInfo.processInfo.environment
-
-        var candidates: [String] = []
-        if let fromEnv = env["WIRED_SYNCD_PATH"], !fromEnv.isEmpty {
-            candidates.append(fromEnv)
-        }
-        if let aux = Bundle.main.url(forAuxiliaryExecutable: "wiredsyncd")?.path {
-            candidates.append(aux)
-        }
-        candidates.append((Bundle.main.bundlePath as NSString).appendingPathComponent("Contents/MacOS/wiredsyncd"))
-        candidates.append((FileManager.default.currentDirectoryPath as NSString).appendingPathComponent("wiredsyncd/.build/debug/wiredsyncd"))
-        candidates.append((FileManager.default.currentDirectoryPath as NSString).appendingPathComponent("wiredsyncd/.build/release/wiredsyncd"))
-        candidates.append((NSHomeDirectory() as NSString).appendingPathComponent(".local/bin/wiredsyncd"))
-        candidates.append("/opt/homebrew/bin/wiredsyncd")
-        candidates.append("/usr/local/bin/wiredsyncd")
-
-        for candidate in candidates {
-            if fm.fileExists(atPath: candidate), fm.isExecutableFile(atPath: candidate) {
-                return candidate
-            }
-        }
-
-        throw NSError(
-            domain: "wiredsyncd.ipc",
-            code: 8,
-            userInfo: [NSLocalizedDescriptionKey: "Unable to locate wiredsyncd executable. Set WIRED_SYNCD_PATH or install wiredsyncd in PATH."]
-        )
-    }
-
-    private static func resolveBundledDaemonResourcePath() -> String? {
-        let fm = FileManager.default
-        let candidates: [String?] = [
-            WiredProtocolSpec.bundledSpecURL()?.path,
-            (Bundle.main.bundlePath as NSString).appendingPathComponent("Contents/Resources/wired.xml"),
-            (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent("WiredSwift/Sources/WiredSwift/Resources/wired.xml")
-        ]
-
-        for candidate in candidates.compactMap({ $0 }) {
-            if fm.fileExists(atPath: candidate) {
-                return candidate
-            }
-        }
-
-        return nil
-    }
-
-    @discardableResult
-    private static func runLaunchctl(arguments: [String], allowFailure: Bool) throws -> String {
-        try runExecutable(path: "/bin/launchctl", arguments: arguments, allowFailure: allowFailure)
+        guard fm.fileExists(atPath: legacyLaunchAgentPath) ||
+              fm.fileExists(atPath: legacyDaemonInstallPath) else { return }
+        let domain = "gui/\(getuid())"
+        _ = try? runExecutable(path: "/bin/launchctl",
+                               arguments: ["bootout", "\(domain)/\(launchAgentLabel)"],
+                               allowFailure: true)
+        _ = try? runExecutable(path: "/bin/launchctl",
+                               arguments: ["bootout", domain, legacyLaunchAgentPath],
+                               allowFailure: true)
+        try? fm.removeItem(atPath: legacyLaunchAgentPath)
+        try? fm.removeItem(atPath: legacyDaemonInstallPath)
+        print("[WiredSyncUI] migration.removed_legacy_agent")
     }
 
     @discardableResult
@@ -699,8 +626,18 @@ enum WiredSyncDaemonIPC {
         )
     }
 
+    /// Checks the running daemon version and, if outdated, asks it to shut down so
+    /// launchd's KeepAlive restarts it with the updated binary from the app bundle.
+    /// Also migrates from the legacy launchctl-based setup to SMAppService if needed.
     static func ensureDaemonIsCurrentVersion() {
         Task.detached(priority: .background) {
+            // Proactive migration: if the old manually-managed LaunchAgent plist still
+            // exists, the app was updated from a pre-SMAppService build. Migrate now
+            // regardless of whether the IPC call below succeeds.
+            let fm = FileManager.default
+            let needsMigration = fm.fileExists(atPath: legacyLaunchAgentPath)
+                              || fm.fileExists(atPath: legacyDaemonInstallPath)
+
             do {
                 let result = try performRequest(
                     ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "status"],
@@ -708,21 +645,19 @@ enum WiredSyncDaemonIPC {
                 )
                 let data = result["result"] as? [String: Any]
                 let runningVersion = data?["version"] as? String ?? ""
-                guard runningVersion != expectedDaemonVersion else { return }
-                print("[WiredSyncUI] daemon.version_mismatch running=\(runningVersion) expected=\(expectedDaemonVersion) – reinstalling")
-            } catch {
-                let fm = FileManager.default
-                guard fm.fileExists(atPath: launchAgentPath) || fm.fileExists(atPath: installedDaemonPath) else {
-                    return
+                if runningVersion != expectedDaemonVersion || needsMigration {
+                    print("[WiredSyncUI] daemon.update_or_migrate running=\(runningVersion) expected=\(expectedDaemonVersion) needsMigration=\(needsMigration)")
+                    _ = try? performRequest(
+                        ["jsonrpc": "2.0", "id": UUID().uuidString, "method": "shutdown"],
+                        timeoutSeconds: 3
+                    )
+                    // Give the old process a moment to exit before SMAppService takes over.
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    try installAndStartLaunchAgent()
                 }
-                print("[WiredSyncUI] daemon.status_unavailable expected=\(expectedDaemonVersion) error=\(error.localizedDescription) – reinstalling")
-            }
-
-            do {
-                try installAndStartLaunchAgent()
-                print("[WiredSyncUI] daemon.version_update_ok version=\(expectedDaemonVersion)")
             } catch {
-                print("[WiredSyncUI] daemon.version_update_failed error=\(error.localizedDescription)")
+                // Daemon unreachable — install/register via SMAppService.
+                try? installAndStartLaunchAgent()
             }
         }
     }
