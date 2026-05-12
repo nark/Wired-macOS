@@ -75,3 +75,39 @@ jobs:
             - Sois concis : pas de paraphrase du diff, va aux points qui
               comptent.
             - Termine par un petit mot positif pour l'auteur.
+
+            **Verdict final — OBLIGATOIRE** :
+            La toute dernière ligne de ton commentaire doit être un marqueur HTML
+            invisible donnant ton verdict global, exactement dans ce format :
+
+            `<!-- claude-verdict: ok -->` si aucun élément bloquant ni à corriger.
+            `<!-- claude-verdict: nits -->` si tu as uniquement des suggestions / nits.
+            `<!-- claude-verdict: blocking -->` si tu as identifié ≥ 1 bloqueur 🔴
+            (sécurité, sandbox cassée, fuite de données, bug clair).
+
+            Ce marqueur est lu par un script qui pose un label sur la PR. Si tu
+            l'oublies, aucun label ne sera posé.
+
+      - name: Apply Claude verdict label
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          verdict=$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate \
+            --jq '[.[] | select(.body | test("claude-verdict:"))] | last | .body' \
+            | grep -oE 'claude-verdict:[[:space:]]*(ok|nits|blocking)' \
+            | awk '{print $NF}' \
+            | tail -1 || true)
+          echo "Detected verdict: '${verdict:-<none>}'"
+          for label in "claude: ✅ ok" "claude: 🟡 nits" "claude: 🔴 blocking"; do
+            gh pr edit "$PR" --repo "$REPO" --remove-label "$label" 2>/dev/null || true
+          done
+          case "${verdict:-}" in
+            ok)       gh pr edit "$PR" --repo "$REPO" --add-label "claude: ✅ ok" ;;
+            nits)     gh pr edit "$PR" --repo "$REPO" --add-label "claude: 🟡 nits" ;;
+            blocking) gh pr edit "$PR" --repo "$REPO" --add-label "claude: 🔴 blocking" ;;
+            *)        echo "No verdict found in Claude comments — no label applied." ;;
+          esac
