@@ -253,21 +253,21 @@ private struct SyncStatusInfo {
     static func from(_ status: SyncPairStatusDisplay) -> SyncStatusInfo {
         switch status {
         case .hidden, .inactive:
-            return .init(label: NSLocalizedString("Inactive", comment: ""),     icon: "link.circle",                        color: .secondary, spinning: false)
+            return .init(label: NSLocalizedString("Inactive", comment: ""), icon: "link.circle", color: .secondary, spinning: false)
         case .checking:
-            return .init(label: NSLocalizedString("Checking…", comment: ""),    icon: "",                                   color: .secondary, spinning: true)
+            return .init(label: NSLocalizedString("Checking…", comment: ""), icon: "", color: .secondary, spinning: true)
         case .paused:
-            return .init(label: NSLocalizedString("Paused", comment: ""),       icon: "pause.circle.fill",                  color: .orange,    spinning: false)
+            return .init(label: NSLocalizedString("Paused", comment: ""), icon: "pause.circle.fill", color: .orange, spinning: false)
         case .connecting:
-            return .init(label: NSLocalizedString("Connecting…", comment: ""),  icon: "",                                   color: .blue,      spinning: true)
+            return .init(label: NSLocalizedString("Connecting…", comment: ""), icon: "", color: .blue, spinning: true)
         case .connected:
-            return .init(label: NSLocalizedString("Connected", comment: ""),    icon: "checkmark.circle.fill",              color: .green,     spinning: false)
+            return .init(label: NSLocalizedString("Connected", comment: ""), icon: "checkmark.circle.fill", color: .green, spinning: false)
         case .syncing:
-            return .init(label: NSLocalizedString("Syncing…", comment: ""),     icon: "",                                   color: .blue,      spinning: true)
+            return .init(label: NSLocalizedString("Syncing…", comment: ""), icon: "", color: .blue, spinning: true)
         case .reconnecting:
-            return .init(label: NSLocalizedString("Reconnecting", comment: ""), icon: "",                                   color: .orange,    spinning: true)
+            return .init(label: NSLocalizedString("Reconnecting", comment: ""), icon: "", color: .orange, spinning: true)
         case .error:
-            return .init(label: NSLocalizedString("Error", comment: ""),        icon: "exclamationmark.triangle.fill",      color: .red,       spinning: false)
+            return .init(label: NSLocalizedString("Error", comment: ""), icon: "exclamationmark.triangle.fill", color: .red, spinning: false)
         }
     }
 }
@@ -279,13 +279,13 @@ private struct SyncModeLabel {
     static func from(_ mode: SyncModeValue) -> SyncModeLabel {
         switch mode {
         case .disabled:
-            return .init(title: NSLocalizedString("Disabled", comment: ""),        icon: "slash.circle")
+            return .init(title: NSLocalizedString("Disabled", comment: ""), icon: "slash.circle")
         case .serverToClient:
             return .init(title: NSLocalizedString("Server → Client", comment: ""), icon: "arrow.down.circle")
         case .clientToServer:
             return .init(title: NSLocalizedString("Client → Server", comment: ""), icon: "arrow.up.circle")
         case .bidirectional:
-            return .init(title: NSLocalizedString("Bidirectional", comment: ""),   icon: "arrow.2.circlepath")
+            return .init(title: NSLocalizedString("Bidirectional", comment: ""), icon: "arrow.2.circlepath")
         }
     }
 }

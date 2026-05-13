@@ -14,7 +14,7 @@ struct PostActionButton: View {
     var destructive: Bool = false
     let action: () -> Void
     @State private var isHovering = false
-    
+
     var body: some View {
         Button(action: action) {
             Label(label, systemImage: icon)

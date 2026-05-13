@@ -16,7 +16,6 @@ import UIKit
 public typealias BoardsPlatformImage = UIImage
 #endif
 
-
 private struct FlattenedBoardRow: Identifiable {
     let board: Board
     let depth: Int
@@ -1023,7 +1022,7 @@ struct BoardsView: View {
                                         }
                                     }
                                     .disabled(!canMarkBoardRead)
-                                    
+
                                     Button {
                                         runtime.markThreadsAsUnread(boardThreads)
                                     } label: {
@@ -1435,7 +1434,7 @@ struct BoardsView: View {
                         }
                     }
                     Divider()
-                    
+
                     if canEditThread(thread) {
                         Button { threadToEdit = thread } label: {
                             Label {
@@ -1445,7 +1444,7 @@ struct BoardsView: View {
                             }
                         }
                     }
-                    
+
                     if runtime.hasPrivilege("wired.account.board.move_threads") {
                         Button { threadToMove = thread } label: {
                             Label {
@@ -1455,7 +1454,7 @@ struct BoardsView: View {
                             }
                         }
                     }
-                    
+
                     if canDeleteThread(thread) {
                         Button(role: .destructive) { threadToDelete = thread } label: {
                             Label {
@@ -1520,7 +1519,7 @@ struct BoardsView: View {
                                         Image(systemName: "checkmark")
                                     }
                                 }
-                                
+
                                 Divider()
                                 if canEditThread(thread) {
                                     Button { threadToEdit = thread } label: {
