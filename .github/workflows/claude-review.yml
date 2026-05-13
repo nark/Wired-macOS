@@ -1,7 +1,7 @@
 name: Claude PR Review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -14,17 +14,21 @@ jobs:
       issues: write
       id-token: write
     steps:
+      # SECURITY NOTE: with pull_request_target, this workflow runs in the base
+      # repo context (secrets available). We check out the fork's head SHA so
+      # Claude can read the diff, but we never execute scripts from that code.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Claude Review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          model: claude-sonnet-4-6
-          mode: review
-          direct_prompt: |
+          claude_args: "--model claude-sonnet-4-6"
+          prompt: |
             Tu es le relecteur officiel de **Wired Client** — le client macOS
             natif du protocole Wired (chats, boards, fichiers, bookmarks, admin)
             et son daemon de synchronisation `wiredsyncd`. La couche protocole
