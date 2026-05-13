@@ -27,6 +27,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          use_sticky_comment: "true"
+          track_progress: "true"
           claude_args: "--model claude-sonnet-4-6"
           prompt: |
             Tu es le relecteur officiel de **Wired Client** — le client macOS
@@ -91,6 +94,15 @@ jobs:
 
             Ce marqueur est lu par un script qui pose un label sur la PR. Si tu
             l'oublies, aucun label ne sera posé.
+
+            **COMMENT POSTER TA REVIEW — INSTRUCTION TECHNIQUE OBLIGATOIRE** :
+            Une fois ton analyse terminée, tu DOIS publier ta review en appelant
+            l'outil `mcp__github_comment__update_claude_comment` une seule fois,
+            avec ton texte complet (sections 🔴/🟡/💡/✨ + mot positif + marqueur
+            `<!-- claude-verdict: ... -->` en dernière ligne) en argument `body`.
+            N'utilise aucun autre outil pour commenter. Si tu n'appelles pas cet
+            outil, ta review n'apparaîtra nulle part — c'est la seule façon que
+            l'utilisateur final voie ton retour.
 
       - name: Apply Claude verdict label
         if: always()
