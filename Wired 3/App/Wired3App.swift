@@ -55,6 +55,7 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
 
         guard !activeConnectionIDs.isEmpty || hasActiveTransfers else {
             transferManager.prepareForTermination()
+            askToStopDaemonIfNeeded()
             return .terminateNow
         }
 
@@ -87,11 +88,27 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
                 connectionController?.disconnectAll()
             }
             transferManager.prepareForTermination()
+            askToStopDaemonIfNeeded()
             return .terminateNow
         case .alertSecondButtonReturn:
             return .terminateCancel
         default:
             return .terminateCancel
+        }
+    }
+
+    @MainActor
+    private func askToStopDaemonIfNeeded() {
+        guard FileManager.default.fileExists(atPath: WiredSyncDaemonIPC.socketPath) else { return }
+        let alert = NSAlert()
+        alert.messageText = NSLocalizedString("Keep Wired Sync running in the background?", comment: "")
+        alert.informativeText = NSLocalizedString(
+            "The sync service can continue running in the background even when Wired Client is closed.",
+            comment: "")
+        alert.addButton(withTitle: NSLocalizedString("Keep Running", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Stop Service", comment: ""))
+        if alert.runModal() == .alertSecondButtonReturn {
+            WiredSyncDaemonIPC.stopDaemonForQuit()
         }
     }
 }
@@ -196,7 +213,6 @@ private struct MainAppCommands: Commands {
 
             Divider()
         }
-
 
         CommandMenu("Find") {
             Button("Find") {

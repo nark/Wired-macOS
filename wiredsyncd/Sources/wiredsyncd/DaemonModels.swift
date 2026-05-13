@@ -233,4 +233,3 @@ struct UploadedItemSnapshot {
     let size: UInt64
     let modificationTime: TimeInterval
 }
-

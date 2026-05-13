@@ -457,4 +457,3 @@ func runServer() throws {
     engine.stop()
     unlink(paths.socketPath.path)
 }
-

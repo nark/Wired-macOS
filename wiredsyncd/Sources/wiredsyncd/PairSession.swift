@@ -366,4 +366,3 @@ final class PairSession {
         return timedOut
     }
 }
-
