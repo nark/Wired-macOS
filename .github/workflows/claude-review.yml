@@ -115,12 +115,30 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          verdict=$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate \
-            --jq '[.[] | select(.body | test("claude-verdict:"))] | last | .body' \
+          # Find the most recent comment likely to be Claude's review.
+          body=$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate \
+            --jq '[.[] | select(.user.login=="github-actions[bot]" or .user.login=="claude[bot]" or (.body|test("claude-verdict:")))] | last | .body // ""')
+
+          # 1. Preferred: explicit verdict marker.
+          verdict=$(printf '%s' "$body" \
             | grep -oE 'claude-verdict:[[:space:]]*(ok|nits|blocking)' \
             | awk '{print $NF}' \
             | tail -1 || true)
+
+          # 2. Fallback: scan the body for severity headers Claude actually wrote.
+          #    Conservative ordering: blocking wins over nits wins over ok.
+          if [ -z "${verdict:-}" ] && [ -n "$body" ]; then
+            if printf '%s' "$body" | grep -qE '🔴|(^|\n)#+ *Blocking\b|\*\*Blocking\*\*'; then
+              verdict=blocking
+            elif printf '%s' "$body" | grep -qE '🟡|(^|\n)#+ *Should fix\b|\*\*Should fix\*\*'; then
+              verdict=nits
+            else
+              verdict=ok
+            fi
+            echo "Fallback verdict (no explicit marker): $verdict"
+          fi
           echo "Detected verdict: '${verdict:-<none>}'"
+
           for label in "claude: ✅ ok" "claude: 🟡 nits" "claude: 🔴 blocking"; do
             gh pr edit "$PR" --repo "$REPO" --remove-label "$label" 2>/dev/null || true
           done
@@ -128,5 +146,5 @@ jobs:
             ok)       gh pr edit "$PR" --repo "$REPO" --add-label "claude: ✅ ok" ;;
             nits)     gh pr edit "$PR" --repo "$REPO" --add-label "claude: 🟡 nits" ;;
             blocking) gh pr edit "$PR" --repo "$REPO" --add-label "claude: 🔴 blocking" ;;
-            *)        echo "No verdict found in Claude comments — no label applied." ;;
+            *)        echo "No verdict could be determined — no label applied." ;;
           esac
