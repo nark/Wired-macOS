@@ -265,10 +265,31 @@ struct ChatUsersList: View {
 
             List(selection: $selectedOfflineLogin) {
                 ForEach(offlineUsers) { offlineUser in
-                    Text(offlineUser.nick)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        if let icon = offlineUser.icon,
+                           let img = Image(data: icon) {
+                            img.resizable().frame(width: 32, height: 32)
+                        } else {
+                            Image(systemName: "person.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 32, height: 32)
+                                .foregroundStyle(.secondary)
+                        }
+                        VStack(alignment: .leading) {
+                            Text(offlineUser.nick)
+                                .foregroundStyle(.secondary)
+                            if let status = offlineUser.status,
+                               !status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text(status)
+                                    .foregroundStyle(.tertiary)
+                                    .font(.caption2)
+                            }
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .tag(offlineUser.login)
+                    }
+                    .listRowSeparator(.hidden)
+                    .tag(offlineUser.login)
                 }
             }
             .contextMenu(forSelectionType: String.self) { selection in

@@ -1234,9 +1234,9 @@ final class ConnectionRuntime: Identifiable {
         persistMessages()
     }
 
-    func receiveOfflineUserList(login: String, nick: String?) {
+    func receiveOfflineUserList(login: String, nick: String?, status: String?, icon: Data?) {
         guard !offlineUsers.contains(where: { $0.login == login }) else { return }
-        offlineUsers.append(OfflineUser(login: login, nick: nick))
+        offlineUsers.append(OfflineUser(login: login, nick: nick, status: status, icon: icon))
         offlineUsers.sort { $0.nick.localizedCaseInsensitiveCompare($1.nick) == .orderedAscending }
     }
 
