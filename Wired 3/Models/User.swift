@@ -163,12 +163,16 @@ struct TransferDisplaySnapshot {
 final class OfflineUser: Identifiable {
     let login: String
     var nick: String
+    var status: String?
+    var icon: Data?
 
     var id: String { login }
 
-    init(login: String, nick: String? = nil) {
+    init(login: String, nick: String? = nil, status: String? = nil, icon: Data? = nil) {
         self.login = login
         self.nick = nick ?? login
+        self.status = status
+        self.icon = icon
     }
 }
 
