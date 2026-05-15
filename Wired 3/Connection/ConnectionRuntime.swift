@@ -337,6 +337,7 @@ private extension String {
     }
 }
 
+// swiftlint:disable type_body_length
 @Observable
 @MainActor
 final class ConnectionRuntime: Identifiable {
@@ -1233,9 +1234,9 @@ final class ConnectionRuntime: Identifiable {
         persistMessages()
     }
 
-    func receiveOfflineUserList(login: String, nick: String?) {
+    func receiveOfflineUserList(login: String, nick: String?, status: String?, icon: Data?) {
         guard !offlineUsers.contains(where: { $0.login == login }) else { return }
-        offlineUsers.append(OfflineUser(login: login, nick: nick))
+        offlineUsers.append(OfflineUser(login: login, nick: nick, status: status, icon: icon))
         offlineUsers.sort { $0.nick.localizedCaseInsensitiveCompare($1.nick) == .orderedAscending }
     }
 
@@ -3465,3 +3466,4 @@ final class ConnectionRuntime: Identifiable {
         return error
     }
 }
+// swiftlint:enable type_body_length
