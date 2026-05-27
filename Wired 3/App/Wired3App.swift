@@ -993,6 +993,7 @@ struct Wired3App: App {
                 .environment(errorToastCenter)
                 .environmentObject(transfers)
         }
+        .windowResizability(.contentSize)
         .wiredDisableRestorationBehaviorIfAvailable()
         .modelContainer(sharedModelContainer)
         .commands {
@@ -1067,7 +1068,7 @@ private struct AppRootView: View {
         MainView()
             .environment(trackerBrowser)
 #if os(macOS)
-            .frame(minWidth: 1400, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity, alignment: .topLeading)
+            .frame(minWidth: 900, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity, alignment: .topLeading)
 #else
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
 #endif
