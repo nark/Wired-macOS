@@ -260,4 +260,3 @@ final class SQLiteStore {
         sqlite3_errmsg(db).map { String(cString: $0) } ?? "sqlite error"
     }
 }
-

@@ -46,7 +46,7 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let transferManager else {
-            return .terminateNow
+            return daemonAwareTerminate()
         }
 
         let checkConnectionsBeforeClose = UserDefaults.standard.object(forKey: "CheckActiveConnectionsBeforeClosingWindowTab") as? Bool ?? true
@@ -55,7 +55,7 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
 
         guard !activeConnectionIDs.isEmpty || hasActiveTransfers else {
             transferManager.prepareForTermination()
-            return .terminateNow
+            return daemonAwareTerminate()
         }
 
         let alert = NSAlert()
@@ -87,9 +87,36 @@ final class AppTerminationDelegate: NSObject, NSApplicationDelegate {
                 connectionController?.disconnectAll()
             }
             transferManager.prepareForTermination()
-            return .terminateNow
+            return daemonAwareTerminate()
         case .alertSecondButtonReturn:
             return .terminateCancel
+        default:
+            return .terminateCancel
+        }
+    }
+
+    @MainActor
+    private func daemonAwareTerminate() -> NSApplication.TerminateReply {
+        guard WiredSyncDaemonIPC.isDaemonRunning() else {
+            return .terminateNow
+        }
+
+        let alert = NSAlert()
+        alert.messageText = NSLocalizedString("Sync Daemon Is Running", comment: "")
+        alert.informativeText = NSLocalizedString(
+            "The sync daemon continues running in the background after you quit. Do you want to quit the app only, or also stop the daemon?",
+            comment: "")
+        alert.addButton(withTitle: NSLocalizedString("Quit Only", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Stop Daemon", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
+        alert.alertStyle = .informational
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return .terminateNow
+        case .alertSecondButtonReturn:
+            WiredSyncDaemonIPC.stopDaemon()
+            return .terminateNow
         default:
             return .terminateCancel
         }
@@ -196,7 +223,6 @@ private struct MainAppCommands: Commands {
 
             Divider()
         }
-
 
         CommandMenu("Find") {
             Button("Find") {
@@ -967,6 +993,7 @@ struct Wired3App: App {
                 .environment(errorToastCenter)
                 .environmentObject(transfers)
         }
+        .windowResizability(.contentSize)
         .wiredDisableRestorationBehaviorIfAvailable()
         .modelContainer(sharedModelContainer)
         .commands {
@@ -1041,7 +1068,7 @@ private struct AppRootView: View {
         MainView()
             .environment(trackerBrowser)
 #if os(macOS)
-            .frame(minWidth: 1400, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity, alignment: .topLeading)
+            .frame(minWidth: 900, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity, alignment: .topLeading)
 #else
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
 #endif

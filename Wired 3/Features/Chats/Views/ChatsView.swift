@@ -131,7 +131,7 @@ struct ChatsView: View {
                                             joinAtLoginMenuLabel(for: chat)
                                         }
                                     }
-                                    
+
                                     Divider()
 
                                     // TODO: add `wired.account.chat.edit_public_chats` message ?

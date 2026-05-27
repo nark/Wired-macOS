@@ -1952,8 +1952,10 @@ final class ConnectionController {
         case "wired.user.offline_list":
             if let login = message.string(forField: "wired.message.offline.recipient_login") {
                 let nick = message.string(forField: "wired.user.nick")
+                let status = message.string(forField: "wired.user.status")
+                let icon = message.data(forField: "wired.user.icon")
                 await MainActor.run {
-                    runtime.receiveOfflineUserList(login: login, nick: nick)
+                    runtime.receiveOfflineUserList(login: login, nick: nick, status: status, icon: icon)
                 }
             }
 

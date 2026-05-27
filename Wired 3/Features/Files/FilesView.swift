@@ -1016,9 +1016,15 @@ struct FilesView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         let count = filesViewModel.columns.first?.items.count ?? 0
-                        Text("\(count) result\(count == 1 ? "" : "s") for \u{201C}\(filesViewModel.searchText)\u{201D}")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Group {
+                            if count == 1 {
+                                Text("1 result for \"\(filesViewModel.searchText)\"")
+                            } else {
+                                Text("\(count) results for \"\(filesViewModel.searchText)\"")
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                     Spacer()
                 }
@@ -1036,9 +1042,9 @@ struct FilesView: View {
             case .columns:
                 columnsContent
             }
-            
+
             Divider()
-            
+
             HStack {
                 FilesBreadcrumb(
                     currentPath: breadcrumbPath,
@@ -1050,7 +1056,7 @@ struct FilesView: View {
                     }
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 FilesServerInfos()
             }
             .frame(height: 40)

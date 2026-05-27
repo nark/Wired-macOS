@@ -57,7 +57,7 @@ private final class QuickLookTableView: NSTableView {
     }
 }
 
-fileprivate enum RemoteDropOperationBadgeKind {
+private enum RemoteDropOperationBadgeKind {
     case move
     case link
 
